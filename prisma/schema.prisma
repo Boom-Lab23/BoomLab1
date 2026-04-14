@@ -1,0 +1,318 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  image        String?
+  role         UserRole  @default(CONSULTANT)
+  googleCalId      String?
+  sessions         Session[]
+  accounts         Account[]
+  channelsCreated    Channel[]         @relation("ChannelCreator")
+  subChannelsCreated SubChannel[]      @relation("SubChannelCreator")
+  channelMembers     ChannelMember[]
+  subChannelMembers  SubChannelMember[]
+  messages           Message[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Client {
+  id               String       @id @default(cuid())
+  name             String
+  ceo              String?
+  email            String?
+  phone            String?
+  coreBusiness     String?
+  composition      String?
+  painPoints       String?
+  projectDuration  String?
+  projectStart     DateTime?
+  projectEnd       DateTime?
+  status           ClientStatus @default(FECHADO)
+  offer            String[]
+  risk             Risk?
+  csat             Int?
+  ticket           Float?
+  billing          Float?
+  expectations     String?
+  otherInfo        String?
+  salesConsulting  Boolean      @default(false)
+  dashboardReview Boolean      @default(false)
+  slackChannelId  String?                  // Canal Slack do cliente
+  sessions         Session[]
+  documents        Document[]
+  recordings       Recording[]
+  channels         Channel[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model Session {
+  id               String        @id @default(cuid())
+  title            String
+  module           String
+  topic            String?
+  date             DateTime?
+  status           SessionStatus @default(POR_AGENDAR)
+  evaluation       Int?
+  assignedToId     String?
+  assignedTo       User?         @relation(fields: [assignedToId], references: [id])
+  clientId         String
+  client           Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  firefliesId      String?       @unique
+  firefliesSummary String?       @db.Text
+  firefliesNotes   String?       @db.Text
+  actionItems      Json?
+  actionPlan       Json?                   // Plano de acao estruturado gerado pela IA
+  actionPlanSentAt DateTime?               // Quando foi enviado via Slack
+  aiAnalysis       Json?                   // Analise IA completa da reuniao
+  aiScore          Int?                    // Score 0-100 da reuniao
+  calendarEventId  String?
+  notes            String?       @db.Text
+  slackChannelId   String?                 // Canal Slack do cliente
+  recordings       Recording[]
+  documents        Document[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model Recording {
+  id          String        @id @default(cuid())
+  title       String
+  type        RecordingType @default(CALL)
+  duration    Int?
+  fileUrl     String
+  fileSize    Int?
+  transcript  String?       @db.Text
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sessionId   String?
+  session     Session?      @relation(fields: [sessionId], references: [id])
+  aiAnalysis  Json?
+  aiScore     Float?
+  scriptName  String?
+  analyzedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Document {
+  id             String    @id @default(cuid())
+  title          String
+  pillar         String
+  googleDocsId   String?   @unique
+  googleDocsUrl  String?
+  lastSyncedAt   DateTime?
+  clientId       String?
+  client         Client?   @relation(fields: [clientId], references: [id])
+  sessionId      String?
+  session        Session?  @relation(fields: [sessionId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model AIScript {
+  id        String   @id @default(cuid())
+  name      String
+  pillar    String
+  content   String   @db.Text
+  criteria  Json
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum UserRole {
+  ADMIN
+  CONSULTANT
+  MANAGER
+}
+
+enum ClientStatus {
+  FECHADO
+  COBRADO
+  PRE_ARRANQUE
+  LEVANTAMENTO
+  APRESENTACAO_TIMELINE
+  ATIVO
+  INATIVO
+  PROJETO_FINALIZADO
+}
+
+enum SessionStatus {
+  POR_AGENDAR
+  MARCADA
+  AGUARDAR_CONFIRMACAO
+  REAGENDADA
+  FALTOU
+  CANCELADA
+  CONCLUIDA
+}
+
+enum Risk {
+  BAIXO
+  MEDIO
+  ALTO
+}
+
+enum RecordingType {
+  CALL
+  MEETING
+}
+
+// ==========================================
+// MESSAGING PLATFORM (BoomLab - Slack-like)
+// ==========================================
+
+// Top-level workspace channel (one per client, plus internal team channels)
+model Channel {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  type        ChannelType   @default(CLIENT)
+  icon        String?                       // Emoji or image URL
+  clientId    String?
+  client      Client?       @relation(fields: [clientId], references: [id])
+  createdById String
+  createdBy   User          @relation("ChannelCreator", fields: [createdById], references: [id])
+  members     ChannelMember[]
+  subChannels SubChannel[]
+  messages    Message[]
+  isArchived  Boolean       @default(false)
+  isPrivate   Boolean       @default(false) // Private = invite only
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+// Sub-channels within a channel (like Slack sections/sub-channels)
+model SubChannel {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  channelId   String
+  channel     Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User          @relation("SubChannelCreator", fields: [createdById], references: [id])
+  members     SubChannelMember[]
+  messages    Message[]
+  isPrivate   Boolean       @default(false) // Restrict within the channel
+  isArchived  Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+// Member of a top-level channel with permissions
+model ChannelMember {
+  id          String            @id @default(cuid())
+  channelId   String
+  channel     Channel           @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User              @relation(fields: [userId], references: [id])
+  role        ChannelRole       @default(MEMBER)
+  permissions ChannelPermission[]
+  lastReadAt  DateTime          @default(now())
+  mutedUntil  DateTime?                     // Mute notifications
+  createdAt   DateTime          @default(now())
+
+  @@unique([channelId, userId])
+}
+
+// Member access to a specific sub-channel
+model SubChannelMember {
+  id            String      @id @default(cuid())
+  subChannelId  String
+  subChannel    SubChannel  @relation(fields: [subChannelId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  role          ChannelRole @default(MEMBER)
+  lastReadAt    DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+
+  @@unique([subChannelId, userId])
+}
+
+// Granular permissions per channel member
+model ChannelPermission {
+  id              String        @id @default(cuid())
+  channelMemberId String
+  channelMember   ChannelMember @relation(fields: [channelMemberId], references: [id], onDelete: Cascade)
+  permission      Permission
+  granted         Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+
+  @@unique([channelMemberId, permission])
+}
+
+model Message {
+  id            String      @id @default(cuid())
+  content       String      @db.Text
+  channelId     String?
+  channel       Channel?    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  subChannelId  String?
+  subChannel    SubChannel? @relation(fields: [subChannelId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User        @relation(fields: [authorId], references: [id])
+  parentId      String?                     // Thread reply
+  parent        Message?    @relation("ThreadReplies", fields: [parentId], references: [id])
+  replies       Message[]   @relation("ThreadReplies")
+  isPinned      Boolean     @default(false)
+  isSystem      Boolean     @default(false) // Auto-generated (action plans, alerts)
+  metadata      Json?                       // Extra data (action plan, file, etc.)
+  attachments   Json?                       // File attachments [{name, url, size, type}]
+  editedAt      DateTime?
+  createdAt     DateTime    @default(now())
+}
+
+enum ChannelType {
+  CLIENT      // Channel linked to a client (restricted)
+  TEAM        // Internal team channel
+  GENERAL     // General/announcements
+  DIRECT      // Direct message between 2 users
+}
+
+enum ChannelRole {
+  OWNER       // Full control: delete channel, manage all permissions
+  ADMIN       // Can invite/remove members, manage sub-channels
+  MEMBER      // Can read and write messages
+  GUEST       // Read-only access (for external client users)
+}
+
+enum Permission {
+  SEND_MESSAGES         // Can send messages
+  DELETE_MESSAGES        // Can delete own messages
+  DELETE_ANY_MESSAGE     // Can delete any message (moderation)
+  PIN_MESSAGES           // Can pin/unpin messages
+  INVITE_MEMBERS         // Can add new members to the channel
+  REMOVE_MEMBERS         // Can remove members
+  MANAGE_SUB_CHANNELS    // Can create/edit/delete sub-channels
+  MANAGE_PERMISSIONS     // Can change other members' permissions
+  UPLOAD_FILES           // Can upload files/attachments
+  VIEW_HISTORY           // Can see message history before joining
+}
