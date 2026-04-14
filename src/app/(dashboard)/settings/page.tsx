@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import {
   Settings, Plug, CheckCircle2, XCircle, ExternalLink, Copy,
   Calendar, FileText, Mic, Brain, Users, ChevronRight,
@@ -9,6 +9,8 @@ import {
 import Link from "next/link";
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
+  const googleConnected = (session?.user as Record<string, unknown>)?.googleConnected as boolean | undefined;
   const [copied, setCopied] = useState("");
 
   function copyToClipboard(text: string, key: string) {
@@ -134,12 +136,18 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground">Sincronizar calendario e documentos</p>
               </div>
             </div>
-            <button
-              onClick={() => signIn("google", { callbackUrl: "/settings" })}
-              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-            >
-              Conectar Google
-            </button>
+            {googleConnected ? (
+              <span className="flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                <CheckCircle2 className="h-3 w-3" /> Conectado
+              </span>
+            ) : (
+              <button
+                onClick={() => signIn("google", { callbackUrl: "/settings" })}
+                className="rounded-lg bg-[#2D76FC] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2563EB]"
+              >
+                Conectar Google
+              </button>
+            )}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             Cada membro da equipa liga o seu Google para sincronizar o calendario e ter acesso aos Google Docs. Clica em "Conectar Google" ou usa o botao na pagina de login.
