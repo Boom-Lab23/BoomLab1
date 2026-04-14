@@ -6,6 +6,7 @@ import {
   LayoutDashboard, Users, Calendar, Mic, FileText, Rocket, Settings,
   BarChart3, UserCheck, Handshake, Megaphone, Phone, Linkedin,
   CalendarCheck, CalendarDays, MessageSquare, Moon, Sun, ChevronDown,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
@@ -20,6 +21,7 @@ const mainNav = [
   { href: "/messaging", label: "Mensagens", icon: MessageSquare },
   { href: "/documents", label: "Documentos", icon: FileText },
   { href: "/boom-club", label: "Boom Club", icon: Rocket },
+  { href: "/admin/users", label: "Admin", icon: ShieldCheck },
 ];
 
 const pillarNav = [

@@ -7,6 +7,7 @@ import { slackRouter } from "./slack";
 import { messagingRouter } from "./messaging";
 import { calendarRouter } from "./calendar";
 import { documentsRouter } from "./documents";
+import { adminRouter } from "./admin";
 
 export const appRouter = router({
   clients: clientsRouter,
@@ -17,6 +18,7 @@ export const appRouter = router({
   messaging: messagingRouter,
   calendar: calendarRouter,
   documents: documentsRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;

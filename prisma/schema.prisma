@@ -8,12 +8,15 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  name         String
-  email        String    @unique
-  image        String?
-  role         UserRole  @default(CONSULTANT)
+  id               String    @id @default(cuid())
+  name             String
+  email            String    @unique
+  password         String?                   // Hashed password (null if Google-only)
+  image            String?
+  role             UserRole  @default(CONSULTANT)
+  isActive         Boolean   @default(true)   // Admin can deactivate
   googleCalId      String?
+  googleConnected  Boolean   @default(false)  // Has connected Google Calendar
   sessions         Session[]
   accounts         Account[]
   channelsCreated    Channel[]         @relation("ChannelCreator")
