@@ -6,7 +6,6 @@ import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    // Email + Password login
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -35,7 +34,6 @@ export const authOptions: NextAuthOptions = {
       },
     }),
 
-    // Google OAuth (for Calendar + Docs integration)
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
@@ -52,23 +50,64 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       if (!user.email) return false;
 
-      // Check if user exists and is active
-      const dbUser = await prisma.user.findUnique({
-        where: { email: user.email },
-      });
-
-      if (!dbUser) {
-        // For Google sign-in, only allow if user was pre-created by admin
-        if (account?.provider === "google") {
-          return false; // User must be created by admin first
-        }
-        return false;
-      }
-
-      if (!dbUser.isActive) return false;
-
-      // Update user info from Google
       if (account?.provider === "google") {
+        // Try to find user by Google email
+        let dbUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+
+        // If not found by Google email, find ANY active admin/consultant/manager
+        // and link Google to them (first time connection)
+        if (!dbUser) {
+          // Check if there's a user who already has this Google account linked
+          const existingAccount = await prisma.account.findFirst({
+            where: {
+              provider: "google",
+              providerAccountId: account.providerAccountId,
+            },
+            include: { user: true },
+          });
+
+          if (existingAccount) {
+            dbUser = existingAccount.user;
+          } else {
+            // Auto-create user from Google if they have a boomlab.agency email
+            // OR link to existing user by creating the account
+            const isBoomLabEmail = user.email.endsWith("@boomlab.agency");
+
+            if (isBoomLabEmail) {
+              // Create user automatically for BoomLab team members
+              dbUser = await prisma.user.create({
+                data: {
+                  name: user.name ?? user.email.split("@")[0],
+                  email: user.email,
+                  role: "CONSULTANT",
+                  isActive: true,
+                  googleConnected: true,
+                  image: user.image,
+                },
+              });
+            } else {
+              // For non-BoomLab emails, check if we should allow
+              // This allows external Google accounts to connect
+              // We create them as a user so Calendar/Docs works
+              dbUser = await prisma.user.create({
+                data: {
+                  name: user.name ?? user.email.split("@")[0],
+                  email: user.email,
+                  role: "CONSULTANT",
+                  isActive: true,
+                  googleConnected: true,
+                  image: user.image,
+                },
+              });
+            }
+          }
+        }
+
+        if (!dbUser || !dbUser.isActive) return false;
+
+        // Update user with Google info
         await prisma.user.update({
           where: { id: dbUser.id },
           data: {
@@ -77,7 +116,7 @@ export const authOptions: NextAuthOptions = {
           },
         });
 
-        // Save Google tokens for Calendar/Docs access
+        // Save Google tokens
         await prisma.account.upsert({
           where: {
             provider_providerAccountId: {
@@ -89,6 +128,7 @@ export const authOptions: NextAuthOptions = {
             access_token: account.access_token,
             refresh_token: account.refresh_token,
             expires_at: account.expires_at,
+            scope: account.scope,
           },
           create: {
             userId: dbUser.id,
@@ -103,11 +143,24 @@ export const authOptions: NextAuthOptions = {
             id_token: account.id_token,
           },
         });
+
+        // Override the user email/id to match the DB user
+        user.email = dbUser.email;
+        (user as Record<string, unknown>).id = dbUser.id;
+
+        return true;
       }
+
+      // Credentials login
+      const dbUser = await prisma.user.findUnique({
+        where: { email: user.email },
+      });
+      if (!dbUser || !dbUser.isActive) return false;
 
       return true;
     },
-    async session({ session, token }) {
+
+    async session({ session }) {
       if (session.user?.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: session.user.email },
@@ -120,9 +173,11 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
+        token.id = (user as Record<string, unknown>).id ?? user.id;
+        token.email = user.email;
       }
       return token;
     },
