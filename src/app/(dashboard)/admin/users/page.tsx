@@ -5,19 +5,32 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
   Users, Plus, X, Shield, ShieldCheck, UserCheck, UserX,
-  Mail, Lock, Eye, EyeOff, RotateCcw, Calendar, MessageSquare,
+  Lock, Eye, EyeOff, RotateCcw, Calendar, MessageSquare,
+  Building2, User,
 } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrador",
   CONSULTANT: "Consultor",
   MANAGER: "Gestor",
+  GUEST_CLIENT: "Cliente",
+  GUEST_TEAM_MEMBER: "Equipa Cliente",
 };
 
 const ROLE_COLORS: Record<string, string> = {
   ADMIN: "bg-purple-100 text-purple-700",
   CONSULTANT: "bg-blue-100 text-blue-700",
   MANAGER: "bg-green-100 text-green-700",
+  GUEST_CLIENT: "bg-orange-100 text-orange-700",
+  GUEST_TEAM_MEMBER: "bg-yellow-100 text-yellow-700",
+};
+
+const ROLE_ICONS: Record<string, React.ElementType> = {
+  ADMIN: ShieldCheck,
+  CONSULTANT: UserCheck,
+  MANAGER: Shield,
+  GUEST_CLIENT: Building2,
+  GUEST_TEAM_MEMBER: User,
 };
 
 export default function AdminUsersPage() {
@@ -30,16 +43,19 @@ export default function AdminUsersPage() {
     email: "",
     password: "",
     role: "CONSULTANT" as string,
+    assignedChannelId: "",
+    assignedSubChannelIds: [] as string[],
   });
 
   const users = trpc.admin.listUsers.useQuery();
+  const channels = trpc.messaging.channels.useQuery({});
   const utils = trpc.useUtils();
 
   const createUser = trpc.admin.createUser.useMutation({
     onSuccess: () => {
       utils.admin.listUsers.invalidate();
       setShowCreate(false);
-      setForm({ name: "", email: "", password: "", role: "CONSULTANT" });
+      setForm({ name: "", email: "", password: "", role: "CONSULTANT", assignedChannelId: "", assignedSubChannelIds: [] });
     },
   });
 
@@ -56,13 +72,15 @@ export default function AdminUsersPage() {
   });
 
   const resetPassword = trpc.admin.resetPassword.useMutation({
-    onSuccess: () => {
-      setShowResetPw(null);
-      setNewPassword("");
-    },
+    onSuccess: () => { setShowResetPw(null); setNewPassword(""); },
   });
 
-  const activeUsers = users.data?.filter((u) => u.isActive) ?? [];
+  const isGuestRole = form.role === "GUEST_CLIENT" || form.role === "GUEST_TEAM_MEMBER";
+  const selectedChannel = channels.data?.find((c) => c.id === form.assignedChannelId);
+
+  // Group users
+  const internalUsers = users.data?.filter((u) => u.isActive && !u.role.startsWith("GUEST")) ?? [];
+  const guestUsers = users.data?.filter((u) => u.isActive && u.role.startsWith("GUEST")) ?? [];
   const inactiveUsers = users.data?.filter((u) => !u.isActive) ?? [];
 
   return (
@@ -71,7 +89,7 @@ export default function AdminUsersPage() {
         <div>
           <h1 className="text-2xl font-bold">Gestao de Utilizadores</h1>
           <p className="text-muted-foreground">
-            {activeUsers.length} ativos, {inactiveUsers.length} inativos
+            {internalUsers.length} equipa, {guestUsers.length} clientes, {inactiveUsers.length} inativos
           </p>
         </div>
         <button
@@ -83,134 +101,68 @@ export default function AdminUsersPage() {
         </button>
       </div>
 
-      {/* Users List */}
+      {/* Internal Team */}
       <div className="rounded-xl border bg-card">
-        <div className="border-b p-4">
-          <h2 className="font-semibold">Utilizadores Ativos</h2>
+        <div className="flex items-center gap-2 border-b p-4">
+          <Shield className="h-4 w-4 text-[#2D76FC]" />
+          <h2 className="font-semibold">Equipa BoomLab</h2>
+          <span className="ml-auto text-sm text-muted-foreground">{internalUsers.length}</span>
         </div>
         <div className="divide-y">
-          {activeUsers.length === 0 && (
-            <div className="flex flex-col items-center gap-2 p-8 text-muted-foreground">
-              <Users className="h-8 w-8" />
-              <p className="text-sm">Sem utilizadores. Cria o primeiro.</p>
-            </div>
+          {internalUsers.length === 0 && (
+            <p className="p-6 text-sm text-muted-foreground text-center">Sem membros da equipa.</p>
           )}
-          {activeUsers.map((user) => (
-            <div key={user.id} className="flex items-center gap-4 p-4">
-              {/* Avatar */}
-              {user.image ? (
-                <img src={user.image} alt="" className="h-10 w-10 rounded-full" />
-              ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-medium text-white">
-                  {user.name.charAt(0)}
-                </div>
-              )}
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium">{user.name}</p>
-                  <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", ROLE_COLORS[user.role])}>
-                    {ROLE_LABELS[user.role] ?? user.role}
-                  </span>
-                  {user.googleConnected && (
-                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
-                      Google
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground">{user.email}</p>
-              </div>
-
-              {/* Stats */}
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" /> {user._count.sessions}
-                </span>
-                <span className="flex items-center gap-1">
-                  <MessageSquare className="h-3 w-3" /> {user._count.messages}
-                </span>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-1">
-                {/* Role selector */}
-                <select
-                  value={user.role}
-                  onChange={(e) =>
-                    updateUser.mutate({
-                      id: user.id,
-                      data: { role: e.target.value as "ADMIN" | "CONSULTANT" | "MANAGER" },
-                    })
-                  }
-                  className="rounded-lg border bg-card px-2 py-1 text-xs"
-                >
-                  <option value="ADMIN">Admin</option>
-                  <option value="MANAGER">Gestor</option>
-                  <option value="CONSULTANT">Consultor</option>
-                </select>
-
-                {/* Reset password */}
-                <button
-                  onClick={() => setShowResetPw(user.id)}
-                  className="rounded-lg border p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  title="Reset password"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </button>
-
-                {/* Deactivate */}
-                <button
-                  onClick={() => deactivateUser.mutate(user.id)}
-                  className="rounded-lg border p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600"
-                  title="Desativar"
-                >
-                  <UserX className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
+          {internalUsers.map((user) => (
+            <UserRow key={user.id} user={user} onChangeRole={(role) => updateUser.mutate({ id: user.id, data: { role: role as "ADMIN" } })} onDeactivate={() => deactivateUser.mutate(user.id)} onResetPw={() => setShowResetPw(user.id)} />
           ))}
         </div>
       </div>
 
-      {/* Inactive Users */}
+      {/* Guest Users (Clients) */}
+      <div className="rounded-xl border bg-card">
+        <div className="flex items-center gap-2 border-b p-4">
+          <Building2 className="h-4 w-4 text-orange-500" />
+          <h2 className="font-semibold">Clientes & Equipas de Clientes</h2>
+          <span className="ml-auto text-sm text-muted-foreground">{guestUsers.length}</span>
+        </div>
+        <div className="divide-y">
+          {guestUsers.length === 0 && (
+            <p className="p-6 text-sm text-muted-foreground text-center">Sem clientes com acesso. Cria um utilizador com role "Cliente".</p>
+          )}
+          {guestUsers.map((user) => (
+            <UserRow key={user.id} user={user} onChangeRole={(role) => updateUser.mutate({ id: user.id, data: { role: role as "ADMIN" } })} onDeactivate={() => deactivateUser.mutate(user.id)} onResetPw={() => setShowResetPw(user.id)} />
+          ))}
+        </div>
+      </div>
+
+      {/* Inactive */}
       {inactiveUsers.length > 0 && (
         <div className="rounded-xl border bg-card">
           <div className="border-b p-4">
-            <h2 className="font-semibold text-muted-foreground">Utilizadores Inativos</h2>
+            <h2 className="font-semibold text-muted-foreground">Inativos</h2>
           </div>
           <div className="divide-y">
             {inactiveUsers.map((user) => (
-              <div key={user.id} className="flex items-center gap-4 p-4 opacity-60">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-sm font-medium text-gray-500">
-                  {user.name.charAt(0)}
+              <div key={user.id} className="flex items-center gap-4 p-4 opacity-50">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 text-sm font-medium text-gray-500">{user.name.charAt(0)}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{user.name}</p>
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
                 </div>
-                <div className="flex-1">
-                  <p className="font-medium">{user.name}</p>
-                  <p className="text-sm text-muted-foreground">{user.email}</p>
-                </div>
-                <button
-                  onClick={() => activateUser.mutate(user.id)}
-                  className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted"
-                >
-                  <UserCheck className="h-3.5 w-3.5" />
-                  Reativar
-                </button>
+                <button onClick={() => activateUser.mutate(user.id)} className="rounded-lg border px-3 py-1 text-xs hover:bg-muted">Reativar</button>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Create User Dialog */}
+      {/* ============ CREATE USER DIALOG ============ */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-2xl bg-card p-6 animate-scale-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-6 animate-scale-in">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-bold">Novo Utilizador</h2>
-              <button onClick={() => setShowCreate(false)} className="rounded-lg p-1 hover:bg-muted">
-                <X className="h-5 w-5" />
-              </button>
+              <button onClick={() => setShowCreate(false)} className="rounded-lg p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
             <form
               onSubmit={(e) => {
@@ -219,91 +171,119 @@ export default function AdminUsersPage() {
                   name: form.name,
                   email: form.email,
                   password: form.password,
-                  role: form.role as "ADMIN" | "CONSULTANT" | "MANAGER",
+                  role: form.role as "ADMIN",
+                  assignedChannelId: form.assignedChannelId || undefined,
+                  assignedSubChannelIds: form.assignedSubChannelIds.length ? form.assignedSubChannelIds : undefined,
                 });
               }}
               className="space-y-4"
             >
-              <div>
-                <label className="mb-1 block text-sm font-medium">Nome *</label>
-                <input
-                  type="text"
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
-                  placeholder="Nome completo"
-                />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Nome *</label>
+                  <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Nome completo" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Email *</label>
+                  <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="email@empresa.pt" />
+                </div>
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">Email *</label>
-                <input
-                  type="email"
-                  required
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
-                  placeholder="email@boomlab.agency"
-                />
-              </div>
+
               <div>
                 <label className="mb-1 block text-sm font-medium">Password *</label>
                 <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    minLength={6}
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    className="w-full rounded-lg border px-3 py-2 pr-10 text-sm"
-                    placeholder="Minimo 6 caracteres"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  >
+                  <input type={showPassword ? "text" : "password"} required minLength={6} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full rounded-lg border px-3 py-2 pr-10 text-sm bg-card" placeholder="Min. 6 caracteres" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
+
+              {/* Role Selection */}
               <div>
-                <label className="mb-1 block text-sm font-medium">Role</label>
-                <div className="flex gap-2">
-                  {(["CONSULTANT", "MANAGER", "ADMIN"] as const).map((role) => (
-                    <button
-                      key={role}
-                      type="button"
-                      onClick={() => setForm({ ...form, role })}
-                      className={cn(
-                        "flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-                        form.role === role
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "hover:bg-muted"
-                      )}
-                    >
-                      {role === "ADMIN" && <ShieldCheck className="h-3.5 w-3.5" />}
-                      {role === "MANAGER" && <Shield className="h-3.5 w-3.5" />}
-                      {role === "CONSULTANT" && <UserCheck className="h-3.5 w-3.5" />}
-                      {ROLE_LABELS[role]}
-                    </button>
-                  ))}
+                <label className="mb-2 block text-sm font-medium">Tipo de Utilizador</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {(["CONSULTANT", "MANAGER", "ADMIN", "GUEST_CLIENT", "GUEST_TEAM_MEMBER"] as const).map((role) => {
+                    const Icon = ROLE_ICONS[role] ?? UserCheck;
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => setForm({ ...form, role, assignedChannelId: "", assignedSubChannelIds: [] })}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+                          form.role === role ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"
+                        )}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        {ROLE_LABELS[role]}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
+
+              {/* Channel Selection - only for Guest roles */}
+              {isGuestRole && (
+                <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50 p-4">
+                  <p className="text-sm font-medium text-orange-800">
+                    {form.role === "GUEST_CLIENT" ? "Canal do Cliente" : "Canal da Equipa do Cliente"}
+                  </p>
+                  <p className="text-xs text-orange-600">
+                    Este utilizador so vai ver o canal selecionado. Nao tera acesso ao dashboard nem a nenhuma outra parte da plataforma.
+                  </p>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-orange-800">Canal *</label>
+                    <select
+                      required
+                      value={form.assignedChannelId}
+                      onChange={(e) => setForm({ ...form, assignedChannelId: e.target.value, assignedSubChannelIds: [] })}
+                      className="w-full rounded-lg border px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="">Selecionar canal...</option>
+                      {channels.data?.filter((c) => c.type === "CLIENT").map((ch) => (
+                        <option key={ch.id} value={ch.id}>{ch.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Sub-channel selection */}
+                  {selectedChannel && selectedChannel.subChannels.length > 0 && (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-orange-800">Sub-canais com acesso</label>
+                      <p className="mb-2 text-xs text-orange-600">Seleciona a que sub-canais este utilizador tem acesso:</p>
+                      <div className="space-y-1.5">
+                        {selectedChannel.subChannels.map((sub) => (
+                          <label key={sub.id} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                            <input
+                              type="checkbox"
+                              checked={form.assignedSubChannelIds.includes(sub.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setForm({ ...form, assignedSubChannelIds: [...form.assignedSubChannelIds, sub.id] });
+                                } else {
+                                  setForm({ ...form, assignedSubChannelIds: form.assignedSubChannelIds.filter((id) => id !== sub.id) });
+                                }
+                              }}
+                              className="rounded"
+                            />
+                            # {sub.name}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {createUser.error && (
                 <p className="text-sm text-red-600">{createUser.error.message}</p>
               )}
 
               <div className="flex justify-end gap-3 border-t pt-4">
-                <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted">
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={createUser.isPending}
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
-                >
+                <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted">Cancelar</button>
+                <button type="submit" disabled={createUser.isPending || (isGuestRole && !form.assignedChannelId)} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
                   {createUser.isPending ? "A criar..." : "Criar Utilizador"}
                 </button>
               </div>
@@ -314,39 +294,66 @@ export default function AdminUsersPage() {
 
       {/* Reset Password Dialog */}
       {showResetPw && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-sm rounded-2xl bg-card p-6 animate-scale-in">
             <h2 className="mb-4 text-lg font-bold">Reset Password</h2>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                resetPassword.mutate({ userId: showResetPw, newPassword });
-              }}
-              className="space-y-4"
-            >
-              <div>
-                <label className="mb-1 block text-sm font-medium">Nova Password</label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
-                />
-              </div>
+            <form onSubmit={(e) => { e.preventDefault(); resetPassword.mutate({ userId: showResetPw, newPassword }); }} className="space-y-4">
+              <input type="password" required minLength={6} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Nova password" />
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => setShowResetPw(null)} className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={resetPassword.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
-                  {resetPassword.isPending ? "A guardar..." : "Guardar"}
-                </button>
+                <button type="button" onClick={() => setShowResetPw(null)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
+                <button type="submit" disabled={resetPassword.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">Guardar</button>
               </div>
             </form>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// User row component
+function UserRow({ user, onChangeRole, onDeactivate, onResetPw }: {
+  user: {
+    id: string; name: string; email: string; role: string;
+    image: string | null; assignedChannel?: { name: string } | null;
+    _count: { sessions: number; messages: number };
+  };
+  onChangeRole: (role: string) => void;
+  onDeactivate: () => void;
+  onResetPw: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 p-3 md:p-4">
+      {user.image ? (
+        <img src={user.image} alt="" className="h-9 w-9 rounded-full" />
+      ) : (
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
+          {user.name.charAt(0)}
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-medium">{user.name}</p>
+          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", ROLE_COLORS[user.role] ?? "bg-gray-100")}>
+            {ROLE_LABELS[user.role] ?? user.role}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+        {user.assignedChannel && (
+          <p className="text-xs text-orange-600">Canal: {user.assignedChannel.name}</p>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <select value={user.role} onChange={(e) => onChangeRole(e.target.value)} className="hidden md:block rounded border bg-card px-1.5 py-1 text-xs">
+          <option value="ADMIN">Admin</option>
+          <option value="MANAGER">Gestor</option>
+          <option value="CONSULTANT">Consultor</option>
+          <option value="GUEST_CLIENT">Cliente</option>
+          <option value="GUEST_TEAM_MEMBER">Equipa Cliente</option>
+        </select>
+        <button onClick={onResetPw} className="rounded border p-1.5 text-muted-foreground hover:bg-muted" title="Reset password"><RotateCcw className="h-3.5 w-3.5" /></button>
+        <button onClick={onDeactivate} className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600" title="Desativar"><UserX className="h-3.5 w-3.5" /></button>
+      </div>
     </div>
   );
 }
