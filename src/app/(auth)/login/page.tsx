@@ -34,11 +34,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[hsl(224,71%,4%)]">
-      <div className="w-full max-w-sm space-y-6 rounded-2xl border border-white/10 bg-[hsl(222,47%,8%)] p-8">
+    <div className="flex min-h-screen items-center justify-center" style={{ background: "hsl(220, 15%, 8%)" }}>
+      <div className="w-full max-w-sm space-y-6 rounded-2xl border border-white/10 p-8" style={{ background: "hsl(220, 6%, 12%)" }}>
         {/* Logo */}
         <div className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#2D76FC]">
             <Rocket className="h-7 w-7 text-white" />
           </div>
           <h1 className="mt-4 text-2xl font-bold text-white">BoomLab</h1>
@@ -66,7 +66,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-gray-500 focus:border-[#2D76FC] focus:outline-none focus:ring-1 focus:ring-[#2D76FC]/30"
                 placeholder="email@boomlab.agency"
               />
             </div>
@@ -80,7 +80,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-gray-500 focus:border-[#2D76FC] focus:outline-none focus:ring-1 focus:ring-[#2D76FC]/30"
                 placeholder="••••••••"
               />
             </div>
@@ -88,7 +88,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="w-full rounded-lg bg-[#2D76FC] py-2.5 text-sm font-medium text-white hover:bg-[#2563EB] disabled:opacity-50 transition-colors"
           >
             {loading ? "A entrar..." : "Entrar"}
           </button>
