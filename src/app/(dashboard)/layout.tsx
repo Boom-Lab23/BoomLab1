@@ -1,30 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
-import { useEffect } from "react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
 
   const userRole = (session?.user as Record<string, unknown>)?.role as string | undefined;
   const isGuest = userRole === "GUEST_CLIENT" || userRole === "GUEST_TEAM_MEMBER";
 
-  // Redirect guests to their messaging channel
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login");
+    }
+  }, [status, router]);
+
+  // Redirect guests to messaging only
   useEffect(() => {
     if (isGuest && !pathname.startsWith("/messaging")) {
-      // Redirect to messaging - the messaging page will handle showing only their channel
       router.replace("/messaging");
     }
   }, [isGuest, pathname, router]);
 
-  // Guest view - no sidebar, simplified layout
+  // Show nothing while checking auth
+  if (status === "loading") {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">A carregar...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not logged in - show nothing (redirect happening)
+  if (status === "unauthenticated") {
+    return null;
+  }
+
+  // Guest view
   if (isGuest) {
     return (
       <div className="flex h-screen flex-col overflow-hidden">
@@ -34,7 +56,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  // Full view for internal users
+  // Full view
   return (
     <div className="flex h-screen overflow-hidden">
       {sidebarOpen && (
