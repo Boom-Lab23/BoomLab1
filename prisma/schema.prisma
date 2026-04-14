@@ -14,10 +14,15 @@ model User {
   password         String?                   // Hashed password (null if Google-only)
   image            String?
   role             UserRole  @default(CONSULTANT)
-  isActive         Boolean   @default(true)   // Admin can deactivate
+  isActive         Boolean   @default(true)
   googleCalId      String?
-  googleConnected  Boolean   @default(false)  // Has connected Google Calendar
+  googleConnected  Boolean   @default(false)
+  // Sales consultant profile for personalized feedback
+  salesProfile     Json?                       // {personality, strengths, weaknesses, style, goals}
+  weeklyCallTarget Int       @default(5)       // Weekly call submission target
   sessions         Session[]
+  callSubmissions  CallSubmission[]
+  feedbacks        Feedback[]
   accounts         Account[]
   channelsCreated    Channel[]         @relation("ChannelCreator")
   subChannelsCreated SubChannel[]      @relation("SubChannelCreator")
@@ -99,9 +104,13 @@ model Session {
   aiScore          Int?                    // Score 0-100 da reuniao
   calendarEventId  String?
   notes            String?       @db.Text
-  slackChannelId   String?                 // Canal Slack do cliente
+  slackChannelId   String?
+  firefliesRecordingUrl String?             // Link direto para gravacao no Fireflies
   recordings       Recording[]
   documents        Document[]
+  feedbacks        Feedback[]
+  reminders        Reminder[]
+  actionPlanDrafts ActionPlanDraft[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 }
@@ -122,6 +131,8 @@ model Recording {
   aiScore     Float?
   scriptName  String?
   analyzedAt  DateTime?
+  callSubmissions CallSubmission[]
+  feedbacks       Feedback[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
@@ -142,14 +153,87 @@ model Document {
 }
 
 model AIScript {
-  id        String   @id @default(cuid())
-  name      String
-  pillar    String
-  content   String   @db.Text
-  criteria  Json
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  pillar      String
+  category    String?                       // scripts-vendas, frameworks-reuniao, criterios, materiais
+  content     String   @db.Text
+  criteria    Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Weekly call submission tracking with deadlines
+model CallSubmission {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  recordingId   String
+  recording     Recording @relation(fields: [recordingId], references: [id])
+  weekStart     DateTime                    // Monday of the submission week
+  submittedAt   DateTime  @default(now())
+}
+
+// Delayed feedback with review before publishing
+model Feedback {
+  id            String         @id @default(cuid())
+  sessionId     String?
+  session       Session?       @relation(fields: [sessionId], references: [id])
+  recordingId   String?
+  recording     Recording?     @relation(fields: [recordingId], references: [id])
+  userId        String                      // Who receives the feedback
+  user          User           @relation(fields: [userId], references: [id])
+  content       String         @db.Text      // AI-generated feedback
+  personalizedScript String?   @db.Text      // Script adapted to this person's personality
+  aiScore       Int?
+  status        FeedbackStatus @default(PENDING_REVIEW)
+  scheduledFor  DateTime                    // When to make visible (delay)
+  reviewedAt    DateTime?                   // When admin reviewed
+  reviewedById  String?                     // Who reviewed
+  publishedAt   DateTime?                   // When it became visible
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+// Meeting reminder
+model Reminder {
+  id          String   @id @default(cuid())
+  sessionId   String
+  session     Session  @relation(fields: [sessionId], references: [id])
+  remindAt    DateTime                    // When to send reminder
+  sent        Boolean  @default(false)
+  type        String   @default("30min")  // 30min, 1hour, 1day
+  createdAt   DateTime @default(now())
+}
+
+// Action plan with review workflow
+model ActionPlanDraft {
+  id          String            @id @default(cuid())
+  sessionId   String
+  session     Session           @relation(fields: [sessionId], references: [id])
+  content     Json                          // The generated action plan
+  message     String?           @db.Text    // Formatted message to send
+  status      ActionPlanStatus  @default(DRAFT)
+  reviewedAt  DateTime?
+  sentAt      DateTime?
+  sentTo      String?                       // Channel/email where it was sent
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+enum FeedbackStatus {
+  PENDING_REVIEW    // AI generated, waiting admin review
+  REVIEWED          // Admin reviewed and approved
+  PUBLISHED         // Visible to the user
+  REJECTED          // Admin rejected, won't publish
+}
+
+enum ActionPlanStatus {
+  DRAFT             // Generated, waiting review
+  APPROVED          // Reviewed and ready to send
+  SENT              // Sent to client
+  REJECTED          // Rejected, won't send
 }
 
 enum UserRole {

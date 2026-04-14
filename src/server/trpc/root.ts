@@ -8,6 +8,8 @@ import { messagingRouter } from "./messaging";
 import { calendarRouter } from "./calendar";
 import { documentsRouter } from "./documents";
 import { adminRouter } from "./admin";
+import { feedbackRouter } from "./feedback";
+import { knowledgeRouter } from "./knowledge";
 
 export const appRouter = router({
   clients: clientsRouter,
@@ -19,6 +21,8 @@ export const appRouter = router({
   calendar: calendarRouter,
   documents: documentsRouter,
   admin: adminRouter,
+  feedback: feedbackRouter,
+  knowledge: knowledgeRouter,
 });
 
 export type AppRouter = typeof appRouter;
