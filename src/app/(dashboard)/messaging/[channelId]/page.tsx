@@ -50,7 +50,11 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
   const [message, setMessage] = useState("");
   const [activeSubChannel, setActiveSubChannel] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
-  const [showPermissions, setShowPermissions] = useState<string | null>(null); // userId
+  const [showPermissions, setShowPermissions] = useState<string | null>(null);
+  const [showCreateSub, setShowCreateSub] = useState(false);
+  const [newSubName, setNewSubName] = useState("");
+  const [newSubPrivate, setNewSubPrivate] = useState(false);
+  const [newSubMembers, setNewSubMembers] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const channelData = trpc.messaging.getChannel.useQuery({ channelId });
@@ -80,6 +84,15 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
   });
   const removeMember = trpc.messaging.removeMember.useMutation({
     onSuccess: () => channelData.refetch(),
+  });
+  const createSubChannel = trpc.messaging.createSubChannel.useMutation({
+    onSuccess: () => {
+      channelData.refetch();
+      setShowCreateSub(false);
+      setNewSubName("");
+      setNewSubPrivate(false);
+      setNewSubMembers([]);
+    },
   });
 
   const messages = activeSubChannel
@@ -158,7 +171,16 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
 
           {/* Sub-channels */}
           <div className="mt-2">
-            <p className="mb-1 px-2 text-xs font-semibold uppercase text-muted-foreground">Sub-canais</p>
+            <div className="mb-1 px-2 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">Sub-canais</p>
+              <button
+                onClick={() => setShowCreateSub(true)}
+                className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                title="Criar sub-canal"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
             {channel.subChannels.map((sub) => (
               <button
                 key={sub.id}
@@ -377,6 +399,137 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Create Sub-channel Dialog */}
+      {showCreateSub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-card p-6 animate-scale-in">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Novo Sub-canal</h2>
+              <button onClick={() => setShowCreateSub(false)} className="rounded-lg p-1 hover:bg-muted">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const creatorId = channel.members[0]?.userId;
+                if (!creatorId) return;
+                createSubChannel.mutate({
+                  name: newSubName,
+                  channelId,
+                  createdById: creatorId,
+                  isPrivate: newSubPrivate,
+                  memberIds: newSubMembers,
+                });
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="mb-1 block text-sm font-medium">Nome do Sub-canal *</label>
+                <input
+                  type="text"
+                  required
+                  value={newSubName}
+                  onChange={(e) => setNewSubName(e.target.value)}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                  placeholder="Ex: reunioes, documentos, geral..."
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newSubPrivate}
+                    onChange={(e) => setNewSubPrivate(e.target.checked)}
+                    className="rounded"
+                  />
+                  <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                  Sub-canal privado (so membros selecionados)
+                </label>
+              </div>
+
+              {/* Member selection */}
+              <div>
+                <label className="mb-2 block text-sm font-medium">
+                  Quem tem acesso?
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    ({newSubMembers.length} selecionados)
+                  </span>
+                </label>
+                <div className="max-h-[200px] overflow-y-auto space-y-1 rounded-lg border p-2">
+                  {/* Select all */}
+                  <label className="flex items-center gap-2 rounded p-1.5 text-sm cursor-pointer hover:bg-muted/50 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={newSubMembers.length === channel.members.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setNewSubMembers(channel.members.map((m) => m.userId));
+                        } else {
+                          setNewSubMembers([]);
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    Selecionar todos
+                  </label>
+                  <div className="h-px bg-border my-1" />
+
+                  {channel.members.map((member) => (
+                    <label
+                      key={member.id}
+                      className="flex items-center gap-2 rounded p-1.5 text-sm cursor-pointer hover:bg-muted/50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={newSubMembers.includes(member.userId)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setNewSubMembers([...newSubMembers, member.userId]);
+                          } else {
+                            setNewSubMembers(newSubMembers.filter((id) => id !== member.userId));
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      {member.user.image ? (
+                        <img src={member.user.image} alt="" className="h-6 w-6 rounded-full" />
+                      ) : (
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-white">
+                          {member.user.name.charAt(0)}
+                        </div>
+                      )}
+                      <span className="flex-1 truncate">{member.user.name}</span>
+                      <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-medium", ROLE_COLORS[member.role])}>
+                        {ROLE_LABELS[member.role]}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {createSubChannel.error && (
+                <p className="text-sm text-red-600">{createSubChannel.error.message}</p>
+              )}
+
+              <div className="flex justify-end gap-3 border-t pt-4">
+                <button type="button" onClick={() => setShowCreateSub(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={createSubChannel.isPending || !newSubName.trim()}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {createSubChannel.isPending ? "A criar..." : "Criar Sub-canal"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
