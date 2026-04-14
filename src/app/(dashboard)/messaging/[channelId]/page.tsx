@@ -125,8 +125,8 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
 
   return (
     <div className="flex h-[calc(100vh-7rem)]">
-      {/* Sub-channel Sidebar */}
-      <div className="w-56 shrink-0 border-r bg-gray-50/80 flex flex-col">
+      {/* Sub-channel Sidebar - hidden on mobile */}
+      <div className="hidden md:flex w-56 shrink-0 border-r bg-muted/30 flex-col">
         <div className="border-b p-3">
           <Link href="/messaging" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-3 w-3" /> Todos os canais

@@ -99,7 +99,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Weekly Calendar Grid */}
-      <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="rounded-xl border bg-card overflow-x-auto">
         {/* Day headers */}
         <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b">
           <div className="border-r p-2" />

@@ -58,7 +58,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
         <div className="rounded-xl border bg-card p-4">
           <p className="text-sm text-muted-foreground">Sessoes</p>
           <p className="text-2xl font-bold">
@@ -85,7 +85,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
         {/* Info */}
         <div className="rounded-xl border bg-card p-6">
           <h2 className="mb-4 font-semibold">Informacao</h2>

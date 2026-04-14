@@ -66,7 +66,7 @@ export default function ClientsPage() {
       <CreateClientDialog open={showCreate} onClose={() => setShowCreate(false)} />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 md:gap-3">
         <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
           <Search className="h-4 w-4 text-muted-foreground" />
           <input
@@ -134,9 +134,9 @@ export default function ClientsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 md:gap-4">
                 {/* Offers */}
-                <div className="flex gap-1">
+                <div className="hidden md:flex gap-1">
                   {client.offer.map((o) => (
                     <span
                       key={o}
@@ -170,7 +170,7 @@ export default function ClientsPage() {
                 </span>
 
                 {/* Counts */}
-                <div className="flex gap-3 text-xs text-muted-foreground">
+                <div className="hidden lg:flex gap-3 text-xs text-muted-foreground">
                   <span>{client._count.sessions} sessoes</span>
                   <span>{client._count.recordings} gravacoes</span>
                 </div>

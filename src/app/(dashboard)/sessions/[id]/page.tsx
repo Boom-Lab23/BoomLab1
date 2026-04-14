@@ -121,7 +121,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Meta cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
         <div className="rounded-xl border bg-card p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar className="h-4 w-4" /> Data
@@ -205,7 +205,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         {/* Summary / Fireflies */}
         <div className="rounded-xl border bg-card">
           <div className="flex items-center gap-2 border-b p-4">

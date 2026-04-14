@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, Calendar, Mic, FileText, Rocket, Settings,
   BarChart3, UserCheck, Handshake, Megaphone, Phone, Linkedin,
   CalendarCheck, CalendarDays, MessageSquare, Moon, Sun, ChevronDown,
-  ShieldCheck,
+  ShieldCheck, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
@@ -34,22 +34,35 @@ const pillarNav = [
   { id: "acompanhamento", label: "Acompanhamento", color: "#94a3b8" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [pillarsOpen, setPillarsOpen] = useState(true);
 
+  function handleNav() {
+    onClose?.();
+  }
+
   return (
-    <aside className="flex h-screen w-[240px] flex-col" style={{ background: "hsl(var(--sidebar-bg))" }}>
-      {/* Logo */}
-      <div className="flex h-14 items-center gap-2.5 px-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "hsl(var(--sidebar-active))" }}>
-          <Rocket className="h-4 w-4 text-white" />
+    <aside className="flex h-screen w-[260px] md:w-[240px] flex-col" style={{ background: "hsl(var(--sidebar-bg))" }}>
+      {/* Logo + Close */}
+      <div className="flex h-14 items-center justify-between px-5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "hsl(var(--sidebar-active))" }}>
+            <Rocket className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <span className="text-sm font-bold text-white tracking-wide">BoomLab</span>
+            <p className="text-[10px] leading-none" style={{ color: "hsl(var(--sidebar-fg))" }}>Platform</p>
+          </div>
         </div>
-        <div>
-          <span className="text-sm font-bold text-white tracking-wide">BoomLab</span>
-          <p className="text-[10px] leading-none" style={{ color: "hsl(var(--sidebar-fg))" }}>Platform</p>
-        </div>
+        {/* Close button - mobile only */}
+        <button
+          onClick={onClose}
+          className="rounded-lg p-1.5 text-white/50 hover:text-white hover:bg-white/10 lg:hidden"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Main Nav */}
@@ -61,23 +74,18 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={handleNav}
                 className={cn(
                   "flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13px] font-medium transition-all duration-150",
-                  isActive
-                    ? "text-white shadow-sm"
-                    : "hover:text-white"
+                  isActive ? "text-white shadow-sm" : "hover:text-white"
                 )}
                 style={
                   isActive
-                    ? { background: "hsl(var(--sidebar-active))", boxShadow: "0 2px 8px hsl(var(--sidebar-active) / 0.3)" }
+                    ? { background: "hsl(var(--sidebar-active))", boxShadow: "0 2px 8px hsl(219 97% 58% / 0.3)" }
                     : { color: "hsl(var(--sidebar-fg))" }
                 }
-                onMouseEnter={(e) => {
-                  if (!isActive) e.currentTarget.style.background = "hsl(var(--sidebar-hover))";
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) e.currentTarget.style.background = "transparent";
-                }}
+                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "hsl(var(--sidebar-hover))"; }}
+                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
               >
                 <item.icon className="h-[18px] w-[18px] shrink-0" />
                 {item.label}
@@ -102,6 +110,7 @@ export function Sidebar() {
                 <Link
                   key={pillar.id}
                   href={`/sessions?module=${pillar.id}`}
+                  onClick={handleNav}
                   className="flex items-center gap-2.5 rounded-lg px-3 py-[6px] text-[13px] transition-all duration-150 hover:text-white"
                   style={{ color: "hsl(var(--sidebar-fg))" }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = "hsl(var(--sidebar-hover))"; }}
@@ -131,6 +140,7 @@ export function Sidebar() {
 
         <Link
           href="/settings"
+          onClick={handleNav}
           className={cn(
             "flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13px] font-medium transition-all duration-150",
             pathname.startsWith("/settings") ? "text-white" : "hover:text-white"
@@ -140,12 +150,8 @@ export function Sidebar() {
               ? { background: "hsl(var(--sidebar-active))" }
               : { color: "hsl(var(--sidebar-fg))" }
           }
-          onMouseEnter={(e) => {
-            if (!pathname.startsWith("/settings")) e.currentTarget.style.background = "hsl(var(--sidebar-hover))";
-          }}
-          onMouseLeave={(e) => {
-            if (!pathname.startsWith("/settings")) e.currentTarget.style.background = "transparent";
-          }}
+          onMouseEnter={(e) => { if (!pathname.startsWith("/settings")) e.currentTarget.style.background = "hsl(var(--sidebar-hover))"; }}
+          onMouseLeave={(e) => { if (!pathname.startsWith("/settings")) e.currentTarget.style.background = "transparent"; }}
         >
           <Settings className="h-[18px] w-[18px]" />
           Configuracoes
