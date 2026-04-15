@@ -11,19 +11,21 @@ export default function TimelineDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const router = useRouter();
   const timeline = trpc.timelines.getById.useQuery(id);
+  const teamMembers = trpc.admin.listUsers.useQuery();
+  const internalTeam = (teamMembers.data ?? []).filter(u => u.isActive && !u.role.startsWith("GUEST"));
   const utils = trpc.useUtils();
 
   const [showAddPhase, setShowAddPhase] = useState(false);
   const [phaseForm, setPhaseForm] = useState({ title: "", startDate: "", endDate: "" });
   const [showAddModule, setShowAddModule] = useState<string | null>(null);
-  const [moduleForm, setModuleForm] = useState({ title: "", consultantName: "", consultantRole: "" });
+  const [moduleForm, setModuleForm] = useState({ title: "", consultantId: "", consultantRole: "" });
   const [showAddSession, setShowAddSession] = useState<string | null>(null);
   const [sessionForm, setSessionForm] = useState({ subtitle: "", description: "", topics: "" });
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editSessionForm, setEditSessionForm] = useState({ subtitle: "", description: "", topics: "" });
 
   const addPhase = trpc.timelines.addPhase.useMutation({ onSuccess: () => { utils.timelines.getById.invalidate(); setShowAddPhase(false); setPhaseForm({ title: "", startDate: "", endDate: "" }); } });
-  const addModule = trpc.timelines.addModule.useMutation({ onSuccess: () => { utils.timelines.getById.invalidate(); setShowAddModule(null); setModuleForm({ title: "", consultantName: "", consultantRole: "" }); } });
+  const addModule = trpc.timelines.addModule.useMutation({ onSuccess: () => { utils.timelines.getById.invalidate(); setShowAddModule(null); setModuleForm({ title: "", consultantId: "", consultantRole: "" }); } });
   const addSession = trpc.timelines.addSession.useMutation({ onSuccess: () => { utils.timelines.getById.invalidate(); setShowAddSession(null); setSessionForm({ subtitle: "", description: "", topics: "" }); } });
   const updateSession = trpc.timelines.updateSession.useMutation({ onSuccess: () => { utils.timelines.getById.invalidate(); setEditingSession(null); } });
   const deleteTimeline = trpc.timelines.delete.useMutation({ onSuccess: () => router.push("/timelines") });
@@ -86,17 +88,24 @@ export default function TimelineDetailPage({ params }: { params: Promise<{ id: s
           {phase.modules.map((mod) => (
             <div key={mod.id} className="rounded-2xl p-6 md:p-8" style={{ background: "linear-gradient(135deg, #0a1628 0%, #0f1d35 100%)" }}>
               <p className="text-lg font-bold text-white mb-4">{mod.title}</p>
-              {mod.consultantName && (
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-white text-sm font-semibold">
-                    {mod.consultantName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+              {mod.consultantName && (() => {
+                const member = internalTeam.find(m => m.name === mod.consultantName);
+                return (
+                  <div className="flex items-center gap-3 mb-6">
+                    {member?.image ? (
+                      <img src={member.image} alt="" className="h-12 w-12 rounded-full object-cover" />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-700 text-white text-sm font-semibold">
+                        {mod.consultantName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-white font-medium">{mod.consultantName}</p>
+                      {mod.consultantRole && <p className="text-sm"><span className="text-gray-400">Consultor </span><span className="text-[#2D76FC]">{mod.consultantRole}</span></p>}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-white font-medium">{mod.consultantName}</p>
-                    {mod.consultantRole && <p className="text-sm"><span className="text-gray-400">Consultor </span><span className="text-[#2D76FC]">{mod.consultantRole}</span></p>}
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Sessions grid */}
               <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -184,12 +193,55 @@ export default function TimelineDetailPage({ params }: { params: Promise<{ id: s
               <h2 className="text-lg font-bold">Novo Modulo</h2>
               <button onClick={() => setShowAddModule(null)} className="rounded-lg p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); addModule.mutate({ phaseId: showAddModule, title: moduleForm.title, consultantName: moduleForm.consultantName || undefined, consultantRole: moduleForm.consultantRole || undefined }); }} className="space-y-4">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const selectedMember = internalTeam.find(m => m.id === moduleForm.consultantId);
+              addModule.mutate({
+                phaseId: showAddModule,
+                title: moduleForm.title,
+                consultantName: selectedMember?.name || undefined,
+                consultantRole: moduleForm.consultantRole || undefined,
+              });
+            }} className="space-y-4">
               <div><label className="mb-1 block text-sm font-medium">Titulo *</label><input type="text" required value={moduleForm.title} onChange={(e) => setModuleForm({ ...moduleForm, title: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Ex: Consultoria comercial" /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="mb-1 block text-sm font-medium">Consultor</label><input type="text" value={moduleForm.consultantName} onChange={(e) => setModuleForm({ ...moduleForm, consultantName: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
-                <div><label className="mb-1 block text-sm font-medium">Role</label><input type="text" value={moduleForm.consultantRole} onChange={(e) => setModuleForm({ ...moduleForm, consultantRole: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Ex: Vendas" /></div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Responsavel</label>
+                <div className="space-y-1.5">
+                  {internalTeam.map((member) => (
+                    <label
+                      key={member.id}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg border p-2.5 cursor-pointer transition-colors",
+                        moduleForm.consultantId === member.id ? "border-[#2D76FC] bg-[#2D76FC]/5" : "hover:bg-muted/50"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="consultant"
+                        value={member.id}
+                        checked={moduleForm.consultantId === member.id}
+                        onChange={() => setModuleForm({ ...moduleForm, consultantId: member.id })}
+                        className="sr-only"
+                      />
+                      {member.image ? (
+                        <img src={member.image} alt="" className="h-8 w-8 rounded-full object-cover" />
+                      ) : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
+                          {member.name.charAt(0)}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{member.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{member.email}</p>
+                      </div>
+                      {moduleForm.consultantId === member.id && (
+                        <div className="h-2 w-2 rounded-full bg-[#2D76FC]" />
+                      )}
+                    </label>
+                  ))}
+                </div>
               </div>
+              <div><label className="mb-1 block text-sm font-medium">Role / Especialidade</label><input type="text" value={moduleForm.consultantRole} onChange={(e) => setModuleForm({ ...moduleForm, consultantRole: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Ex: Comercial, Vendas, Estrategico..." /></div>
               <div className="flex justify-end gap-3 border-t pt-4">
                 <button type="button" onClick={() => setShowAddModule(null)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
                 <button type="submit" disabled={addModule.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">Criar Modulo</button>
