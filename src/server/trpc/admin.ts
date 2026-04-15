@@ -16,6 +16,12 @@ export const adminRouter = router({
         googleConnected: true,
         assignedChannelId: true,
         assignedChannel: { select: { id: true, name: true } },
+        consentPrivacyPolicy: true,
+        consentTerms: true,
+        consentDPA: true,
+        consentDataDeletion: true,
+        consentAIAnalysis: true,
+        consentsAcceptedAt: true,
         createdAt: true,
         _count: {
           select: { sessions: true, messages: true },

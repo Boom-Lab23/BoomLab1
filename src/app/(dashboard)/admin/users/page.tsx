@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   Users, Plus, X, Shield, ShieldCheck, UserCheck, UserX,
   Lock, Eye, EyeOff, RotateCcw, Calendar, MessageSquare,
-  Building2, User,
+  Building2, User, CheckCircle2, XCircle,
 } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -311,49 +311,82 @@ export default function AdminUsersPage() {
   );
 }
 
+// Consent badge
+function ConsentBadge({ accepted, label }: { accepted: boolean; label: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium",
+      accepted ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+    )}>
+      {accepted ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />}
+      {label}
+    </span>
+  );
+}
+
 // User row component
 function UserRow({ user, onChangeRole, onDeactivate, onResetPw }: {
   user: {
     id: string; name: string; email: string; role: string;
     image: string | null; assignedChannel?: { name: string } | null;
+    consentPrivacyPolicy?: boolean; consentTerms?: boolean; consentDPA?: boolean;
+    consentDataDeletion?: boolean; consentAIAnalysis?: boolean; consentsAcceptedAt?: string | null;
     _count: { sessions: number; messages: number };
   };
   onChangeRole: (role: string) => void;
   onDeactivate: () => void;
   onResetPw: () => void;
 }) {
+  const hasAnyConsent = user.consentPrivacyPolicy || user.consentTerms || user.consentDPA;
+
   return (
-    <div className="flex items-center gap-3 p-3 md:p-4">
-      {user.image ? (
-        <img src={user.image} alt="" className="h-9 w-9 rounded-full" />
-      ) : (
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-          {user.name.charAt(0)}
+    <div className="p-3 md:p-4">
+      <div className="flex items-center gap-3">
+        {user.image ? (
+          <img src={user.image} alt="" className="h-9 w-9 rounded-full" />
+        ) : (
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
+            {user.name.charAt(0)}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-medium">{user.name}</p>
+            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", ROLE_COLORS[user.role] ?? "bg-gray-100")}>
+              {ROLE_LABELS[user.role] ?? user.role}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+          {user.assignedChannel && (
+            <p className="text-xs text-orange-600">Canal: {user.assignedChannel.name}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <select value={user.role} onChange={(e) => onChangeRole(e.target.value)} className="hidden md:block rounded border bg-card px-1.5 py-1 text-xs">
+            <option value="ADMIN">Admin</option>
+            <option value="MANAGER">Gestor</option>
+            <option value="CONSULTANT">Consultor</option>
+            <option value="GUEST_CLIENT">Cliente</option>
+            <option value="GUEST_TEAM_MEMBER">Equipa Cliente</option>
+          </select>
+          <button onClick={onResetPw} className="rounded border p-1.5 text-muted-foreground hover:bg-muted" title="Reset password"><RotateCcw className="h-3.5 w-3.5" /></button>
+          <button onClick={onDeactivate} className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600" title="Desativar"><UserX className="h-3.5 w-3.5" /></button>
+        </div>
+      </div>
+      {/* Consents row */}
+      {hasAnyConsent && (
+        <div className="mt-2 ml-12 flex flex-wrap gap-1">
+          <ConsentBadge accepted={!!user.consentPrivacyPolicy} label="Privacidade" />
+          <ConsentBadge accepted={!!user.consentTerms} label="Termos" />
+          <ConsentBadge accepted={!!user.consentDPA} label="DPA" />
+          <ConsentBadge accepted={!!user.consentDataDeletion} label="Esquecimento" />
+          <ConsentBadge accepted={!!user.consentAIAnalysis} label="Analise IA" />
+          {user.consentsAcceptedAt && (
+            <span className="text-[9px] text-muted-foreground ml-1">
+              Aceite: {new Date(user.consentsAcceptedAt).toLocaleDateString("pt-PT")}
+            </span>
+          )}
         </div>
       )}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-medium">{user.name}</p>
-          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", ROLE_COLORS[user.role] ?? "bg-gray-100")}>
-            {ROLE_LABELS[user.role] ?? user.role}
-          </span>
-        </div>
-        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-        {user.assignedChannel && (
-          <p className="text-xs text-orange-600">Canal: {user.assignedChannel.name}</p>
-        )}
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <select value={user.role} onChange={(e) => onChangeRole(e.target.value)} className="hidden md:block rounded border bg-card px-1.5 py-1 text-xs">
-          <option value="ADMIN">Admin</option>
-          <option value="MANAGER">Gestor</option>
-          <option value="CONSULTANT">Consultor</option>
-          <option value="GUEST_CLIENT">Cliente</option>
-          <option value="GUEST_TEAM_MEMBER">Equipa Cliente</option>
-        </select>
-        <button onClick={onResetPw} className="rounded border p-1.5 text-muted-foreground hover:bg-muted" title="Reset password"><RotateCcw className="h-3.5 w-3.5" /></button>
-        <button onClick={onDeactivate} className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600" title="Desativar"><UserX className="h-3.5 w-3.5" /></button>
-      </div>
     </div>
   );
 }

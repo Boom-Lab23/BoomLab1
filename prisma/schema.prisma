@@ -20,6 +20,13 @@ model User {
   // Guest: which channel they have access to
   assignedChannelId String?
   assignedChannel   Channel?  @relation("GuestChannel", fields: [assignedChannelId], references: [id])
+  // RGPD Consents
+  consentPrivacyPolicy    Boolean   @default(false)  // Politica de privacidade (obrigatorio)
+  consentTerms            Boolean   @default(false)  // Termos de consentimento (obrigatorio)
+  consentDPA              Boolean   @default(false)  // DPA - Data Processing Agreement (obrigatorio)
+  consentDataDeletion     Boolean   @default(false)  // Direito ao esquecimento (opcional)
+  consentAIAnalysis       Boolean   @default(false)  // Analise de chamadas com IA (opcional)
+  consentsAcceptedAt      DateTime?                  // Quando aceitou
   // Sales consultant profile for personalized feedback
   salesProfile     Json?                       // {personality, strengths, weaknesses, style, goals}
   weeklyCallTarget Int       @default(5)       // Weekly call submission target

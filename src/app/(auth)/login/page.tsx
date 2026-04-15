@@ -92,8 +92,8 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-gray-500">
-          Contacta o administrador se precisas de acesso.
+        <p className="text-center text-sm text-gray-400">
+          Nao tens conta? <a href="/register" className="text-[#2D76FC] hover:underline">Criar conta</a>
         </p>
       </div>
     </div>
