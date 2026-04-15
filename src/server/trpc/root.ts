@@ -10,6 +10,8 @@ import { documentsRouter } from "./documents";
 import { adminRouter } from "./admin";
 import { feedbackRouter } from "./feedback";
 import { knowledgeRouter } from "./knowledge";
+import { timelinesRouter } from "./timelines";
+import { referralsRouter } from "./referrals";
 
 export const appRouter = router({
   clients: clientsRouter,
@@ -23,6 +25,8 @@ export const appRouter = router({
   admin: adminRouter,
   feedback: feedbackRouter,
   knowledge: knowledgeRouter,
+  timelines: timelinesRouter,
+  referrals: referralsRouter,
 });
 
 export type AppRouter = typeof appRouter;
