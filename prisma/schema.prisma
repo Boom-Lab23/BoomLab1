@@ -81,6 +81,8 @@ model Client {
   documents        Document[]
   recordings       Recording[]
   channels         Channel[]
+  timelines        Timeline[]
+  referralsGiven   Referral[]   @relation("ReferrerClient")
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 }
@@ -208,6 +210,85 @@ model Reminder {
   sent        Boolean  @default(false)
   type        String   @default("30min")  // 30min, 1hour, 1day
   createdAt   DateTime @default(now())
+}
+
+// ==========================================
+// TIMELINES (per client, Canva-style phases)
+// ==========================================
+
+model Timeline {
+  id          String          @id @default(cuid())
+  clientId    String
+  client      Client          @relation(fields: [clientId], references: [id])
+  title       String                        // Ex: "Timeline BeloCredito"
+  phases      TimelinePhase[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model TimelinePhase {
+  id          String          @id @default(cuid())
+  timelineId  String
+  timeline    Timeline        @relation(fields: [timelineId], references: [id], onDelete: Cascade)
+  number      Int                           // Fase 1, 2, 3, 4
+  title       String                        // Ex: "Analise estrategica + gestao comercial"
+  startDate   DateTime?
+  endDate     DateTime?
+  modules     TimelineModule[]
+  order       Int             @default(0)
+  createdAt   DateTime        @default(now())
+}
+
+model TimelineModule {
+  id              String          @id @default(cuid())
+  phaseId         String
+  phase           TimelinePhase   @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  title           String                    // Ex: "Consultoria comercial"
+  consultantName  String?                   // Ex: "David Goncalves"
+  consultantRole  String?                   // Ex: "Consultor Vendas"
+  sessions        TimelineSession[]
+  order           Int             @default(0)
+  createdAt       DateTime        @default(now())
+}
+
+model TimelineSession {
+  id          String          @id @default(cuid())
+  moduleId    String
+  module      TimelineModule  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  number      Int                           // Sessao 1, 2, 3...
+  subtitle    String?                       // Ex: "Consultoria estrategica"
+  description String?                       // Ex: "Equipa comercial"
+  topics      String[]                      // Bullet points
+  linkedSessionId String?                   // Link to actual Session
+  order       Int             @default(0)
+  createdAt   DateTime        @default(now())
+}
+
+// ==========================================
+// REFERENCES (referral tracking per client)
+// ==========================================
+
+model Referral {
+  id              String    @id @default(cuid())
+  referrerClientId String                   // Client who referred
+  referrerClient  Client    @relation("ReferrerClient", fields: [referrerClientId], references: [id])
+  referredName    String                    // Name of referred person/company
+  referredEmail   String?
+  referredPhone   String?
+  status          ReferralStatus @default(PENDING)
+  convertedToClientId String?               // If converted, link to new client
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum ReferralStatus {
+  PENDING           // Referral received, not yet contacted
+  CONTACTED         // Initial contact made
+  MEETING_SCHEDULED // Meeting booked
+  PROPOSAL_SENT     // Proposal sent
+  CONVERTED         // Became a client
+  LOST              // Didn't convert
 }
 
 // Action plan with review workflow
