@@ -16,6 +16,8 @@ export const adminRouter = router({
         googleConnected: true,
         assignedChannelId: true,
         assignedChannel: { select: { id: true, name: true } },
+        assignedDashboardId: true,
+        assignedDashboard: { select: { id: true, client: { select: { name: true } }, market: true } },
         consentPrivacyPolicy: true,
         consentTerms: true,
         consentDPA: true,
@@ -39,8 +41,9 @@ export const adminRouter = router({
         email: z.string().email(),
         password: z.string().min(6),
         role: z.enum(["ADMIN", "CONSULTANT", "MANAGER", "GUEST_CLIENT", "GUEST_TEAM_MEMBER"]).default("CONSULTANT"),
-        assignedChannelId: z.string().optional(), // For GUEST roles
-        assignedSubChannelIds: z.array(z.string()).optional(), // Which sub-channels they access
+        assignedChannelId: z.string().optional(),
+        assignedDashboardId: z.string().optional(),
+        assignedSubChannelIds: z.array(z.string()).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -61,6 +64,7 @@ export const adminRouter = router({
           password: hashedPassword,
           role: input.role,
           assignedChannelId: input.assignedChannelId,
+          assignedDashboardId: input.assignedDashboardId,
         },
       });
 

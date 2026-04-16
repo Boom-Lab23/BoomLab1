@@ -17,9 +17,11 @@ model User {
   isActive         Boolean   @default(true)
   googleCalId      String?
   googleConnected  Boolean   @default(false)
-  // Guest: which channel they have access to
-  assignedChannelId String?
-  assignedChannel   Channel?  @relation("GuestChannel", fields: [assignedChannelId], references: [id])
+  // Guest: which channel and dashboard they have access to
+  assignedChannelId   String?
+  assignedChannel     Channel?          @relation("GuestChannel", fields: [assignedChannelId], references: [id])
+  assignedDashboardId String?
+  assignedDashboard   ClientDashboard?  @relation(fields: [assignedDashboardId], references: [id])
   // RGPD Consents
   consentPrivacyPolicy    Boolean   @default(false)  // Politica de privacidade (obrigatorio)
   consentTerms            Boolean   @default(false)  // Termos de consentimento (obrigatorio)
@@ -381,6 +383,7 @@ model ClientDashboard {
   objectives  Json?                         // {chamadas: 1200, agendamentos: 100, ...}
   commercials String[]                      // Names of commercial team members
   records     DashboardRecord[]
+  guestUsers  User[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }

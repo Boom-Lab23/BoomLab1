@@ -44,18 +44,20 @@ export default function AdminUsersPage() {
     password: "",
     role: "CONSULTANT" as string,
     assignedChannelId: "",
+    assignedDashboardId: "",
     assignedSubChannelIds: [] as string[],
   });
 
   const users = trpc.admin.listUsers.useQuery();
   const channels = trpc.messaging.channels.useQuery({});
+  const dashboardsList = trpc.dashboards.list.useQuery();
   const utils = trpc.useUtils();
 
   const createUser = trpc.admin.createUser.useMutation({
     onSuccess: () => {
       utils.admin.listUsers.invalidate();
       setShowCreate(false);
-      setForm({ name: "", email: "", password: "", role: "CONSULTANT", assignedChannelId: "", assignedSubChannelIds: [] });
+      setForm({ name: "", email: "", password: "", role: "CONSULTANT", assignedChannelId: "", assignedDashboardId: "", assignedSubChannelIds: [] });
     },
   });
 
@@ -173,6 +175,7 @@ export default function AdminUsersPage() {
                   password: form.password,
                   role: form.role as "ADMIN",
                   assignedChannelId: form.assignedChannelId || undefined,
+                  assignedDashboardId: form.assignedDashboardId || undefined,
                   assignedSubChannelIds: form.assignedSubChannelIds.length ? form.assignedSubChannelIds : undefined,
                 });
               }}
@@ -230,7 +233,7 @@ export default function AdminUsersPage() {
                     {form.role === "GUEST_CLIENT" ? "Canal do Cliente" : "Canal da Equipa do Cliente"}
                   </p>
                   <p className="text-xs text-orange-600">
-                    Este utilizador so vai ver o canal selecionado. Nao tera acesso ao dashboard nem a nenhuma outra parte da plataforma.
+                    Este utilizador so vai ver o canal e/ou dashboard selecionados. Nao tera acesso a mais nada da plataforma.
                   </p>
 
                   <div>
@@ -274,6 +277,24 @@ export default function AdminUsersPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Dashboard access */}
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-orange-800">Dashboard (opcional)</label>
+                    <select
+                      value={form.assignedDashboardId}
+                      onChange={(e) => setForm({ ...form, assignedDashboardId: e.target.value })}
+                      className="w-full rounded-lg border px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="">Sem acesso a dashboard</option>
+                      {dashboardsList.data?.map((db) => (
+                        <option key={db.id} value={db.id}>{db.client.name} ({db.market})</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-orange-600">
+                      Se selecionado, o utilizador tambem tera acesso a esta dashboard comercial.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -328,6 +349,7 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw }: {
   user: {
     id: string; name: string; email: string; role: string;
     image: string | null; assignedChannel?: { name: string } | null;
+    assignedDashboard?: { client: { name: string }; market: string } | null;
     consentPrivacyPolicy?: boolean; consentTerms?: boolean; consentDPA?: boolean;
     consentDataDeletion?: boolean; consentAIAnalysis?: boolean; consentsAcceptedAt?: string | null;
     _count: { sessions: number; messages: number };
@@ -358,6 +380,9 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw }: {
           <p className="text-xs text-muted-foreground truncate">{user.email}</p>
           {user.assignedChannel && (
             <p className="text-xs text-orange-600">Canal: {user.assignedChannel.name}</p>
+          )}
+          {user.assignedDashboard && (
+            <p className="text-xs text-[#2D76FC]">Dashboard: {user.assignedDashboard.client.name} ({user.assignedDashboard.market})</p>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
