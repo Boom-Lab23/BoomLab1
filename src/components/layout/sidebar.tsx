@@ -19,6 +19,7 @@ const mainNav = [
   { href: "/calendar", label: "Calendario", icon: CalendarDays },
   { href: "/recordings", label: "Gravacoes & IA", icon: Mic },
   { href: "/messaging", label: "Mensagens", icon: MessageSquare },
+  { href: "/dashboards", label: "Dashboards", icon: BarChart3 },
   { href: "/documents", label: "Documentos", icon: FileText },
   { href: "/timelines", label: "Timelines", icon: Layers },
   { href: "/referrals", label: "Referencias", icon: UserPlus },

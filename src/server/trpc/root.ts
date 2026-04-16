@@ -12,6 +12,7 @@ import { feedbackRouter } from "./feedback";
 import { knowledgeRouter } from "./knowledge";
 import { timelinesRouter } from "./timelines";
 import { referralsRouter } from "./referrals";
+import { dashboardsRouter } from "./dashboards";
 
 export const appRouter = router({
   clients: clientsRouter,
@@ -27,6 +28,7 @@ export const appRouter = router({
   knowledge: knowledgeRouter,
   timelines: timelinesRouter,
   referrals: referralsRouter,
+  dashboards: dashboardsRouter,
 });
 
 export type AppRouter = typeof appRouter;

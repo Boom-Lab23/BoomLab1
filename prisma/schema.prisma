@@ -90,6 +90,7 @@ model Client {
   channels         Channel[]
   timelines        Timeline[]
   referralsGiven   Referral[]   @relation("ReferrerClient")
+  dashboard        ClientDashboard?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 }
@@ -365,6 +366,77 @@ enum Risk {
 enum RecordingType {
   CALL
   MEETING
+}
+
+// ==========================================
+// COMMERCIAL DASHBOARDS (per client, per market)
+// ==========================================
+
+// Dashboard assigned to a client
+model ClientDashboard {
+  id          String        @id @default(cuid())
+  clientId    String        @unique
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  market      MarketType                    // CREDITO, SEGUROS, IMOBILIARIO
+  objectives  Json?                         // {chamadas: 1200, agendamentos: 100, ...}
+  commercials String[]                      // Names of commercial team members
+  records     DashboardRecord[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+// Daily record (End of Day form submission)
+model DashboardRecord {
+  id              String          @id @default(cuid())
+  dashboardId     String
+  dashboard       ClientDashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  date            DateTime
+  week            Int                         // Week number
+  month           String                      // Month name
+  trimester       String                      // Q1, Q2, Q3, Q4
+  year            Int
+  commercial      String                      // Name of the commercial
+  channel         String          @default("Cold Calling") // Cold Calling, LinkedIn, Anuncios, Referências
+  // Common metrics (all markets)
+  callsMade       Int             @default(0)
+  callsAnswered   Int             @default(0)
+  callsNotAnswered Int            @default(0)
+  conversions     Int             @default(0)
+  conversionRate  Float?
+  // Credito specific
+  escrituras      Int?
+  creditoHabitacao Int?
+  valorCreditoHab Float?
+  creditoPessoal  Int?
+  valorCreditoPes Float?
+  cartoes         Int?
+  valorCartoes    Float?
+  seguros         Int?
+  valorSeguros    Float?
+  // Seguros specific
+  angariacoes     Int?
+  premios         Float?
+  apolices        Int?
+  // Imobiliario specific
+  decisionMakers  Int?
+  decisionMakersQualified Int?
+  valorPremios    Float?
+  apolicesEmitidas Int?
+  taxaSimulacao   Float?
+  // Pipeline (all markets)
+  agendamentos    Int?
+  reunioes        Int?
+  comparecimentos Int?
+  showUpRate      Float?
+  // Extra
+  notes           String?
+  createdAt       DateTime        @default(now())
+}
+
+enum MarketType {
+  CREDITO
+  SEGUROS
+  IMOBILIARIO
 }
 
 // ==========================================
