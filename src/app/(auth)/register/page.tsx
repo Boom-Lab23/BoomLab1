@@ -152,7 +152,7 @@ export default function RegisterPage() {
                 className="mt-0.5 rounded border-gray-600 bg-white/5 text-[#2D76FC] focus:ring-[#2D76FC]/30" />
               <div>
                 <p className="text-sm text-gray-200 group-hover:text-white">
-                  Li e aceito a <span className="text-[#2D76FC] underline">Politica de Privacidade</span>
+                  Li e aceito a <a href="/privacy" target="_blank" className="text-[#2D76FC] underline hover:text-[#2D76FC]/80">Politica de Privacidade</a>
                   <span className="ml-1 text-red-400 text-xs">*obrigatorio</span>
                 </p>
                 <p className="text-[11px] text-gray-500 mt-0.5">Como os seus dados pessoais sao recolhidos, tratados e protegidos.</p>
@@ -165,7 +165,7 @@ export default function RegisterPage() {
                 className="mt-0.5 rounded border-gray-600 bg-white/5 text-[#2D76FC] focus:ring-[#2D76FC]/30" />
               <div>
                 <p className="text-sm text-gray-200 group-hover:text-white">
-                  Aceito os <span className="text-[#2D76FC] underline">Termos de Consentimento</span>
+                  Aceito os <a href="/terms" target="_blank" className="text-[#2D76FC] underline hover:text-[#2D76FC]/80">Termos e Condicoes</a>
                   <span className="ml-1 text-red-400 text-xs">*obrigatorio</span>
                 </p>
                 <p className="text-[11px] text-gray-500 mt-0.5">Condicoes de utilizacao da plataforma e tratamento de dados.</p>
@@ -178,7 +178,7 @@ export default function RegisterPage() {
                 className="mt-0.5 rounded border-gray-600 bg-white/5 text-[#2D76FC] focus:ring-[#2D76FC]/30" />
               <div>
                 <p className="text-sm text-gray-200 group-hover:text-white">
-                  Aceito o <span className="text-[#2D76FC] underline">DPA - Acordo de Processamento de Dados</span>
+                  Aceito o <a href="/dpa" target="_blank" className="text-[#2D76FC] underline hover:text-[#2D76FC]/80">DPA - Acordo de Processamento de Dados</a>
                   <span className="ml-1 text-red-400 text-xs">*obrigatorio</span>
                 </p>
                 <p className="text-[11px] text-gray-500 mt-0.5">Acordo sobre como terceiros processam os seus dados em nosso nome.</p>
