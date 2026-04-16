@@ -403,26 +403,45 @@ model DashboardRecord {
   callsNotAnswered Int            @default(0)
   conversions     Int             @default(0)
   conversionRate  Float?
-  // Credito specific
-  escrituras      Int?
-  creditoHabitacao Int?
-  valorCreditoHab Float?
-  creditoPessoal  Int?
-  valorCreditoPes Float?
-  cartoes         Int?
-  valorCartoes    Float?
-  seguros         Int?
-  valorSeguros    Float?
-  // Seguros specific
-  angariacoes     Int?
-  premios         Float?
-  apolices        Int?
-  // Imobiliario specific
-  decisionMakers  Int?
+  // Credito vertentes
+  escrituras         Int?
+  creditoHabitacaoN  Int?              // Nº creditos habitacao
+  creditoHabitacaoV  Float?            // Valor credito habitacao
+  creditoPessoalN    Int?              // Nº creditos pessoal
+  creditoPessoalV    Float?            // Valor credito pessoal
+  creditoConsumoN    Int?              // Nº creditos consumo
+  creditoConsumoV    Float?            // Valor credito consumo
+  cartoesN           Int?              // Nº cartoes credito
+  cartoesV           Float?            // Valor cartoes
+  segurosCrossN      Int?              // Nº seguros (cross-sell)
+  segurosCrossV      Float?            // Valor seguros
+  // Seguros vertentes
+  segurosVidaN       Int?
+  segurosVidaV       Float?
+  segurosSaudeN      Int?
+  segurosSaudeV      Float?
+  segurosAutoN       Int?
+  segurosAutoV       Float?
+  segurosHabitacaoN  Int?
+  segurosHabitacaoV  Float?
+  segurosMultiN      Int?              // Multirriscos
+  segurosMultiV      Float?
+  segurosOutrosN     Int?
+  segurosOutrosV     Float?
+  angariacoes        Int?
+  premiosTotal       Float?
+  apolicesTotal      Int?
+  // Imobiliario vertentes
+  decisionMakers     Int?
   decisionMakersQualified Int?
-  valorPremios    Float?
-  apolicesEmitidas Int?
-  taxaSimulacao   Float?
+  imoAngariacaoN     Int?              // Angariacao
+  imoAngariacaoV     Float?
+  imoVendaN          Int?              // Venda
+  imoVendaV          Float?
+  imoArrendamentoN   Int?              // Arrendamento
+  imoArrendamentoV   Float?
+  imoComercialN      Int?              // Comercial
+  imoComercialV      Float?
   // Pipeline (all markets)
   agendamentos    Int?
   reunioes        Int?

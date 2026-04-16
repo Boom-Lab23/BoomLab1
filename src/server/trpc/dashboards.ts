@@ -206,6 +206,100 @@ export const dashboardsRouter = router({
       };
     }),
 
+  // Growth KPIs - aggregated by week
+  growthKpis: publicProcedure
+    .input(z.object({ dashboardId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const records = await ctx.prisma.dashboardRecord.findMany({
+        where: { dashboardId: input.dashboardId },
+        orderBy: { date: "asc" },
+      });
+
+      // Aggregate by week
+      const byWeek: Record<string, {
+        week: number; year: number; month: string; trimester: string;
+        calls: number; answered: number; conversions: number;
+        agendamentos: number; reunioes: number; comparecimentos: number;
+        // Credito
+        creditoHab: number; creditoPes: number; creditoCon: number; cartoes: number; segurosCross: number;
+        // Seguros
+        segurosVida: number; segurosSaude: number; segurosAuto: number; segurosHab: number; segurosMulti: number;
+        // Imobiliario
+        imoAngariacao: number; imoVenda: number; imoArrendamento: number;
+      }> = {};
+
+      for (const r of records) {
+        const key = `${r.year}-W${r.week}`;
+        if (!byWeek[key]) {
+          byWeek[key] = {
+            week: r.week, year: r.year, month: r.month, trimester: r.trimester,
+            calls: 0, answered: 0, conversions: 0, agendamentos: 0, reunioes: 0, comparecimentos: 0,
+            creditoHab: 0, creditoPes: 0, creditoCon: 0, cartoes: 0, segurosCross: 0,
+            segurosVida: 0, segurosSaude: 0, segurosAuto: 0, segurosHab: 0, segurosMulti: 0,
+            imoAngariacao: 0, imoVenda: 0, imoArrendamento: 0,
+          };
+        }
+        const w = byWeek[key];
+        w.calls += r.callsMade;
+        w.answered += r.callsAnswered;
+        w.conversions += r.conversions;
+        w.agendamentos += r.agendamentos ?? 0;
+        w.reunioes += r.reunioes ?? 0;
+        w.comparecimentos += r.comparecimentos ?? 0;
+        w.creditoHab += r.creditoHabitacaoN ?? 0;
+        w.creditoPes += r.creditoPessoalN ?? 0;
+        w.creditoCon += r.creditoConsumoN ?? 0;
+        w.cartoes += r.cartoesN ?? 0;
+        w.segurosCross += r.segurosCrossN ?? 0;
+        w.segurosVida += r.segurosVidaN ?? 0;
+        w.segurosSaude += r.segurosSaudeN ?? 0;
+        w.segurosAuto += r.segurosAutoN ?? 0;
+        w.segurosHab += r.segurosHabitacaoN ?? 0;
+        w.segurosMulti += r.segurosMultiN ?? 0;
+        w.imoAngariacao += r.imoAngariacaoN ?? 0;
+        w.imoVenda += r.imoVendaN ?? 0;
+        w.imoArrendamento += r.imoArrendamentoN ?? 0;
+      }
+
+      return Object.entries(byWeek)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, data]) => ({ key, label: `S${data.week}`, ...data }));
+    }),
+
+  // Chart data - daily aggregated for line charts
+  chartData: publicProcedure
+    .input(z.object({
+      dashboardId: z.string(),
+      months: z.number().default(3),
+    }))
+    .query(async ({ ctx, input }) => {
+      const since = new Date();
+      since.setMonth(since.getMonth() - input.months);
+
+      const records = await ctx.prisma.dashboardRecord.findMany({
+        where: { dashboardId: input.dashboardId, date: { gte: since } },
+        orderBy: { date: "asc" },
+      });
+
+      // Aggregate by day
+      const byDay: Record<string, { date: string; calls: number; conversions: number; agendamentos: number; conversionRate: number }> = {};
+
+      for (const r of records) {
+        const day = new Date(r.date).toISOString().split("T")[0];
+        if (!byDay[day]) byDay[day] = { date: day, calls: 0, conversions: 0, agendamentos: 0, conversionRate: 0 };
+        byDay[day].calls += r.callsMade;
+        byDay[day].conversions += r.conversions;
+        byDay[day].agendamentos += r.agendamentos ?? 0;
+      }
+
+      // Calculate conversion rates
+      for (const d of Object.values(byDay)) {
+        d.conversionRate = d.calls > 0 ? Math.round((d.conversions / d.calls) * 100) : 0;
+      }
+
+      return Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
+    }),
+
   // Delete dashboard
   delete: publicProcedure.input(z.string()).mutation(async ({ ctx, input }) => {
     return ctx.prisma.clientDashboard.delete({ where: { id: input } });
