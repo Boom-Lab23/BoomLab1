@@ -30,10 +30,14 @@ type FirefliesTranscript = {
   date: string;
   duration: number;
   participants: string[];
+  audio_url: string | null;
+  video_url: string | null;
   summary: {
     overview: string;
     action_items: string[];
     keywords: string[];
+    shorthand_bullet: string[];
+    notes: string;
   };
   sentences: {
     text: string;
@@ -53,10 +57,14 @@ export async function fetchRecentTranscripts(limit = 20): Promise<FirefliesTrans
         date
         duration
         participants
+        audio_url
+        video_url
         summary {
           overview
           action_items
           keywords
+          shorthand_bullet
+          notes
         }
         sentences {
           text
@@ -71,7 +79,7 @@ export async function fetchRecentTranscripts(limit = 20): Promise<FirefliesTrans
   return data.transcripts;
 }
 
-// Fetch a single transcript by ID
+// Fetch a single transcript by ID (with audio/video/notes)
 export async function fetchTranscript(transcriptId: string): Promise<FirefliesTranscript> {
   const data = await firefliesQuery<{ transcript: FirefliesTranscript }>(`
     query GetTranscript($id: String!) {
@@ -81,10 +89,14 @@ export async function fetchTranscript(transcriptId: string): Promise<FirefliesTr
         date
         duration
         participants
+        audio_url
+        video_url
         summary {
           overview
           action_items
           keywords
+          shorthand_bullet
+          notes
         }
         sentences {
           text
@@ -119,16 +131,40 @@ export async function linkTranscriptToSession(
 ): Promise<void> {
   const transcript = await fetchTranscript(transcriptId);
 
+  // Format notes from Fireflies
+  const firefliesNotes = formatTranscript(transcript.sentences);
+  const sessionNotes = transcript.summary?.notes || transcript.summary?.shorthand_bullet?.join("\n") || null;
+
   await prisma.session.update({
     where: { id: sessionId },
     data: {
       firefliesId: transcript.id,
       firefliesSummary: transcript.summary?.overview ?? null,
-      firefliesNotes: formatTranscript(transcript.sentences),
+      firefliesNotes: firefliesNotes,
+      notes: sessionNotes, // Auto-fill session notes from Fireflies
       actionItems: transcript.summary?.action_items ?? [],
+      firefliesRecordingUrl: `https://app.fireflies.ai/view/${transcript.id}`,
       status: "CONCLUIDA",
     },
   });
+
+  // Create a recording entry with audio/video URL
+  const session = await prisma.session.findUnique({ where: { id: sessionId } });
+  if (session) {
+    const recordingUrl = transcript.video_url || transcript.audio_url || `https://app.fireflies.ai/view/${transcript.id}`;
+
+    await prisma.recording.create({
+      data: {
+        title: `${transcript.title} - Gravacao`,
+        type: "MEETING",
+        duration: transcript.duration ? Math.round(transcript.duration * 60) : null,
+        fileUrl: recordingUrl,
+        transcript: firefliesNotes,
+        clientId: session.clientId,
+        sessionId: session.id,
+      },
+    });
+  }
 }
 
 // Auto-sync: fetch recent Fireflies transcripts and match to sessions
@@ -149,13 +185,12 @@ export async function syncFireflies(): Promise<{
     if (existing) continue;
 
     // Try to match by date
-    const meetingDate = new Date(transcript.date);
+    const meetingDate = new Date(parseInt(transcript.date) || transcript.date);
     const startOfDay = new Date(meetingDate);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(meetingDate);
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Find unlinked sessions on the same day
     const matchingSession = await prisma.session.findFirst({
       where: {
         date: { gte: startOfDay, lte: endOfDay },
@@ -166,16 +201,36 @@ export async function syncFireflies(): Promise<{
     });
 
     if (matchingSession) {
+      const firefliesNotes = formatTranscript(transcript.sentences);
+      const sessionNotes = transcript.summary?.notes || transcript.summary?.shorthand_bullet?.join("\n") || null;
+
       await prisma.session.update({
         where: { id: matchingSession.id },
         data: {
           firefliesId: transcript.id,
           firefliesSummary: transcript.summary?.overview ?? null,
-          firefliesNotes: formatTranscript(transcript.sentences),
+          firefliesNotes: firefliesNotes,
+          notes: sessionNotes,
           actionItems: transcript.summary?.action_items ?? [],
+          firefliesRecordingUrl: `https://app.fireflies.ai/view/${transcript.id}`,
           status: "CONCLUIDA",
         },
       });
+
+      // Create recording with audio/video
+      const recordingUrl = transcript.video_url || transcript.audio_url || `https://app.fireflies.ai/view/${transcript.id}`;
+      await prisma.recording.create({
+        data: {
+          title: `${transcript.title} - Gravacao`,
+          type: "MEETING",
+          duration: transcript.duration ? Math.round(transcript.duration * 60) : null,
+          fileUrl: recordingUrl,
+          transcript: firefliesNotes,
+          clientId: matchingSession.clientId,
+          sessionId: matchingSession.id,
+        },
+      });
+
       matched++;
     } else {
       unmatched.push(`${transcript.title} (${meetingDate.toLocaleDateString("pt-PT")})`);
@@ -256,7 +311,7 @@ Analisa a transcricao e responde APENAS em JSON valido:
     data: {
       firefliesSummary: analysis.summary,
       actionItems: analysis.actionItems,
-      evaluation: Math.round(analysis.score / 10), // Convert 0-100 to 0-10
+      evaluation: Math.round(analysis.score / 10),
     },
   });
 

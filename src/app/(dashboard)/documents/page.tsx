@@ -22,6 +22,7 @@ const MARKETS = [
 ];
 
 export default function DocumentsPage() {
+  const [activeTab, setActiveTab] = useState<"docs" | "drives">("docs");
   const [selectedMarket, setSelectedMarket] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [showMove, setShowMove] = useState<string | null>(null);
@@ -64,6 +65,51 @@ export default function DocumentsPage() {
           Adicionar
         </button>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 rounded-lg border bg-muted/50 p-1">
+        <button onClick={() => setActiveTab("docs")} className={cn("flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors", activeTab === "docs" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+          <FileText className="h-4 w-4" /> Documentos
+        </button>
+        <button onClick={() => setActiveTab("drives")} className={cn("flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors", activeTab === "drives" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+          <FolderOpen className="h-4 w-4" /> Drives de Clientes
+        </button>
+      </div>
+
+      {/* ===== DRIVES DE CLIENTES TAB ===== */}
+      {activeTab === "drives" && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+            <p className="text-sm text-blue-800">
+              <FolderOpen className="inline h-4 w-4 mr-1" />
+              Pastas de clientes na Google Drive. Cada cliente tem a sua pasta com todos os documentos do projeto.
+            </p>
+          </div>
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {clients.data?.map((client) => (
+              <a
+                key={client.id}
+                href={`https://drive.google.com/drive/search?q=${encodeURIComponent(client.name + " X Boomlab")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/50"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#2D76FC]/10 text-[#2D76FC] text-sm font-semibold">
+                  {client.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{client.name}</p>
+                  <p className="text-[10px] text-muted-foreground">Abrir Drive do cliente</p>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ===== DOCUMENTOS TAB ===== */}
+      {activeTab === "docs" && (<>
 
       {/* Market Folders */}
       <div className="grid gap-2 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
@@ -153,6 +199,8 @@ export default function DocumentsPage() {
           })}
         </div>
       </div>
+
+      </>)}
 
       {/* Move Document Dialog */}
       {showMove && (
