@@ -401,6 +401,33 @@ export const dashboardsRouter = router({
       return Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
     }),
 
+  // Delete a single daily record
+  deleteRecord: publicProcedure.input(z.string()).mutation(async ({ ctx, input }) => {
+    return ctx.prisma.dashboardRecord.delete({ where: { id: input } });
+  }),
+
+  // Bulk delete records (e.g. clear all records of a given commercial / date range)
+  deleteRecords: publicProcedure
+    .input(z.object({
+      dashboardId: z.string(),
+      ids: z.array(z.string()).optional(),
+      commercial: z.string().optional(),
+      from: z.date().optional(),
+      to: z.date().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const where: Record<string, unknown> = { dashboardId: input.dashboardId };
+      if (input.ids && input.ids.length > 0) where.id = { in: input.ids };
+      if (input.commercial) where.commercial = input.commercial;
+      if (input.from || input.to) {
+        where.date = {};
+        if (input.from) (where.date as Record<string, unknown>).gte = input.from;
+        if (input.to) (where.date as Record<string, unknown>).lte = input.to;
+      }
+      const result = await ctx.prisma.dashboardRecord.deleteMany({ where });
+      return { deleted: result.count };
+    }),
+
   // Delete dashboard
   delete: publicProcedure.input(z.string()).mutation(async ({ ctx, input }) => {
     return ctx.prisma.clientDashboard.delete({ where: { id: input } });

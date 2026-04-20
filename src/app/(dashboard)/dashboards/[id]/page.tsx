@@ -2,6 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
@@ -20,6 +21,11 @@ import {
 
 export default function DashboardDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { data: authSession } = useSession();
+  const userRole = (authSession?.user as Record<string, unknown>)?.role as string | undefined;
+  // Only ADMIN / CONSULTANT / MANAGER can delete. Guests (equipas comerciais do cliente) nao.
+  const canDeleteRecords = userRole === "ADMIN" || userRole === "CONSULTANT" || userRole === "MANAGER";
+
   const [period, setPeriod] = useState<"week" | "month" | "trimester" | "year">("month");
   const [activeTab, setActiveTab] = useState<"overview" | "channels" | "growth" | "vertentes">("overview");
   const [showEOD, setShowEOD] = useState(false);
@@ -57,6 +63,15 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
 
   const updateDashboard = trpc.dashboards.update.useMutation({
     onSuccess: () => utils.dashboards.getById.invalidate(),
+  });
+
+  const deleteRecord = trpc.dashboards.deleteRecord.useMutation({
+    onSuccess: () => {
+      utils.dashboards.getById.invalidate();
+      utils.dashboards.kpis.invalidate();
+      utils.dashboards.growthKpis.invalidate();
+      utils.dashboards.chartData.invalidate();
+    },
   });
 
   const users = trpc.admin.listUsers.useQuery();
@@ -489,7 +504,10 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
 
       {/* Recent Records (always visible) */}
       <div className="rounded-xl border bg-card">
-        <div className="border-b p-4"><h2 className="font-semibold">Registos Recentes</h2></div>
+        <div className="flex items-center justify-between border-b p-4">
+          <h2 className="font-semibold">Registos Recentes</h2>
+          <p className="text-xs text-muted-foreground">{db.records.length} registos no total</p>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr className="border-b text-muted-foreground">
@@ -497,10 +515,11 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
               <th className="text-left p-2">Canal</th><th className="text-right p-2">Contactos</th>
               <th className="text-right p-2">Reun.</th><th className="text-right p-2">Conv.</th>
               <th className="text-right p-2">TC%</th>
+              {canDeleteRecords && <th className="text-right p-2 w-10"></th>}
             </tr></thead>
             <tbody className="divide-y">
               {db.records.slice(0, 20).map((r) => (
-                <tr key={r.id} className="hover:bg-muted/50">
+                <tr key={r.id} className="hover:bg-muted/50 group">
                   <td className="p-2">{new Date(r.date).toLocaleDateString("pt-PT")}</td>
                   <td className="p-2 font-medium">{r.commercial}</td>
                   <td className="p-2">
@@ -513,9 +532,25 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                   <td className="p-2 text-right">{r.reunioesEfetuadas ?? r.agendamentos ?? 0}</td>
                   <td className="p-2 text-right">{r.conversoesFeitas ?? r.conversions ?? 0}</td>
                   <td className="p-2 text-right">{r.conversionRate?.toFixed(1)}%</td>
+                  {canDeleteRecords && (
+                    <td className="p-2 text-right">
+                      <button
+                        onClick={() => {
+                          if (confirm(`Apagar registo de ${r.commercial} de ${new Date(r.date).toLocaleDateString("pt-PT")}?`)) {
+                            deleteRecord.mutate(r.id);
+                          }
+                        }}
+                        disabled={deleteRecord.isPending}
+                        className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 transition-opacity disabled:opacity-50"
+                        title="Apagar registo"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
-              {db.records.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Sem registos. Usa o botao &quot;Registo&quot; para adicionar.</td></tr>}
+              {db.records.length === 0 && <tr><td colSpan={canDeleteRecords ? 8 : 7} className="p-6 text-center text-muted-foreground">Sem registos. Usa o botao &quot;Registo&quot; para adicionar.</td></tr>}
             </tbody>
           </table>
         </div>
