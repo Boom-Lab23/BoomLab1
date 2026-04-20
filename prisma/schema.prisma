@@ -407,7 +407,9 @@ model DashboardRecord {
   callsMade       Int             @default(0)
   callsAnswered   Int             @default(0)
   callsNotAnswered Int            @default(0)
-  conversions     Int             @default(0)
+  conversions     Int             @default(0)  // legacy: mantido para compat. Usar conversoesFeitas
+  conversoesFeitas Int            @default(0)  // Quantos fecharam contrato (novo campo claro)
+  reunioesEfetuadas Int           @default(0)  // Reunioes que realmente aconteceram (substitui agendamentos)
   conversionRate  Float?
   // Credito vertentes
   escrituras         Int?

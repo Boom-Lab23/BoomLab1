@@ -66,31 +66,53 @@ export const dashboardsRouter = router({
       callsMade: z.number().default(0),
       callsAnswered: z.number().default(0),
       callsNotAnswered: z.number().default(0),
-      conversions: z.number().default(0),
-      // Credito
-      escrituras: z.number().optional(),
-      creditoHabitacao: z.number().optional(),
-      valorCreditoHab: z.number().optional(),
-      creditoPessoal: z.number().optional(),
-      valorCreditoPes: z.number().optional(),
-      cartoes: z.number().optional(),
-      valorCartoes: z.number().optional(),
-      seguros: z.number().optional(),
-      valorSeguros: z.number().optional(),
-      // Seguros
-      angariacoes: z.number().optional(),
-      premios: z.number().optional(),
-      apolices: z.number().optional(),
-      // Imobiliario
-      decisionMakers: z.number().optional(),
-      decisionMakersQualified: z.number().optional(),
-      valorPremios: z.number().optional(),
-      apolicesEmitidas: z.number().optional(),
-      taxaSimulacao: z.number().optional(),
-      // Pipeline
+      // Renamed pipeline
+      reunioesEfetuadas: z.number().default(0),
+      conversoesFeitas: z.number().default(0),
+      // Legacy (kept for compat)
+      conversions: z.number().optional(),
       agendamentos: z.number().optional(),
       reunioes: z.number().optional(),
       comparecimentos: z.number().optional(),
+      // Credito
+      escrituras: z.number().optional(),
+      creditoHabitacaoN: z.number().optional(),
+      creditoHabitacaoV: z.number().optional(),
+      creditoPessoalN: z.number().optional(),
+      creditoPessoalV: z.number().optional(),
+      creditoConsumoN: z.number().optional(),
+      creditoConsumoV: z.number().optional(),
+      cartoesN: z.number().optional(),
+      cartoesV: z.number().optional(),
+      segurosCrossN: z.number().optional(),
+      segurosCrossV: z.number().optional(),
+      // Seguros
+      segurosVidaN: z.number().optional(),
+      segurosVidaV: z.number().optional(),
+      segurosSaudeN: z.number().optional(),
+      segurosSaudeV: z.number().optional(),
+      segurosAutoN: z.number().optional(),
+      segurosAutoV: z.number().optional(),
+      segurosHabitacaoN: z.number().optional(),
+      segurosHabitacaoV: z.number().optional(),
+      segurosMultiN: z.number().optional(),
+      segurosMultiV: z.number().optional(),
+      segurosOutrosN: z.number().optional(),
+      segurosOutrosV: z.number().optional(),
+      angariacoes: z.number().optional(),
+      premiosTotal: z.number().optional(),
+      apolicesTotal: z.number().optional(),
+      // Imobiliario
+      decisionMakers: z.number().optional(),
+      decisionMakersQualified: z.number().optional(),
+      imoAngariacaoN: z.number().optional(),
+      imoAngariacaoV: z.number().optional(),
+      imoVendaN: z.number().optional(),
+      imoVendaV: z.number().optional(),
+      imoArrendamentoN: z.number().optional(),
+      imoArrendamentoV: z.number().optional(),
+      imoComercialN: z.number().optional(),
+      imoComercialV: z.number().optional(),
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -99,25 +121,76 @@ export const dashboardsRouter = router({
       const months = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
       const month = months[date.getMonth()];
       const q = Math.floor(date.getMonth() / 3) + 1;
-      const convRate = input.callsMade > 0 ? (input.conversions / input.callsMade) * 100 : 0;
+
+      // Use new fields as source of truth; fall back to legacy if provided
+      const conversions = input.conversoesFeitas || input.conversions || 0;
+      const reunioes = input.reunioesEfetuadas || input.reunioes || input.agendamentos || 0;
+      const convRate = input.callsMade > 0 ? (conversions / input.callsMade) * 100 : 0;
+      const showUp = reunioes > 0 ? (conversions / reunioes) * 100 : 0;
 
       return ctx.prisma.dashboardRecord.create({
         data: {
-          ...input,
+          dashboardId: input.dashboardId,
           date,
           week,
           month,
           trimester: `Q${q}`,
           year: date.getFullYear(),
+          commercial: input.commercial,
+          channel: input.channel,
+          callsMade: input.callsMade,
+          callsAnswered: input.callsAnswered,
+          callsNotAnswered: input.callsNotAnswered,
+          conversions,
+          conversoesFeitas: conversions,
+          reunioesEfetuadas: reunioes,
+          agendamentos: reunioes, // keep synced for legacy reads
+          reunioes,
+          comparecimentos: input.comparecimentos ?? reunioes,
           conversionRate: convRate,
-          showUpRate: input.reunioes && input.comparecimentos
-            ? (input.comparecimentos / input.reunioes) * 100
-            : undefined,
+          showUpRate: showUp,
+          escrituras: input.escrituras,
+          creditoHabitacaoN: input.creditoHabitacaoN,
+          creditoHabitacaoV: input.creditoHabitacaoV,
+          creditoPessoalN: input.creditoPessoalN,
+          creditoPessoalV: input.creditoPessoalV,
+          creditoConsumoN: input.creditoConsumoN,
+          creditoConsumoV: input.creditoConsumoV,
+          cartoesN: input.cartoesN,
+          cartoesV: input.cartoesV,
+          segurosCrossN: input.segurosCrossN,
+          segurosCrossV: input.segurosCrossV,
+          segurosVidaN: input.segurosVidaN,
+          segurosVidaV: input.segurosVidaV,
+          segurosSaudeN: input.segurosSaudeN,
+          segurosSaudeV: input.segurosSaudeV,
+          segurosAutoN: input.segurosAutoN,
+          segurosAutoV: input.segurosAutoV,
+          segurosHabitacaoN: input.segurosHabitacaoN,
+          segurosHabitacaoV: input.segurosHabitacaoV,
+          segurosMultiN: input.segurosMultiN,
+          segurosMultiV: input.segurosMultiV,
+          segurosOutrosN: input.segurosOutrosN,
+          segurosOutrosV: input.segurosOutrosV,
+          angariacoes: input.angariacoes,
+          premiosTotal: input.premiosTotal,
+          apolicesTotal: input.apolicesTotal,
+          decisionMakers: input.decisionMakers,
+          decisionMakersQualified: input.decisionMakersQualified,
+          imoAngariacaoN: input.imoAngariacaoN,
+          imoAngariacaoV: input.imoAngariacaoV,
+          imoVendaN: input.imoVendaN,
+          imoVendaV: input.imoVendaV,
+          imoArrendamentoN: input.imoArrendamentoN,
+          imoArrendamentoV: input.imoArrendamentoV,
+          imoComercialN: input.imoComercialN,
+          imoComercialV: input.imoComercialV,
+          notes: input.notes,
         },
       });
     }),
 
-  // Get KPIs for a dashboard (aggregated)
+  // Get KPIs for a dashboard (aggregated) - with per-channel breakdown
   kpis: publicProcedure
     .input(z.object({
       dashboardId: z.string(),
@@ -152,35 +225,46 @@ export const dashboardsRouter = router({
 
       // Aggregate by commercial
       const byCommercial: Record<string, {
-        calls: number; answered: number; conversions: number;
-        agendamentos: number; reunioes: number; comparecimentos: number;
+        calls: number; answered: number; conversoesFeitas: number;
+        reunioesEfetuadas: number;
         escrituras: number; angariacoes: number; decisionMakers: number;
       }> = {};
 
-      let totalCalls = 0, totalAnswered = 0, totalConversions = 0;
-      let totalAgendamentos = 0, totalReunioes = 0, totalComparecimentos = 0;
+      // Aggregate by channel (acquisition channel)
+      const byChannel: Record<string, {
+        calls: number; answered: number; conversoesFeitas: number; reunioesEfetuadas: number;
+      }> = {};
+
+      let totalCalls = 0, totalAnswered = 0, totalConversoes = 0, totalReunioes = 0;
 
       for (const r of records) {
+        const conv = r.conversoesFeitas || r.conversions || 0;
+        const reun = r.reunioesEfetuadas || r.agendamentos || r.reunioes || 0;
         if (!byCommercial[r.commercial]) {
-          byCommercial[r.commercial] = { calls: 0, answered: 0, conversions: 0, agendamentos: 0, reunioes: 0, comparecimentos: 0, escrituras: 0, angariacoes: 0, decisionMakers: 0 };
+          byCommercial[r.commercial] = { calls: 0, answered: 0, conversoesFeitas: 0, reunioesEfetuadas: 0, escrituras: 0, angariacoes: 0, decisionMakers: 0 };
         }
         const c = byCommercial[r.commercial];
         c.calls += r.callsMade;
         c.answered += r.callsAnswered;
-        c.conversions += r.conversions;
-        c.agendamentos += r.agendamentos ?? 0;
-        c.reunioes += r.reunioes ?? 0;
-        c.comparecimentos += r.comparecimentos ?? 0;
+        c.conversoesFeitas += conv;
+        c.reunioesEfetuadas += reun;
         c.escrituras += r.escrituras ?? 0;
         c.angariacoes += r.angariacoes ?? 0;
         c.decisionMakers += r.decisionMakers ?? 0;
 
+        const channelKey = r.channel || "outros";
+        if (!byChannel[channelKey]) {
+          byChannel[channelKey] = { calls: 0, answered: 0, conversoesFeitas: 0, reunioesEfetuadas: 0 };
+        }
+        byChannel[channelKey].calls += r.callsMade;
+        byChannel[channelKey].answered += r.callsAnswered;
+        byChannel[channelKey].conversoesFeitas += conv;
+        byChannel[channelKey].reunioesEfetuadas += reun;
+
         totalCalls += r.callsMade;
         totalAnswered += r.callsAnswered;
-        totalConversions += r.conversions;
-        totalAgendamentos += r.agendamentos ?? 0;
-        totalReunioes += r.reunioes ?? 0;
-        totalComparecimentos += r.comparecimentos ?? 0;
+        totalConversoes += conv;
+        totalReunioes += reun;
       }
 
       return {
@@ -190,23 +274,31 @@ export const dashboardsRouter = router({
         totals: {
           calls: totalCalls,
           answered: totalAnswered,
-          conversions: totalConversions,
-          conversionRate: totalCalls > 0 ? (totalConversions / totalCalls) * 100 : 0,
-          agendamentos: totalAgendamentos,
-          reunioes: totalReunioes,
-          comparecimentos: totalComparecimentos,
-          showUpRate: totalReunioes > 0 ? (totalComparecimentos / totalReunioes) * 100 : 0,
+          conversoesFeitas: totalConversoes,
+          reunioesEfetuadas: totalReunioes,
+          conversionRate: totalCalls > 0 ? (totalConversoes / totalCalls) * 100 : 0,
+          // Show-up rate here means: from meetings held, how many actually converted
+          conversionFromMeetings: totalReunioes > 0 ? (totalConversoes / totalReunioes) * 100 : 0,
         },
         byCommercial: Object.entries(byCommercial).map(([name, data]) => ({
           name,
           ...data,
-          conversionRate: data.calls > 0 ? (data.conversions / data.calls) * 100 : 0,
+          conversionRate: data.calls > 0 ? (data.conversoesFeitas / data.calls) * 100 : 0,
+          conversionFromMeetings: data.reunioesEfetuadas > 0 ? (data.conversoesFeitas / data.reunioesEfetuadas) * 100 : 0,
+        })).sort((a, b) => b.calls - a.calls),
+        byChannel: Object.entries(byChannel).map(([channel, data]) => ({
+          channel,
+          ...data,
+          pctOfCalls: totalCalls > 0 ? (data.calls / totalCalls) * 100 : 0,
+          pctOfConversoes: totalConversoes > 0 ? (data.conversoesFeitas / totalConversoes) * 100 : 0,
+          pctOfReunioes: totalReunioes > 0 ? (data.reunioesEfetuadas / totalReunioes) * 100 : 0,
+          conversionRate: data.calls > 0 ? (data.conversoesFeitas / data.calls) * 100 : 0,
         })).sort((a, b) => b.calls - a.calls),
         objectives: dashboard.objectives as Record<string, number> | null,
       };
     }),
 
-  // Growth KPIs - aggregated by week
+  // Growth KPIs - aggregated by week (and by channel)
   growthKpis: publicProcedure
     .input(z.object({ dashboardId: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -215,17 +307,19 @@ export const dashboardsRouter = router({
         orderBy: { date: "asc" },
       });
 
-      // Aggregate by week
+      // Weekly aggregation with per-channel breakdown
       const byWeek: Record<string, {
         week: number; year: number; month: string; trimester: string;
-        calls: number; answered: number; conversions: number;
-        agendamentos: number; reunioes: number; comparecimentos: number;
-        // Credito
+        calls: number; answered: number;
+        conversoesFeitas: number; reunioesEfetuadas: number;
+        // Per-channel (dynamic)
+        channelCalls: Record<string, number>;
+        channelConversoes: Record<string, number>;
+        channelReunioes: Record<string, number>;
+        // Vertentes
         creditoHab: number; creditoPes: number; creditoCon: number; cartoes: number; segurosCross: number;
-        // Seguros
-        segurosVida: number; segurosSaude: number; segurosAuto: number; segurosHab: number; segurosMulti: number;
-        // Imobiliario
-        imoAngariacao: number; imoVenda: number; imoArrendamento: number;
+        segurosVida: number; segurosSaude: number; segurosAuto: number; segurosHab: number; segurosMulti: number; segurosOutros: number;
+        imoAngariacao: number; imoVenda: number; imoArrendamento: number; imoComercial: number;
       }> = {};
 
       for (const r of records) {
@@ -233,19 +327,26 @@ export const dashboardsRouter = router({
         if (!byWeek[key]) {
           byWeek[key] = {
             week: r.week, year: r.year, month: r.month, trimester: r.trimester,
-            calls: 0, answered: 0, conversions: 0, agendamentos: 0, reunioes: 0, comparecimentos: 0,
+            calls: 0, answered: 0, conversoesFeitas: 0, reunioesEfetuadas: 0,
+            channelCalls: {}, channelConversoes: {}, channelReunioes: {},
             creditoHab: 0, creditoPes: 0, creditoCon: 0, cartoes: 0, segurosCross: 0,
-            segurosVida: 0, segurosSaude: 0, segurosAuto: 0, segurosHab: 0, segurosMulti: 0,
-            imoAngariacao: 0, imoVenda: 0, imoArrendamento: 0,
+            segurosVida: 0, segurosSaude: 0, segurosAuto: 0, segurosHab: 0, segurosMulti: 0, segurosOutros: 0,
+            imoAngariacao: 0, imoVenda: 0, imoArrendamento: 0, imoComercial: 0,
           };
         }
         const w = byWeek[key];
+        const conv = r.conversoesFeitas || r.conversions || 0;
+        const reun = r.reunioesEfetuadas || r.agendamentos || r.reunioes || 0;
         w.calls += r.callsMade;
         w.answered += r.callsAnswered;
-        w.conversions += r.conversions;
-        w.agendamentos += r.agendamentos ?? 0;
-        w.reunioes += r.reunioes ?? 0;
-        w.comparecimentos += r.comparecimentos ?? 0;
+        w.conversoesFeitas += conv;
+        w.reunioesEfetuadas += reun;
+
+        const channelKey = r.channel || "outros";
+        w.channelCalls[channelKey] = (w.channelCalls[channelKey] ?? 0) + r.callsMade;
+        w.channelConversoes[channelKey] = (w.channelConversoes[channelKey] ?? 0) + conv;
+        w.channelReunioes[channelKey] = (w.channelReunioes[channelKey] ?? 0) + reun;
+
         w.creditoHab += r.creditoHabitacaoN ?? 0;
         w.creditoPes += r.creditoPessoalN ?? 0;
         w.creditoCon += r.creditoConsumoN ?? 0;
@@ -256,9 +357,11 @@ export const dashboardsRouter = router({
         w.segurosAuto += r.segurosAutoN ?? 0;
         w.segurosHab += r.segurosHabitacaoN ?? 0;
         w.segurosMulti += r.segurosMultiN ?? 0;
+        w.segurosOutros += r.segurosOutrosN ?? 0;
         w.imoAngariacao += r.imoAngariacaoN ?? 0;
         w.imoVenda += r.imoVendaN ?? 0;
         w.imoArrendamento += r.imoArrendamentoN ?? 0;
+        w.imoComercial += r.imoComercialN ?? 0;
       }
 
       return Object.entries(byWeek)
@@ -281,20 +384,18 @@ export const dashboardsRouter = router({
         orderBy: { date: "asc" },
       });
 
-      // Aggregate by day
-      const byDay: Record<string, { date: string; calls: number; conversions: number; agendamentos: number; conversionRate: number }> = {};
+      const byDay: Record<string, { date: string; calls: number; conversoesFeitas: number; reunioesEfetuadas: number; conversionRate: number }> = {};
 
       for (const r of records) {
         const day = new Date(r.date).toISOString().split("T")[0];
-        if (!byDay[day]) byDay[day] = { date: day, calls: 0, conversions: 0, agendamentos: 0, conversionRate: 0 };
+        if (!byDay[day]) byDay[day] = { date: day, calls: 0, conversoesFeitas: 0, reunioesEfetuadas: 0, conversionRate: 0 };
         byDay[day].calls += r.callsMade;
-        byDay[day].conversions += r.conversions;
-        byDay[day].agendamentos += r.agendamentos ?? 0;
+        byDay[day].conversoesFeitas += r.conversoesFeitas || r.conversions || 0;
+        byDay[day].reunioesEfetuadas += r.reunioesEfetuadas || r.agendamentos || 0;
       }
 
-      // Calculate conversion rates
       for (const d of Object.values(byDay)) {
-        d.conversionRate = d.calls > 0 ? Math.round((d.conversions / d.calls) * 100) : 0;
+        d.conversionRate = d.calls > 0 ? Math.round((d.conversoesFeitas / d.calls) * 100) : 0;
       }
 
       return Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
