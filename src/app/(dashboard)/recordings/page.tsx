@@ -6,7 +6,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
   Mic, Upload, Brain, ChevronRight, BookOpen, Plus, FileText,
-  Trash2, X,
+  Trash2, X, Edit2,
 } from "lucide-react";
 import { UploadCallDialog } from "@/components/recordings/upload-call-dialog";
 
@@ -14,15 +14,10 @@ export default function RecordingsPage() {
   const [filter, setFilter] = useState<"all" | "analyzed" | "pending">("all");
   const [showUpload, setShowUpload] = useState(false);
   const [activeTab, setActiveTab] = useState<"recordings" | "knowledge">("recordings");
-  const [showAddDoc, setShowAddDoc] = useState(false);
-  const [docForm, setDocForm] = useState({ name: "", pillar: "", content: "" });
 
   const recordings = trpc.recordings.list.useQuery({
     analyzed: filter === "analyzed" ? true : filter === "pending" ? false : undefined,
   });
-
-  // AI Scripts as knowledge base
-  const utils = trpc.useUtils();
 
   return (
     <div className="space-y-6">
@@ -150,141 +145,251 @@ export default function RecordingsPage() {
       )}
 
       {/* =================== KNOWLEDGE BASE TAB =================== */}
-      {activeTab === "knowledge" && (
-        <>
-          <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
-            <div className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-purple-600" />
-              <h3 className="font-semibold text-purple-800">Base de Conhecimento IA</h3>
-            </div>
-            <p className="mt-1 text-sm text-purple-700">
-              Adiciona aqui os documentos, scripts de vendas e materiais de referencia.
-              A IA usa esta base para analisar chamadas e reunioes de forma mais precisa e alinhada com o vosso metodo.
-            </p>
-          </div>
+      {activeTab === "knowledge" && <KnowledgeBaseTab />}
+    </div>
+  );
+}
 
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Documentos de Referencia</h2>
-            <button
-              onClick={() => setShowAddDoc(true)}
-              className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
-            >
-              <Plus className="h-4 w-4" />
-              Adicionar Documento
-            </button>
-          </div>
+// ===== KNOWLEDGE BASE COMPONENT =====
+function KnowledgeBaseTab() {
+  const [showAddDoc, setShowAddDoc] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [docForm, setDocForm] = useState({ name: "", category: "", content: "" });
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-          {/* Knowledge documents list */}
-          <div className="space-y-3">
-            {/* Placeholder categories */}
-            {[
-              { title: "Scripts de Vendas", desc: "Scripts para cold calls, reunioes de venda, follow-ups", icon: "📞", color: "bg-yellow-50 border-yellow-200" },
-              { title: "Frameworks de Reuniao", desc: "Estruturas e modelos para conduzir reunioes eficazes", icon: "📋", color: "bg-blue-50 border-blue-200" },
-              { title: "Criterios de Avaliacao", desc: "Metricas e criterios para avaliar performance comercial", icon: "📊", color: "bg-green-50 border-green-200" },
-              { title: "Materiais de Formacao", desc: "Documentos de formacao para a equipa comercial", icon: "📚", color: "bg-purple-50 border-purple-200" },
-            ].map((cat) => (
-              <div key={cat.title} className={cn("rounded-xl border p-4", cat.color)}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{cat.icon}</span>
-                    <div>
-                      <p className="font-semibold">{cat.title}</p>
-                      <p className="text-sm text-muted-foreground">{cat.desc}</p>
-                    </div>
-                  </div>
-                  <span className="text-sm text-muted-foreground">0 documentos</span>
-                </div>
-              </div>
-            ))}
-          </div>
+  const docs = trpc.knowledge.list.useQuery(selectedCategory ? { category: selectedCategory } : undefined);
+  const allDocs = trpc.knowledge.list.useQuery();
+  const counts = trpc.knowledge.categoryCounts.useQuery();
+  const utils = trpc.useUtils();
 
-          <div className="rounded-xl border bg-card">
-            <div className="flex flex-col items-center gap-3 p-8 text-muted-foreground">
+  const createDoc = trpc.knowledge.create.useMutation({
+    onSuccess: () => {
+      utils.knowledge.list.invalidate();
+      utils.knowledge.categoryCounts.invalidate();
+      setShowAddDoc(false);
+      setDocForm({ name: "", category: "", content: "" });
+    },
+  });
+
+  const updateDoc = trpc.knowledge.update.useMutation({
+    onSuccess: () => {
+      utils.knowledge.list.invalidate();
+      setEditingId(null);
+      setDocForm({ name: "", category: "", content: "" });
+    },
+  });
+
+  const deleteDoc = trpc.knowledge.delete.useMutation({
+    onSuccess: () => { utils.knowledge.list.invalidate(); utils.knowledge.categoryCounts.invalidate(); },
+  });
+
+  const CATEGORIES = [
+    { id: "scripts-vendas", title: "Scripts de Vendas", desc: "Cold calls, reunioes, follow-ups", icon: "📞", color: "bg-yellow-50 border-yellow-200" },
+    { id: "frameworks-reuniao", title: "Frameworks de Reuniao", desc: "Estruturas e modelos para reunioes", icon: "📋", color: "bg-blue-50 border-blue-200" },
+    { id: "criterios-avaliacao", title: "Criterios de Avaliacao", desc: "Metricas para avaliar performance", icon: "📊", color: "bg-green-50 border-green-200" },
+    { id: "materiais-formacao", title: "Materiais de Formacao", desc: "Formacao para equipa comercial", icon: "📚", color: "bg-purple-50 border-purple-200" },
+  ];
+
+  function handleEdit(doc: { id: string; name: string; category: string | null; content: string }) {
+    setDocForm({ name: doc.name, category: doc.category ?? "", content: doc.content });
+    setEditingId(doc.id);
+    setShowAddDoc(true);
+  }
+
+  return (
+    <>
+      <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
+        <div className="flex items-center gap-2">
+          <Brain className="h-5 w-5 text-purple-600" />
+          <h3 className="font-semibold text-purple-800">Base de Conhecimento IA</h3>
+        </div>
+        <p className="mt-1 text-sm text-purple-700">
+          Adiciona aqui os documentos, scripts de vendas e materiais de referencia.
+          A IA usa esta base para analisar chamadas e reunioes de forma mais precisa e alinhada com o vosso metodo.
+        </p>
+        <p className="mt-2 text-xs text-purple-600">
+          {allDocs.data?.length ?? 0} documentos na base de conhecimento
+        </p>
+      </div>
+
+      {/* Categories filter */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        <button
+          onClick={() => setSelectedCategory("")}
+          className={cn("rounded-xl border p-3 text-left transition-colors",
+            !selectedCategory ? "border-purple-500 bg-purple-50" : "bg-card hover:bg-muted/50"
+          )}
+        >
+          <span className="text-2xl">📚</span>
+          <p className="font-semibold text-sm mt-1">Todos</p>
+          <p className="text-[10px] text-muted-foreground">{allDocs.data?.length ?? 0} documentos</p>
+        </button>
+        {CATEGORIES.map((cat) => (
+          <button
+            key={cat.id}
+            onClick={() => setSelectedCategory(selectedCategory === cat.id ? "" : cat.id)}
+            className={cn("rounded-xl border p-3 text-left transition-colors",
+              selectedCategory === cat.id ? "border-purple-500 bg-purple-50" : cn(cat.color)
+            )}
+          >
+            <span className="text-2xl">{cat.icon}</span>
+            <p className="font-semibold text-sm mt-1">{cat.title}</p>
+            <p className="text-[10px] text-muted-foreground">{counts.data?.[cat.id] ?? 0} documentos</p>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold">
+          {selectedCategory ? CATEGORIES.find(c => c.id === selectedCategory)?.title : "Todos os Documentos"}
+        </h2>
+        <button
+          onClick={() => { setEditingId(null); setDocForm({ name: "", category: "", content: "" }); setShowAddDoc(true); }}
+          className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+        >
+          <Plus className="h-4 w-4" /> Adicionar Documento
+        </button>
+      </div>
+
+      {/* Documents list */}
+      <div className="rounded-xl border bg-card">
+        <div className="divide-y">
+          {docs.isLoading && (
+            <p className="p-6 text-center text-sm text-muted-foreground">A carregar...</p>
+          )}
+          {docs.data?.length === 0 && !docs.isLoading && (
+            <div className="flex flex-col items-center gap-2 p-8 text-muted-foreground">
               <BookOpen className="h-10 w-10 text-muted-foreground/30" />
-              <div className="text-center">
-                <p className="font-medium">Comeca por adicionar documentos</p>
-                <p className="text-sm">
-                  Adiciona scripts de vendas, frameworks de reuniao, criterios de avaliacao e qualquer material
-                  que queiras que a IA use como referencia nas analises.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Add Document Dialog */}
-          {showAddDoc && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-              <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-card p-6 animate-scale-in">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-lg font-bold">Adicionar a Base de Conhecimento</h2>
-                  <button onClick={() => setShowAddDoc(false)} className="rounded-lg p-1 hover:bg-muted">
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    // TODO: Save to AIScript model
-                    setShowAddDoc(false);
-                  }}
-                  className="space-y-4"
-                >
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">Nome do Documento *</label>
-                    <input
-                      type="text"
-                      required
-                      value={docForm.name}
-                      onChange={(e) => setDocForm({ ...docForm, name: e.target.value })}
-                      className="w-full rounded-lg border px-3 py-2 text-sm"
-                      placeholder="Ex: Script Cold Call Parcerias"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">Categoria</label>
-                    <select
-                      value={docForm.pillar}
-                      onChange={(e) => setDocForm({ ...docForm, pillar: e.target.value })}
-                      className="w-full rounded-lg border px-3 py-2 text-sm"
-                    >
-                      <option value="">Selecionar...</option>
-                      <option value="scripts-vendas">Scripts de Vendas</option>
-                      <option value="frameworks-reuniao">Frameworks de Reuniao</option>
-                      <option value="criterios-avaliacao">Criterios de Avaliacao</option>
-                      <option value="materiais-formacao">Materiais de Formacao</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      Conteudo do Documento *
-                    </label>
-                    <textarea
-                      required
-                      value={docForm.content}
-                      onChange={(e) => setDocForm({ ...docForm, content: e.target.value })}
-                      className="w-full rounded-lg border px-3 py-2 text-sm font-mono"
-                      rows={15}
-                      placeholder="Cola aqui o conteudo do script, framework ou documento...&#10;&#10;A IA vai usar este conteudo como referencia para analisar chamadas e reunioes."
-                    />
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Podes colar texto, scripts, criterios de avaliacao, etc. A IA vai usar tudo isto como base para as analises.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-end gap-3 border-t pt-4">
-                    <button type="button" onClick={() => setShowAddDoc(false)} className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted">
-                      Cancelar
-                    </button>
-                    <button type="submit" className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700">
-                      Adicionar a Base de Conhecimento
-                    </button>
-                  </div>
-                </form>
-              </div>
+              <p className="font-medium">Sem documentos</p>
+              <p className="text-sm text-center max-w-md">
+                Adiciona scripts de vendas, frameworks, criterios de avaliacao. A IA vai usar tudo como referencia nas analises.
+              </p>
             </div>
           )}
-        </>
+          {docs.data?.map((doc) => {
+            const cat = CATEGORIES.find(c => c.id === doc.category);
+            return (
+              <div key={doc.id} className="flex items-start gap-3 p-4 group">
+                <div className="text-2xl shrink-0">{cat?.icon ?? "📄"}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium">{doc.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {cat?.title ?? doc.category ?? "Sem categoria"} &middot; {doc.content.length} caracteres
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                    {doc.content.slice(0, 200)}{doc.content.length > 200 ? "..." : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleEdit(doc)}
+                    className="rounded border p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    title="Editar"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`Apagar "${doc.name}"?`)) deleteDoc.mutate(doc.id); }}
+                    className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                    title="Apagar"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Add/Edit Document Dialog */}
+      {showAddDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-card p-6 animate-scale-in">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">
+                {editingId ? "Editar Documento" : "Adicionar a Base de Conhecimento"}
+              </h2>
+              <button onClick={() => setShowAddDoc(false)} className="rounded-lg p-1 hover:bg-muted">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (editingId) {
+                  updateDoc.mutate({ id: editingId, name: docForm.name, category: docForm.category, content: docForm.content });
+                } else {
+                  createDoc.mutate({ name: docForm.name, category: docForm.category, pillar: docForm.category || "geral", content: docForm.content });
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="mb-1 block text-sm font-medium">Nome do Documento *</label>
+                <input
+                  type="text"
+                  required
+                  value={docForm.name}
+                  onChange={(e) => setDocForm({ ...docForm, name: e.target.value })}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                  placeholder="Ex: Script Cold Call Parcerias"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Categoria *</label>
+                <select
+                  required
+                  value={docForm.category}
+                  onChange={(e) => setDocForm({ ...docForm, category: e.target.value })}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                >
+                  <option value="">Selecionar...</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c.id} value={c.id}>{c.title}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  Conteudo do Documento *
+                </label>
+                <textarea
+                  required
+                  value={docForm.content}
+                  onChange={(e) => setDocForm({ ...docForm, content: e.target.value })}
+                  className="w-full rounded-lg border px-3 py-2 text-sm font-mono bg-card"
+                  rows={15}
+                  placeholder="Cola aqui o conteudo do script, framework ou documento...&#10;&#10;A IA vai usar este conteudo como referencia para analisar chamadas e reunioes."
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {docForm.content.length} caracteres &middot; Podes colar texto, scripts, criterios de avaliacao, etc.
+                </p>
+              </div>
+
+              {(createDoc.error || updateDoc.error) && (
+                <p className="text-sm text-red-600">{(createDoc.error ?? updateDoc.error)?.message}</p>
+              )}
+
+              <div className="flex justify-end gap-3 border-t pt-4">
+                <button type="button" onClick={() => setShowAddDoc(false)} className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted">
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={createDoc.isPending || updateDoc.isPending}
+                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {editingId
+                    ? (updateDoc.isPending ? "A guardar..." : "Guardar")
+                    : (createDoc.isPending ? "A adicionar..." : "Adicionar")
+                  }
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
-    </div>
+    </>
   );
 }
