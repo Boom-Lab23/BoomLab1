@@ -15,14 +15,18 @@ export const knowledgeRouter = router({
       });
     }),
 
-  // Add a document to the knowledge base
+  // Add a document to the knowledge base (now supports file upload + google doc)
   create: publicProcedure
     .input(z.object({
       name: z.string().min(1),
-      category: z.string(),
+      category: z.string(),  // scripts-vendas, frameworks-reuniao, criterios, materiais, esquemas-sops
       pillar: z.string().default("geral"),
-      content: z.string().min(1),
+      content: z.string().default(""),
       criteria: z.record(z.unknown()).optional(),
+      fileUrl: z.string().optional(),
+      fileName: z.string().optional(),
+      fileType: z.string().optional(),
+      googleDocUrl: z.string().url().optional().or(z.literal("")),
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.aIScript.create({
@@ -30,8 +34,12 @@ export const knowledgeRouter = router({
           name: input.name,
           category: input.category,
           pillar: input.pillar,
-          content: input.content,
+          content: input.content || (input.googleDocUrl ? `[Google Doc: ${input.googleDocUrl}]` : input.fileName ? `[Ficheiro: ${input.fileName}]` : ""),
           criteria: input.criteria ?? {},
+          fileUrl: input.fileUrl,
+          fileName: input.fileName,
+          fileType: input.fileType,
+          googleDocUrl: input.googleDocUrl || null,
         },
       });
     }),
@@ -44,9 +52,15 @@ export const knowledgeRouter = router({
       content: z.string().optional(),
       category: z.string().optional(),
       isActive: z.boolean().optional(),
+      googleDocUrl: z.string().url().optional().or(z.literal("")),
+      fileUrl: z.string().optional(),
+      fileName: z.string().optional(),
+      fileType: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
+      const { id, ...rest } = input;
+      const data: Record<string, unknown> = { ...rest };
+      if (data.googleDocUrl === "") data.googleDocUrl = null;
       return ctx.prisma.aIScript.update({ where: { id }, data });
     }),
 

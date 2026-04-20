@@ -11,6 +11,7 @@ import {
 
 function getWeekDays(startDate: Date): Date[] {
   const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0); // normaliza para inicio do dia
   const day = start.getDay();
   const diff = start.getDate() - day + (day === 0 ? -6 : 1);
   start.setDate(diff);
@@ -18,6 +19,7 @@ function getWeekDays(startDate: Date): Date[] {
   for (let i = 0; i < 7; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
+    d.setHours(0, 0, 0, 0);
     days.push(d);
   }
   return days;
@@ -52,7 +54,8 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const weekDays = getWeekDays(currentDate);
-  const weekStart = weekDays[0];
+  const weekStart = new Date(weekDays[0]);
+  weekStart.setHours(0, 0, 0, 0); // importante: senao a segunda corta eventos de manha
   const weekEnd = new Date(weekDays[6]);
   weekEnd.setHours(23, 59, 59, 999);
 

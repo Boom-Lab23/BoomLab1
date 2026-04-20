@@ -38,7 +38,8 @@ export const sessionsRouter = router({
     }),
 
   getById: publicProcedure.input(z.string()).query(async ({ ctx, input }) => {
-    return ctx.prisma.session.findUniqueOrThrow({
+    // findUnique (nao throw) para evitar crash se id nao existir
+    const session = await ctx.prisma.session.findUnique({
       where: { id: input },
       include: {
         client: true,
@@ -47,6 +48,7 @@ export const sessionsRouter = router({
         documents: true,
       },
     });
+    return session;
   }),
 
   create: publicProcedure

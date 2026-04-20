@@ -154,7 +154,7 @@ export default function RecordingsPage() {
 function KnowledgeBaseTab() {
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [docForm, setDocForm] = useState({ name: "", category: "", content: "" });
+  const [docForm, setDocForm] = useState({ name: "", category: "", content: "", googleDocUrl: "", fileName: "", fileUrl: "" });
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const docs = trpc.knowledge.list.useQuery(selectedCategory ? { category: selectedCategory } : undefined);
@@ -167,7 +167,7 @@ function KnowledgeBaseTab() {
       utils.knowledge.list.invalidate();
       utils.knowledge.categoryCounts.invalidate();
       setShowAddDoc(false);
-      setDocForm({ name: "", category: "", content: "" });
+      setDocForm({ name: "", category: "", content: "", googleDocUrl: "", fileName: "", fileUrl: "" });
     },
   });
 
@@ -175,7 +175,7 @@ function KnowledgeBaseTab() {
     onSuccess: () => {
       utils.knowledge.list.invalidate();
       setEditingId(null);
-      setDocForm({ name: "", category: "", content: "" });
+      setDocForm({ name: "", category: "", content: "", googleDocUrl: "", fileName: "", fileUrl: "" });
     },
   });
 
@@ -188,10 +188,18 @@ function KnowledgeBaseTab() {
     { id: "frameworks-reuniao", title: "Frameworks de Reuniao", desc: "Estruturas e modelos para reunioes", icon: "📋", color: "bg-blue-50 border-blue-200" },
     { id: "criterios-avaliacao", title: "Criterios de Avaliacao", desc: "Metricas para avaliar performance", icon: "📊", color: "bg-green-50 border-green-200" },
     { id: "materiais-formacao", title: "Materiais de Formacao", desc: "Formacao para equipa comercial", icon: "📚", color: "bg-purple-50 border-purple-200" },
+    { id: "esquemas-sops", title: "Esquemas e SOPs", desc: "Processos, fluxos e procedimentos operacionais", icon: "🗺️", color: "bg-pink-50 border-pink-200" },
   ];
 
-  function handleEdit(doc: { id: string; name: string; category: string | null; content: string }) {
-    setDocForm({ name: doc.name, category: doc.category ?? "", content: doc.content });
+  function handleEdit(doc: { id: string; name: string; category: string | null; content: string; googleDocUrl?: string | null; fileName?: string | null; fileUrl?: string | null }) {
+    setDocForm({
+      name: doc.name,
+      category: doc.category ?? "",
+      content: doc.content,
+      googleDocUrl: doc.googleDocUrl ?? "",
+      fileName: doc.fileName ?? "",
+      fileUrl: doc.fileUrl ?? "",
+    });
     setEditingId(doc.id);
     setShowAddDoc(true);
   }
@@ -244,7 +252,7 @@ function KnowledgeBaseTab() {
           {selectedCategory ? CATEGORIES.find(c => c.id === selectedCategory)?.title : "Todos os Documentos"}
         </h2>
         <button
-          onClick={() => { setEditingId(null); setDocForm({ name: "", category: "", content: "" }); setShowAddDoc(true); }}
+          onClick={() => { setEditingId(null); setDocForm({ name: "", category: "", content: "", googleDocUrl: "", fileName: "", fileUrl: "" }); setShowAddDoc(true); }}
           className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
         >
           <Plus className="h-4 w-4" /> Adicionar Documento
@@ -275,6 +283,8 @@ function KnowledgeBaseTab() {
                   <p className="font-medium">{doc.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {cat?.title ?? doc.category ?? "Sem categoria"} &middot; {doc.content.length} caracteres
+                    {doc.googleDocUrl && <> &middot; <a href={doc.googleDocUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google Doc</a></>}
+                    {doc.fileName && <> &middot; {doc.fileUrl ? <a href={doc.fileUrl} download={doc.fileName} className="text-green-600 hover:underline">{doc.fileName}</a> : <span className="text-green-600">{doc.fileName}</span>}</>}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                     {doc.content.slice(0, 200)}{doc.content.length > 200 ? "..." : ""}
@@ -318,9 +328,25 @@ function KnowledgeBaseTab() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (editingId) {
-                  updateDoc.mutate({ id: editingId, name: docForm.name, category: docForm.category, content: docForm.content });
+                  updateDoc.mutate({
+                    id: editingId,
+                    name: docForm.name,
+                    category: docForm.category,
+                    content: docForm.content,
+                    googleDocUrl: docForm.googleDocUrl || undefined,
+                    fileName: docForm.fileName || undefined,
+                    fileUrl: docForm.fileUrl || undefined,
+                  });
                 } else {
-                  createDoc.mutate({ name: docForm.name, category: docForm.category, pillar: docForm.category || "geral", content: docForm.content });
+                  createDoc.mutate({
+                    name: docForm.name,
+                    category: docForm.category,
+                    pillar: docForm.category || "geral",
+                    content: docForm.content || (docForm.googleDocUrl ? `[Google Doc: ${docForm.googleDocUrl}]` : ""),
+                    googleDocUrl: docForm.googleDocUrl || undefined,
+                    fileName: docForm.fileName || undefined,
+                    fileUrl: docForm.fileUrl || undefined,
+                  });
                 }
               }}
               className="space-y-4"
@@ -350,20 +376,63 @@ function KnowledgeBaseTab() {
                   ))}
                 </select>
               </div>
+              {/* Google Docs link */}
+              <div>
+                <label className="mb-1 block text-sm font-medium">Link Google Docs (opcional)</label>
+                <input
+                  type="url"
+                  value={docForm.googleDocUrl}
+                  onChange={(e) => setDocForm({ ...docForm, googleDocUrl: e.target.value })}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                  placeholder="https://docs.google.com/document/d/..."
+                />
+                <p className="mt-1 text-xs text-muted-foreground">Cola aqui o link do Google Docs, Sheets ou Slides para referencia direta.</p>
+              </div>
+
+              {/* File upload */}
+              <div>
+                <label className="mb-1 block text-sm font-medium">Ficheiro anexo (opcional)</label>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt,.md,.xlsx,.pptx"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    // For now, store as base64 data URL. Upgrade to S3/R2 later.
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      setDocForm({
+                        ...docForm,
+                        fileName: file.name,
+                        fileUrl: reader.result as string,
+                      });
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card file:mr-3 file:rounded file:border-0 file:bg-purple-600 file:text-white file:text-xs file:px-3 file:py-1.5 file:cursor-pointer"
+                />
+                {docForm.fileName && (
+                  <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                    ✓ {docForm.fileName} anexado
+                    <button type="button" onClick={() => setDocForm({ ...docForm, fileName: "", fileUrl: "" })} className="ml-1 text-red-600 hover:underline">remover</button>
+                  </p>
+                )}
+              </div>
+
               <div>
                 <label className="mb-1 block text-sm font-medium">
-                  Conteudo do Documento *
+                  Conteudo do Documento {!docForm.googleDocUrl && !docForm.fileName && "*"}
                 </label>
                 <textarea
-                  required
+                  required={!docForm.googleDocUrl && !docForm.fileName}
                   value={docForm.content}
                   onChange={(e) => setDocForm({ ...docForm, content: e.target.value })}
                   className="w-full rounded-lg border px-3 py-2 text-sm font-mono bg-card"
-                  rows={15}
-                  placeholder="Cola aqui o conteudo do script, framework ou documento...&#10;&#10;A IA vai usar este conteudo como referencia para analisar chamadas e reunioes."
+                  rows={12}
+                  placeholder="Cola aqui o conteudo do script, framework ou documento...&#10;&#10;A IA vai usar este conteudo como referencia para analisar chamadas e reunioes.&#10;&#10;(Opcional se anexaste ficheiro ou link Google Docs acima)"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {docForm.content.length} caracteres &middot; Podes colar texto, scripts, criterios de avaliacao, etc.
+                  {docForm.content.length} caracteres &middot; Podes colar texto, anexar ficheiro ou adicionar link Google Docs.
                 </p>
               </div>
 

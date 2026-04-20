@@ -13,6 +13,8 @@ import { knowledgeRouter } from "./knowledge";
 import { timelinesRouter } from "./timelines";
 import { referralsRouter } from "./referrals";
 import { dashboardsRouter } from "./dashboards";
+import { leadsRouter } from "./leads";
+import { salesAnalysisRouter } from "./salesAnalysis";
 
 export const appRouter = router({
   clients: clientsRouter,
@@ -29,6 +31,8 @@ export const appRouter = router({
   timelines: timelinesRouter,
   referrals: referralsRouter,
   dashboards: dashboardsRouter,
+  leads: leadsRouter,
+  salesAnalysis: salesAnalysisRouter,
 });
 
 export type AppRouter = typeof appRouter;

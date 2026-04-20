@@ -40,14 +40,14 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
       {/* Player */}
       <div className="rounded-xl border bg-gray-900 p-6">
         <div className="flex items-center gap-4">
-          <button className="flex h-12 w-12 items-center justify-center rounded-full bg-card text-gray-900">
+          <button className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-900 hover:bg-gray-100">
             <Play className="h-5 w-5 ml-0.5" />
           </button>
           <div className="flex-1">
             <div className="h-2 rounded-full bg-gray-700">
-              <div className="h-2 w-0 rounded-full bg-card" />
+              <div className="h-2 w-0 rounded-full bg-white" />
             </div>
-            <div className="mt-1 flex justify-between text-xs text-gray-400">
+            <div className="mt-1 flex justify-between text-xs text-gray-300">
               <span>0:00</span>
               <span>{rec.duration ? `${Math.floor(rec.duration / 60)}:${String(rec.duration % 60).padStart(2, "0")}` : "-"}</span>
             </div>
@@ -59,10 +59,10 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
         {/* AI Analysis */}
         <div className="rounded-xl border bg-card">
           <div className="flex items-center gap-2 border-b p-4">
-            <Brain className="h-5 w-5 text-purple-600" />
-            <h2 className="font-semibold">Analise IA</h2>
+            <Brain className="h-5 w-5 text-purple-400" />
+            <h2 className="font-semibold text-foreground">Analise IA</h2>
             {rec.aiScore !== null && (
-              <span className="ml-auto text-2xl font-bold text-purple-600">{rec.aiScore}/100</span>
+              <span className="ml-auto text-2xl font-bold text-purple-400">{rec.aiScore}/100</span>
             )}
           </div>
           <div className="p-4">
@@ -73,12 +73,12 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
                   {analysis.criteria.map((c, i) => (
                     <div key={i}>
                       <div className="flex items-center justify-between text-sm">
-                        <span>{c.name}</span>
-                        <span className="font-medium">{c.score}/{c.maxScore}</span>
+                        <span className="text-foreground">{c.name}</span>
+                        <span className="font-medium text-foreground">{c.score}/{c.maxScore}</span>
                       </div>
-                      <div className="mt-1 h-2 rounded-full bg-gray-100">
+                      <div className="mt-1 h-2 rounded-full bg-muted">
                         <div
-                          className="h-2 rounded-full bg-purple-600"
+                          className="h-2 rounded-full bg-purple-500"
                           style={{ width: `${(c.score / c.maxScore) * 100}%` }}
                         />
                       </div>
@@ -90,12 +90,12 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
                 {/* Strengths */}
                 {analysis.strengths.length > 0 && (
                   <div>
-                    <h3 className="mb-2 flex items-center gap-1 text-sm font-medium text-green-700">
+                    <h3 className="mb-2 flex items-center gap-1 text-sm font-medium text-green-400">
                       <TrendingUp className="h-4 w-4" /> Pontos Fortes
                     </h3>
                     <ul className="space-y-1">
                       {analysis.strengths.map((s, i) => (
-                        <li key={i} className="text-sm text-muted-foreground">+ {s}</li>
+                        <li key={i} className="text-sm text-foreground/90">+ {s}</li>
                       ))}
                     </ul>
                   </div>
@@ -104,12 +104,12 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
                 {/* Improvements */}
                 {analysis.improvements.length > 0 && (
                   <div>
-                    <h3 className="mb-2 flex items-center gap-1 text-sm font-medium text-orange-700">
+                    <h3 className="mb-2 flex items-center gap-1 text-sm font-medium text-orange-400">
                       <TrendingDown className="h-4 w-4" /> Areas de Melhoria
                     </h3>
                     <ul className="space-y-1">
                       {analysis.improvements.map((s, i) => (
-                        <li key={i} className="text-sm text-muted-foreground">- {s}</li>
+                        <li key={i} className="text-sm text-foreground/90">- {s}</li>
                       ))}
                     </ul>
                   </div>
@@ -117,7 +117,7 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
 
                 {/* Summary */}
                 <div className="border-t pt-3">
-                  <p className="text-sm leading-relaxed text-muted-foreground">{analysis.summary}</p>
+                  <p className="text-sm leading-relaxed text-foreground/90">{analysis.summary}</p>
                 </div>
               </div>
             ) : (
@@ -139,7 +139,7 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <div className="max-h-[600px] overflow-y-auto p-4">
             {rec.transcript ? (
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{rec.transcript}</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{rec.transcript}</p>
             ) : (
               <div className="text-center">
                 <Mic className="mx-auto h-12 w-12 text-muted-foreground/30" />

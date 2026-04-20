@@ -96,6 +96,8 @@ model Client {
   timelines        Timeline[]
   referralsGiven   Referral[]   @relation("ReferrerClient")
   dashboard        ClientDashboard?
+  leads            Lead[]
+  salesAnalyses    SalesAnalysis[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 }
@@ -151,6 +153,7 @@ model Recording {
   analyzedAt  DateTime?
   callSubmissions CallSubmission[]
   feedbacks       Feedback[]
+  salesAnalysis   SalesAnalysis?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
@@ -171,15 +174,128 @@ model Document {
 }
 
 model AIScript {
-  id          String   @id @default(cuid())
-  name        String
-  pillar      String
-  category    String?                       // scripts-vendas, frameworks-reuniao, criterios, materiais
-  content     String   @db.Text
-  criteria    Json?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  pillar        String
+  category      String?                       // scripts-vendas, frameworks-reuniao, criterios, materiais, esquemas-sops
+  content       String   @db.Text
+  criteria      Json?
+  isActive      Boolean  @default(true)
+  // New: allow attaching an uploaded file or a Google Doc link as source material
+  fileUrl       String?                       // URL de ficheiro uploadado (pdf, docx, etc.)
+  fileName      String?                       // Nome original do ficheiro
+  fileType      String?                       // mime type
+  googleDocUrl  String?                       // Link para Google Doc / Sheet / Slide
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ==========================================
+// CRM LEADS (per client, per commercial)
+// ==========================================
+
+model Lead {
+  id              String     @id @default(cuid())
+  clientId        String                         // Cliente a que pertence esta lead (a empresa BoomLab)
+  client          Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  commercial      String                         // Nome do comercial que tem esta lead (dentro da equipa do cliente)
+  // Lead identification
+  name            String                         // Nome da lead (pessoa ou empresa)
+  company         String?
+  email           String?
+  phone           String?
+  nif             String?                        // NIF / VAT
+  // Lead status & pipeline
+  status          LeadStatus @default(NOVA)
+  source          String?                        // Canal origem: cold-calling, linkedin, anuncios, etc.
+  priority        String?                        // alta, media, baixa
+  // Contact tracking
+  firstContactAt  DateTime?
+  lastContactAt   DateTime?
+  nextFollowUpAt  DateTime?
+  // Qualification
+  budget          Float?
+  urgency         String?
+  painPoints      String?    @db.Text
+  // Outcome
+  convertedAt     DateTime?
+  conversionValue Float?
+  lostReason      String?
+  // Extra
+  notes           String?    @db.Text
+  tags            String[]
+  // Duplicate detection (set via trigger/service when match found)
+  duplicateOfId   String?                        // Se for duplicado, referencia a lead original
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([clientId, commercial])
+  @@index([clientId, email])
+  @@index([clientId, phone])
+  @@index([clientId, nif])
+}
+
+enum LeadStatus {
+  NOVA                // Lead acabada de entrar
+  CONTACTADA          // Primeiro contacto feito
+  QUALIFICADA         // Qualificada como oportunidade
+  REUNIAO_AGENDADA    // Reuniao marcada
+  REUNIAO_EFETUADA    // Reuniao aconteceu
+  PROPOSTA_ENVIADA    // Proposta enviada
+  NEGOCIACAO          // Em negociacao
+  FECHADA_GANHA       // Conversao feita
+  FECHADA_PERDIDA     // Perdida
+  EM_PAUSA            // Follow-up adiado
+}
+
+// ==========================================
+// SALES ANALYSIS (per call analysis result)
+// ==========================================
+
+model SalesAnalysis {
+  id               String     @id @default(cuid())
+  clientId         String                        // Cliente a que pertence
+  client           Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  recordingId      String?    @unique            // Link para Recording (se originou de uma gravacao)
+  recording        Recording? @relation(fields: [recordingId], references: [id])
+  // Identification
+  commercial       String                        // Nome do comercial analisado
+  leadName         String?                       // Nome da lead/cliente potencial
+  callType         String                        // Discovery, Ads Funnel, Cold Call, Inbound, etc.
+  callDate         DateTime
+  durationMinutes  Int?
+  // Visibility
+  visibility       SalesAnalysisVisibility @default(COMMERCIAL_ONLY)
+  // Classification
+  classification   String                        // "Bom", "Medio", "Mau" ou score tipo texto
+  overallScore     Float?                        // Score 0-100 agregado
+  // 8 scoring dimensions (0-5 each, from the analysis sheet)
+  clarezaFluidez           Int?                  // Clareza e Fluidez do discurso
+  tomVoz                   Int?                  // Tom de Voz
+  expositivoConversacional String?               // "Expositivo" ou "Conversacional"
+  assertividadeControlo    Int?                  // Assertividade e Controlo
+  empatia                  Int?                  // Empatia e Bom Ouvinte
+  passagemValor            Int?                  // Passagem do valor do servico/produto
+  respostaObjecoes         Int?                  // Capacidade de resposta a objecoes
+  estruturaMeet            Int?                  // Estrutura da reuniao/chamada
+  // Qualitative feedback
+  strengths        String?    @db.Text           // Pontos fortes
+  weaknesses       String?    @db.Text           // Pontos fracos
+  generalTips      String?    @db.Text           // Dicas gerais
+  focusNext        String?    @db.Text           // Foco para proximas chamadas
+  summary          String?    @db.Text
+  // Presented to the commercial? (checkbox similar a "Apresentado em Reuniao")
+  presentedToCommercialAt DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([clientId, commercial])
+  @@index([clientId, callDate])
+}
+
+enum SalesAnalysisVisibility {
+  COMMERCIAL_ONLY    // Apenas o comercial e a gerencia
+  WHOLE_TEAM         // Toda a equipa comercial do cliente
 }
 
 // Weekly call submission tracking with deadlines
