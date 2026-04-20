@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft, BarChart3, Users, Phone, ExternalLink, Plus, X, AlertTriangle,
-  Mail, Building2, TrendingUp, Eye, EyeOff, CheckCircle2, XCircle, Edit, Trash2,
+  Mail, Eye, EyeOff, Trash2, Sparkles, Upload, Brain, Loader2,
 } from "lucide-react";
 
 type Tab = "dashboard" | "leads" | "analysis";
@@ -359,6 +359,7 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
   const isManager = userRole === "ADMIN" || userRole === "MANAGER";
 
   const [showCreate, setShowCreate] = useState(false);
+  const [showAnalyze, setShowAnalyze] = useState(false);
   const [selectedCommercial, setSelectedCommercial] = useState<string>("");
   const [form, setForm] = useState({
     commercial: "", leadName: "", callType: "Discovery Call", callDate: new Date().toISOString().split("T")[0],
@@ -368,6 +369,13 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
     assertividadeControlo: "", empatia: "", passagemValor: "",
     respostaObjecoes: "", estruturaMeet: "",
     strengths: "", weaknesses: "", generalTips: "", focusNext: "", summary: "",
+  });
+  const [analyzeForm, setAnalyzeForm] = useState({
+    commercial: "", leadName: "", callType: "Discovery Call",
+    callDate: new Date().toISOString().split("T")[0],
+    visibility: "COMMERCIAL_ONLY" as "COMMERCIAL_ONLY" | "WHOLE_TEAM",
+    transcript: "", audioFileName: "", audioUrl: "",
+    durationMinutes: "",
   });
 
   const dashboard = trpc.dashboards.getByClientId.useQuery(clientId);
@@ -388,6 +396,15 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
     },
   });
 
+  const analyzeCall = trpc.salesAnalysis.analyzeCall.useMutation({
+    onSuccess: () => {
+      utils.salesAnalysis.list.invalidate();
+      utils.salesAnalysis.statsPerCommercial.invalidate();
+      setShowAnalyze(false);
+      setAnalyzeForm({ commercial: "", leadName: "", callType: "Discovery Call", callDate: new Date().toISOString().split("T")[0], visibility: "COMMERCIAL_ONLY", transcript: "", audioFileName: "", audioUrl: "", durationMinutes: "" });
+    },
+  });
+
   const updateAnalysis = trpc.salesAnalysis.update.useMutation({
     onSuccess: () => utils.salesAnalysis.list.invalidate(),
   });
@@ -405,9 +422,28 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
           <h2 className="text-lg font-semibold">Analise de Vendas</h2>
           <p className="text-xs text-muted-foreground">Analises das chamadas dos comerciais, com classificacao e scoring</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90">
-          <Plus className="h-4 w-4" /> Nova Analise
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowAnalyze(true)} className="flex items-center gap-2 rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white hover:bg-purple-700">
+            <Sparkles className="h-4 w-4" /> Analisar Chamada (IA)
+          </button>
+          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted">
+            <Plus className="h-4 w-4" /> Manual
+          </button>
+        </div>
+      </div>
+
+      {/* Info banner about how AI analysis works */}
+      <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-xs text-purple-900">
+        <div className="flex items-start gap-2">
+          <Brain className="h-4 w-4 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Analise automatica com IA</p>
+            <p className="text-purple-700 mt-0.5">
+              Carrega a transcricao ou liga o ficheiro audio. A IA classifica a chamada, pontua nas 8 dimensoes e gera feedback usando <strong>apenas</strong> os documentos da Base de Conhecimento relevantes para o mercado deste cliente
+              {dashboard.data?.market && <> (<strong>{dashboard.data.market}</strong>)</>}.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Commercial stats cards */}
@@ -605,6 +641,142 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
               <div className="flex justify-end gap-3 border-t pt-3">
                 <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
                 <button type="submit" disabled={createAnalysis.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">{createAnalysis.isPending ? "..." : "Criar"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Analyze with AI dialog */}
+      {showAnalyze && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-purple-600" />
+                <h2 className="text-lg font-bold">Analisar Chamada com IA</h2>
+              </div>
+              <button onClick={() => setShowAnalyze(false)} className="rounded-lg p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="mb-3 rounded-lg border border-purple-200 bg-purple-50 p-2 text-xs text-purple-800">
+              <p>A IA vai analisar a transcricao usando os documentos da Base de Conhecimento que se aplicam ao mercado <strong>{dashboard.data?.market ?? "deste cliente"}</strong>. Resultado automatico: classificacao, scores e feedback.</p>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              analyzeCall.mutate({
+                clientId,
+                commercial: analyzeForm.commercial,
+                leadName: analyzeForm.leadName || undefined,
+                callType: analyzeForm.callType,
+                callDate: new Date(analyzeForm.callDate),
+                transcript: analyzeForm.transcript,
+                audioUrl: analyzeForm.audioUrl || undefined,
+                audioFileName: analyzeForm.audioFileName || undefined,
+                durationMinutes: analyzeForm.durationMinutes ? parseInt(analyzeForm.durationMinutes) : undefined,
+                visibility: analyzeForm.visibility,
+              });
+            }} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Comercial *</label>
+                  {commercials.length > 0 ? (
+                    <select required value={analyzeForm.commercial} onChange={(e) => setAnalyzeForm({ ...analyzeForm, commercial: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card">
+                      <option value="">Selecionar...</option>
+                      {commercials.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" required value={analyzeForm.commercial} onChange={(e) => setAnalyzeForm({ ...analyzeForm, commercial: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Nome do comercial" />
+                  )}
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Lead / Cliente</label>
+                  <input value={analyzeForm.leadName} onChange={(e) => setAnalyzeForm({ ...analyzeForm, leadName: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Nome da lead" />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Tipo</label>
+                  <select value={analyzeForm.callType} onChange={(e) => setAnalyzeForm({ ...analyzeForm, callType: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card">
+                    <option>Discovery Call</option>
+                    <option>Cold Call</option>
+                    <option>Ads Funnel</option>
+                    <option>Inbound</option>
+                    <option>Follow-up</option>
+                    <option>Fecho</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Data</label>
+                  <input type="date" value={analyzeForm.callDate} onChange={(e) => setAnalyzeForm({ ...analyzeForm, callDate: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Duracao (min)</label>
+                  <input type="number" min="0" value={analyzeForm.durationMinutes} onChange={(e) => setAnalyzeForm({ ...analyzeForm, durationMinutes: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Visibilidade</label>
+                  <select value={analyzeForm.visibility} onChange={(e) => setAnalyzeForm({ ...analyzeForm, visibility: e.target.value as "COMMERCIAL_ONLY" })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card">
+                    <option value="COMMERCIAL_ONLY">So o comercial + gerencia</option>
+                    <option value="WHOLE_TEAM">Toda a equipa</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Audio file (optional) */}
+              <div>
+                <label className="mb-0.5 block text-xs font-medium">Ficheiro de audio / video (opcional)</label>
+                <input
+                  type="file"
+                  accept="audio/*,video/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => setAnalyzeForm({
+                      ...analyzeForm,
+                      audioFileName: file.name,
+                      audioUrl: reader.result as string,
+                    });
+                    reader.readAsDataURL(file);
+                  }}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card file:mr-3 file:rounded file:border-0 file:bg-purple-600 file:text-white file:text-xs file:px-3 file:py-1.5 file:cursor-pointer"
+                />
+                {analyzeForm.audioFileName && (
+                  <p className="mt-1 text-xs text-green-600">
+                    ✓ {analyzeForm.audioFileName}
+                    <button type="button" onClick={() => setAnalyzeForm({ ...analyzeForm, audioFileName: "", audioUrl: "" })} className="ml-2 text-red-600 hover:underline">remover</button>
+                  </p>
+                )}
+                <p className="mt-1 text-[10px] text-muted-foreground">O audio fica guardado. A transcricao abaixo e que alimenta a IA.</p>
+              </div>
+
+              <div>
+                <label className="mb-0.5 block text-xs font-medium">Transcricao da chamada *</label>
+                <textarea
+                  required
+                  value={analyzeForm.transcript}
+                  onChange={(e) => setAnalyzeForm({ ...analyzeForm, transcript: e.target.value })}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card font-mono"
+                  rows={10}
+                  placeholder="Cola aqui a transcricao completa da chamada (minimo 100 caracteres)..."
+                />
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {analyzeForm.transcript.length} caracteres
+                </p>
+              </div>
+
+              {analyzeCall.error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+                  Erro: {analyzeCall.error.message}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 border-t pt-3">
+                <button type="button" onClick={() => setShowAnalyze(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
+                <button type="submit" disabled={analyzeCall.isPending || analyzeForm.transcript.length < 100}
+                  className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50">
+                  {analyzeCall.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> A analisar...</> : <><Sparkles className="h-4 w-4" /> Analisar com IA</>}
+                </button>
               </div>
             </form>
           </div>

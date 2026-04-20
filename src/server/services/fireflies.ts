@@ -168,76 +168,148 @@ export async function linkTranscriptToSession(
 }
 
 // Auto-sync: fetch recent Fireflies transcripts and match to sessions
+// If no matching session exists, creates one automatically.
 export async function syncFireflies(): Promise<{
   fetched: number;
   matched: number;
-  unmatched: string[];
+  created: number;
+  skipped: number;
+  details: Array<{ title: string; action: "matched" | "created" | "skipped"; sessionId?: string }>;
 }> {
-  const transcripts = await fetchRecentTranscripts(30);
+  const { categorizeByTitle } = await import("./session-categorizer");
+  const transcripts = await fetchRecentTranscripts(50);
   let matched = 0;
-  const unmatched: string[] = [];
+  let created = 0;
+  let skipped = 0;
+  const details: Array<{ title: string; action: "matched" | "created" | "skipped"; sessionId?: string }> = [];
+
+  // Ensure catch-all client exists (single upsert outside loop)
+  const catchAll = await prisma.client.upsert({
+    where: { id: "__catchall_meetings__" },
+    update: {},
+    create: { id: "__catchall_meetings__", name: "Reunioes por classificar", status: "ATIVO" },
+  });
 
   for (const transcript of transcripts) {
-    // Skip if already linked
-    const existing = await prisma.session.findUnique({
-      where: { firefliesId: transcript.id },
-    });
-    if (existing) continue;
+    // Idempotency
+    const existing = await prisma.session.findUnique({ where: { firefliesId: transcript.id } });
+    if (existing) {
+      skipped++;
+      details.push({ title: transcript.title, action: "skipped", sessionId: existing.id });
+      continue;
+    }
 
-    // Try to match by date
-    const meetingDate = new Date(parseInt(transcript.date) || transcript.date);
-    const startOfDay = new Date(meetingDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(meetingDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Parse Fireflies date (can be ISO string or numeric ms string)
+    const rawDate = transcript.date;
+    const asNum = Number(rawDate);
+    const meetingDate = !Number.isNaN(asNum) && asNum > 0
+      ? new Date(asNum)
+      : new Date(rawDate);
+
+    // Widen window to +/- 24h
+    const windowStart = new Date(meetingDate.getTime() - 24 * 60 * 60 * 1000);
+    const windowEnd = new Date(meetingDate.getTime() + 24 * 60 * 60 * 1000);
 
     const matchingSession = await prisma.session.findFirst({
       where: {
-        date: { gte: startOfDay, lte: endOfDay },
+        date: { gte: windowStart, lte: windowEnd },
         firefliesId: null,
-        status: { not: "CONCLUIDA" },
       },
       orderBy: { date: "asc" },
     });
 
-    if (matchingSession) {
-      const firefliesNotes = formatTranscript(transcript.sentences);
-      const sessionNotes = transcript.summary?.notes || transcript.summary?.shorthand_bullet?.join("\n") || null;
+    const firefliesNotes = formatTranscript(transcript.sentences);
+    const sessionNotes = transcript.summary?.notes
+      || transcript.summary?.shorthand_bullet?.join("\n")
+      || transcript.summary?.overview
+      || null;
+    const recordingUrl = transcript.video_url || transcript.audio_url || `https://app.fireflies.ai/view/${transcript.id}`;
 
-      await prisma.session.update({
+    let sessionId: string;
+    let clientIdForRec: string;
+
+    if (matchingSession) {
+      const upd = await prisma.session.update({
         where: { id: matchingSession.id },
         data: {
           firefliesId: transcript.id,
           firefliesSummary: transcript.summary?.overview ?? null,
-          firefliesNotes: firefliesNotes,
+          firefliesNotes,
           notes: sessionNotes,
-          actionItems: transcript.summary?.action_items ?? [],
+          actionItems: (transcript.summary?.action_items ?? []) as unknown as object,
           firefliesRecordingUrl: `https://app.fireflies.ai/view/${transcript.id}`,
           status: "CONCLUIDA",
         },
       });
+      sessionId = upd.id;
+      clientIdForRec = upd.clientId;
+      matched++;
+      details.push({ title: transcript.title, action: "matched", sessionId });
+    } else {
+      // Auto-create session
+      const cat = categorizeByTitle(transcript.title ?? "Reuniao");
+      const participants: string[] = Array.isArray(transcript.participants) ? transcript.participants : [];
 
-      // Create recording with audio/video
-      const recordingUrl = transcript.video_url || transcript.audio_url || `https://app.fireflies.ai/view/${transcript.id}`;
-      await prisma.recording.create({
+      let clientId: string = catchAll.id;
+      if (participants.length > 0) {
+        const emailMatch = await prisma.client.findFirst({ where: { email: { in: participants } } });
+        if (emailMatch) clientId = emailMatch.id;
+        else {
+          // try name guess from external domain
+          for (const p of participants) {
+            const dom = p.split("@")[1];
+            if (!dom || /(gmail|hotmail|outlook|boomlab)\.(com|pt|agency)/i.test(dom)) continue;
+            const guess = dom.split(".")[0];
+            const nameMatch = await prisma.client.findFirst({ where: { name: { contains: guess, mode: "insensitive" } } });
+            if (nameMatch) { clientId = nameMatch.id; break; }
+          }
+        }
+      }
+
+      let assignedToId: string | null = null;
+      if (participants.length > 0) {
+        const userMatch = await prisma.user.findFirst({ where: { email: { in: participants } } });
+        if (userMatch) assignedToId = userMatch.id;
+      }
+
+      const newSession = await prisma.session.create({
         data: {
-          title: `${transcript.title} - Gravacao`,
-          type: "MEETING",
-          duration: transcript.duration ? Math.round(transcript.duration * 60) : null,
-          fileUrl: recordingUrl,
-          transcript: firefliesNotes,
-          clientId: matchingSession.clientId,
-          sessionId: matchingSession.id,
+          title: transcript.title ?? "Reuniao",
+          module: cat.module ?? "Outros",
+          topic: transcript.title ?? null,
+          date: meetingDate,
+          status: "CONCLUIDA",
+          clientId,
+          assignedToId,
+          firefliesId: transcript.id,
+          firefliesSummary: transcript.summary?.overview ?? null,
+          firefliesNotes,
+          notes: sessionNotes,
+          firefliesRecordingUrl: `https://app.fireflies.ai/view/${transcript.id}`,
+          actionItems: (transcript.summary?.action_items ?? []) as unknown as object,
         },
       });
-
-      matched++;
-    } else {
-      unmatched.push(`${transcript.title} (${meetingDate.toLocaleDateString("pt-PT")})`);
+      sessionId = newSession.id;
+      clientIdForRec = newSession.clientId;
+      created++;
+      details.push({ title: transcript.title, action: "created", sessionId });
     }
+
+    // Recording
+    await prisma.recording.create({
+      data: {
+        title: `${transcript.title} - Gravacao`,
+        type: "MEETING",
+        duration: transcript.duration ? Math.round(transcript.duration * 60) : null,
+        fileUrl: recordingUrl,
+        transcript: firefliesNotes,
+        clientId: clientIdForRec,
+        sessionId,
+      },
+    });
   }
 
-  return { fetched: transcripts.length, matched, unmatched };
+  return { fetched: transcripts.length, matched, created, skipped, details };
 }
 
 // Generate AI meeting analysis using Claude

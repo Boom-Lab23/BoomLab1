@@ -1,13 +1,23 @@
 import { z } from "zod";
 import { router, publicProcedure } from "./init";
+import { detectDocumentMarkets } from "../services/sales-call-analyzer";
 
 export const knowledgeRouter = router({
-  // List all knowledge base documents
+  // List all knowledge base documents (optionally filtered by market)
   list: publicProcedure
-    .input(z.object({ category: z.string().optional() }).optional())
+    .input(z.object({
+      category: z.string().optional(),
+      market: z.enum(["ALL", "CREDITO", "SEGUROS", "IMOBILIARIO"]).optional(),
+    }).optional())
     .query(async ({ ctx, input }) => {
       const where: Record<string, unknown> = { isActive: true };
       if (input?.category) where.category = input.category;
+      if (input?.market && input.market !== "ALL") {
+        where.OR = [
+          { markets: { has: "ALL" } },
+          { markets: { has: input.market } },
+        ];
+      }
 
       return ctx.prisma.aIScript.findMany({
         where,
@@ -29,19 +39,59 @@ export const knowledgeRouter = router({
       googleDocUrl: z.string().url().optional().or(z.literal("")),
     }))
     .mutation(async ({ ctx, input }) => {
+      const finalContent = input.content || (input.googleDocUrl ? `[Google Doc: ${input.googleDocUrl}]` : input.fileName ? `[Ficheiro: ${input.fileName}]` : "");
+
+      // Auto-detect which markets this doc applies to (runs Claude)
+      let markets: string[] = ["ALL"];
+      try {
+        markets = await detectDocumentMarkets({
+          name: input.name,
+          category: input.category,
+          content: finalContent,
+        });
+      } catch (err) {
+        console.error("[knowledge.create] market detection failed, defaulting to ALL:", err);
+      }
+
       return ctx.prisma.aIScript.create({
         data: {
           name: input.name,
           category: input.category,
           pillar: input.pillar,
-          content: input.content || (input.googleDocUrl ? `[Google Doc: ${input.googleDocUrl}]` : input.fileName ? `[Ficheiro: ${input.fileName}]` : ""),
+          content: finalContent,
           criteria: input.criteria ?? {},
           fileUrl: input.fileUrl,
           fileName: input.fileName,
           fileType: input.fileType,
           googleDocUrl: input.googleDocUrl || null,
+          markets,
         },
       });
+    }),
+
+  // Re-run AI market detection for an existing doc
+  redetectMarkets: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const doc = await ctx.prisma.aIScript.findUniqueOrThrow({ where: { id: input.id } });
+      const markets = await detectDocumentMarkets({
+        name: doc.name,
+        category: doc.category,
+        content: doc.content,
+      });
+      return ctx.prisma.aIScript.update({ where: { id: doc.id }, data: { markets } });
+    }),
+
+  // Manually override markets
+  setMarkets: publicProcedure
+    .input(z.object({
+      id: z.string(),
+      markets: z.array(z.enum(["ALL", "CREDITO", "SEGUROS", "IMOBILIARIO"])).min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // If ALL is present, force [ALL] only
+      const clean = input.markets.includes("ALL") ? ["ALL"] : input.markets;
+      return ctx.prisma.aIScript.update({ where: { id: input.id }, data: { markets: clean } });
     }),
 
   // Update a document

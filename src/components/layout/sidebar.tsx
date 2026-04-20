@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Users, Calendar, Mic, FileText, Rocket, Settings,
+  LayoutDashboard, Users, Calendar, FileText, Rocket, Settings, Brain,
   BarChart3, UserCheck, Handshake, Megaphone, Phone, Linkedin,
   CalendarCheck, CalendarDays, MessageSquare, Moon, Sun, ChevronDown,
   ShieldCheck, X, Layers, UserPlus,
@@ -17,9 +17,9 @@ const mainNav = [
   { href: "/clients", label: "Clientes", icon: Users },
   { href: "/sessions", label: "Sessoes", icon: Calendar },
   { href: "/calendar", label: "Calendario", icon: CalendarDays },
-  { href: "/recordings", label: "Gravacoes & IA", icon: Mic },
-  { href: "/messaging", label: "Mensagens", icon: MessageSquare },
   { href: "/workspace", label: "Workspace", icon: BarChart3 },
+  { href: "/knowledge", label: "Base Conhec. IA", icon: Brain },
+  { href: "/messaging", label: "Mensagens", icon: MessageSquare },
   { href: "/documents", label: "Documentos", icon: FileText },
   { href: "/timelines", label: "Timelines", icon: Layers },
   { href: "/referrals", label: "Referencias", icon: UserPlus },

@@ -181,7 +181,11 @@ model AIScript {
   content       String   @db.Text
   criteria      Json?
   isActive      Boolean  @default(true)
-  // New: allow attaching an uploaded file or a Google Doc link as source material
+  // Market scope - auto-detected by AI when doc is created
+  // Array of market codes: "ALL", "CREDITO", "SEGUROS", "IMOBILIARIO"
+  // "ALL" means the doc applies to every market
+  markets       String[] @default(["ALL"])
+  // File / Google Doc attachments
   fileUrl       String?                       // URL de ficheiro uploadado (pdf, docx, etc.)
   fileName      String?                       // Nome original do ficheiro
   fileType      String?                       // mime type

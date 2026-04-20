@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { cn, getStatusColor, formatStatus, getPillarFromModule, PILLARS } from "@/lib/utils";
-import { Calendar, CheckCircle2, Clock, Star, Mic, FileText, ChevronRight, Plus } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, Star, Mic, FileText, ChevronRight, Plus, RefreshCw } from "lucide-react";
 import { CreateSessionDialog } from "@/components/sessions/create-session-dialog";
 
 export default function SessionsPage() {
@@ -16,6 +16,10 @@ export default function SessionsPage() {
     module: module || undefined,
     status: status || undefined,
   });
+  const utils = trpc.useUtils();
+  const syncFireflies = trpc.fireflies.sync.useMutation({
+    onSuccess: () => utils.sessions.list.invalidate(),
+  });
 
   return (
     <div className="space-y-6">
@@ -24,16 +28,38 @@ export default function SessionsPage() {
           <h1 className="text-2xl font-bold">Sessoes</h1>
           <p className="text-muted-foreground">Timeline de todas as sessoes</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          Nova Sessao
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => syncFireflies.mutate()}
+            disabled={syncFireflies.isPending}
+            className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+            title="Puxa do Fireflies todas as reunioes recentes e cria sessoes automaticamente"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncFireflies.isPending ? "animate-spin" : ""}`} />
+            Sync Fireflies
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            Nova Sessao
+          </button>
+        </div>
       </div>
 
       <CreateSessionDialog open={showCreate} onClose={() => setShowCreate(false)} />
+
+      {syncFireflies.data && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          Sync concluido: <strong>{syncFireflies.data.fetched}</strong> reunioes analisadas &middot; <strong>{syncFireflies.data.matched}</strong> ligadas a sessoes existentes &middot; <strong>{syncFireflies.data.created}</strong> sessoes criadas automaticamente &middot; <strong>{syncFireflies.data.skipped}</strong> ja sincronizadas.
+        </div>
+      )}
+      {syncFireflies.error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          Erro ao sincronizar: {syncFireflies.error.message}
+        </div>
+      )}
 
       {/* Pillar Tabs */}
       <div className="flex flex-wrap gap-1.5 md:gap-2">
