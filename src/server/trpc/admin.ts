@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "./init";
 import bcrypt from "bcryptjs";
+import { sendWelcomeEmail, sendPasswordResetEmail } from "../services/email";
 
 export const adminRouter = router({
   // List all users
@@ -44,6 +45,7 @@ export const adminRouter = router({
         assignedChannelId: z.string().optional(),
         assignedDashboardId: z.string().optional(),
         assignedSubChannelIds: z.array(z.string()).optional(),
+    sendWelcomeEmail: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -100,7 +102,13 @@ export const adminRouter = router({
         }
       }
 
-      return user;
+      // Enviar email de boas-vindas
+    if (input.sendWelcomeEmail) {
+      try {
+        await sendWelcomeEmail({ name: user.name, email: user.email }, input.password);
+      } catch (e) { console.error("Email failed:", e); }
+    }
+    return user;
     }),
 
   // Update user
@@ -142,4 +150,29 @@ export const adminRouter = router({
   activateUser: publicProcedure.input(z.string()).mutation(async ({ ctx, input }) => {
     return ctx.prisma.user.update({ where: { id: input }, data: { isActive: true } });
   }),
+  resendWelcomeEmail: publicProcedure
+    .input(z.string())
+    .mutation(async ({ ctx, input: userId }) => {
+      const user = await ctx.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) throw new Error("User not found");
+      const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      const tempPassword = Array.from({length: 12}, () => chars[Math.floor(Math.random()*chars.length)]).join('') + "A1!";
+      const hashed = await bcrypt.hash(tempPassword, 10);
+      await ctx.prisma.user.update({ where: { id: userId }, data: { password: hashed, mustChangePassword: true } });
+      await sendWelcomeEmail({ name: user.name, email: user.email }, tempPassword);
+      return { ok: true };
+    }),
+
+  resetPasswordAndSendEmail: publicProcedure
+    .input(z.object({ userId: z.string(), newPassword: z.string().min(6) }))
+    .mutation(async ({ ctx, input }) => {
+      const user = await ctx.prisma.user.findUnique({ where: { id: input.userId } });
+      if (!user) throw new Error("User not found");
+      const hashed = await bcrypt.hash(input.newPassword, 10);
+      await ctx.prisma.user.update({ where: { id: input.userId }, data: { password: hashed, mustChangePassword: true } });
+      await sendPasswordResetEmail({ name: user.name, email: user.email }, input.newPassword);
+      return { ok: true };
+    }),
+
 });
+
