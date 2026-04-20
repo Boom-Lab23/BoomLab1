@@ -29,6 +29,9 @@ model User {
   consentDataDeletion     Boolean   @default(false)  // Direito ao esquecimento (opcional)
   consentAIAnalysis       Boolean   @default(false)  // Analise de chamadas com IA (opcional)
   consentsAcceptedAt      DateTime?                  // Quando aceitou
+  // First-login password change flow
+  mustChangePassword Boolean  @default(false)         // Forca troca de password no 1o login
+  welcomeEmailSentAt DateTime?                        // Quando foi enviado o email de boas-vindas
   // Sales consultant profile for personalized feedback
   salesProfile     Json?                       // {personality, strengths, weaknesses, style, goals}
   weeklyCallTarget Int       @default(5)       // Weekly call submission target

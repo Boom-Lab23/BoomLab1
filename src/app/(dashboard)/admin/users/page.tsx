@@ -4,9 +4,9 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
-  Users, Plus, X, Shield, ShieldCheck, UserCheck, UserX,
-  Lock, Eye, EyeOff, RotateCcw, Calendar, MessageSquare,
-  Building2, User, CheckCircle2, XCircle,
+  Plus, X, Shield, ShieldCheck, UserCheck, UserX,
+  Eye, EyeOff, RotateCcw, Mail, Send,
+  Building2, User, CheckCircle2, XCircle, KeyRound, AlertCircle,
 } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -38,6 +38,12 @@ export default function AdminUsersPage() {
   const [showResetPw, setShowResetPw] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [createResult, setCreateResult] = useState<{
+    emailSent: boolean;
+    emailError?: string;
+    generatedPassword?: string;
+  } | null>(null);
+  const [resendNotice, setResendNotice] = useState<{ userId: string; success: boolean; error?: string } | null>(null);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -46,6 +52,8 @@ export default function AdminUsersPage() {
     assignedChannelId: "",
     assignedDashboardId: "",
     assignedSubChannelIds: [] as string[],
+    sendWelcomeEmail: true,
+    autoGeneratePassword: true,
   });
 
   const users = trpc.admin.listUsers.useQuery();
@@ -54,10 +62,14 @@ export default function AdminUsersPage() {
   const utils = trpc.useUtils();
 
   const createUser = trpc.admin.createUser.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       utils.admin.listUsers.invalidate();
-      setShowCreate(false);
-      setForm({ name: "", email: "", password: "", role: "CONSULTANT", assignedChannelId: "", assignedDashboardId: "", assignedSubChannelIds: [] });
+      setCreateResult({
+        emailSent: data.emailSent,
+        emailError: data.emailError,
+        generatedPassword: data.generatedPassword,
+      });
+      setForm({ name: "", email: "", password: "", role: "CONSULTANT", assignedChannelId: "", assignedDashboardId: "", assignedSubChannelIds: [], sendWelcomeEmail: true, autoGeneratePassword: true });
     },
   });
 
@@ -74,7 +86,23 @@ export default function AdminUsersPage() {
   });
 
   const resetPassword = trpc.admin.resetPassword.useMutation({
-    onSuccess: () => { setShowResetPw(null); setNewPassword(""); },
+    onSuccess: () => { setShowResetPw(null); setNewPassword(""); utils.admin.listUsers.invalidate(); },
+  });
+
+  const resendWelcome = trpc.admin.resendWelcomeEmail.useMutation({
+    onSuccess: (data, variables) => {
+      utils.admin.listUsers.invalidate();
+      setResendNotice({ userId: variables.userId, success: data.success, error: data.error });
+      setTimeout(() => setResendNotice(null), 5000);
+    },
+  });
+
+  const resetAndEmail = trpc.admin.resetPasswordAndEmail.useMutation({
+    onSuccess: (data, variables) => {
+      utils.admin.listUsers.invalidate();
+      setResendNotice({ userId: variables.userId, success: data.success, error: data.error });
+      setTimeout(() => setResendNotice(null), 5000);
+    },
   });
 
   const isGuestRole = form.role === "GUEST_CLIENT" || form.role === "GUEST_TEAM_MEMBER";
@@ -95,13 +123,28 @@ export default function AdminUsersPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => { setCreateResult(null); setShowCreate(true); }}
           className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
           Novo Utilizador
         </button>
       </div>
+
+      {/* Global resend notice */}
+      {resendNotice && (
+        <div className={cn(
+          "flex items-center gap-2 rounded-lg border p-3 text-sm",
+          resendNotice.success ? "border-green-200 bg-green-50 text-green-800" : "border-red-200 bg-red-50 text-red-700"
+        )}>
+          {resendNotice.success ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+          <span>
+            {resendNotice.success
+              ? "Email enviado com sucesso."
+              : `Falha a enviar email: ${resendNotice.error ?? "erro desconhecido"}`}
+          </span>
+        </div>
+      )}
 
       {/* Internal Team */}
       <div className="rounded-xl border bg-card">
@@ -115,7 +158,16 @@ export default function AdminUsersPage() {
             <p className="p-6 text-sm text-muted-foreground text-center">Sem membros da equipa.</p>
           )}
           {internalUsers.map((user) => (
-            <UserRow key={user.id} user={user} onChangeRole={(role) => updateUser.mutate({ id: user.id, data: { role: role as "ADMIN" } })} onDeactivate={() => deactivateUser.mutate(user.id)} onResetPw={() => setShowResetPw(user.id)} />
+            <UserRow
+              key={user.id}
+              user={user}
+              onChangeRole={(role) => updateUser.mutate({ id: user.id, data: { role: role as "ADMIN" } })}
+              onDeactivate={() => deactivateUser.mutate(user.id)}
+              onResetPw={() => setShowResetPw(user.id)}
+              onResendEmail={() => resendWelcome.mutate({ userId: user.id })}
+              onResetAndEmail={() => resetAndEmail.mutate({ userId: user.id })}
+              isBusy={resendWelcome.isPending || resetAndEmail.isPending}
+            />
           ))}
         </div>
       </div>
@@ -129,10 +181,19 @@ export default function AdminUsersPage() {
         </div>
         <div className="divide-y">
           {guestUsers.length === 0 && (
-            <p className="p-6 text-sm text-muted-foreground text-center">Sem clientes com acesso. Cria um utilizador com role "Cliente".</p>
+            <p className="p-6 text-sm text-muted-foreground text-center">Sem clientes com acesso. Cria um utilizador com role &quot;Cliente&quot;.</p>
           )}
           {guestUsers.map((user) => (
-            <UserRow key={user.id} user={user} onChangeRole={(role) => updateUser.mutate({ id: user.id, data: { role: role as "ADMIN" } })} onDeactivate={() => deactivateUser.mutate(user.id)} onResetPw={() => setShowResetPw(user.id)} />
+            <UserRow
+              key={user.id}
+              user={user}
+              onChangeRole={(role) => updateUser.mutate({ id: user.id, data: { role: role as "ADMIN" } })}
+              onDeactivate={() => deactivateUser.mutate(user.id)}
+              onResetPw={() => setShowResetPw(user.id)}
+              onResendEmail={() => resendWelcome.mutate({ userId: user.id })}
+              onResetAndEmail={() => resetAndEmail.mutate({ userId: user.id })}
+              isBusy={resendWelcome.isPending || resetAndEmail.isPending}
+            />
           ))}
         </div>
       </div>
@@ -166,17 +227,49 @@ export default function AdminUsersPage() {
               <h2 className="text-lg font-bold">Novo Utilizador</h2>
               <button onClick={() => setShowCreate(false)} className="rounded-lg p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
+
+            {/* Success result */}
+            {createResult && (
+              <div className="mb-4 space-y-2 rounded-lg border border-green-200 bg-green-50 p-4 text-sm">
+                <div className="flex items-center gap-2 font-medium text-green-800">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Utilizador criado com sucesso!
+                </div>
+                {createResult.emailSent && (
+                  <p className="text-green-700">✉️ Email de boas-vindas enviado com as credenciais de acesso.</p>
+                )}
+                {!createResult.emailSent && createResult.emailError && (
+                  <div className="flex items-start gap-2 text-red-700">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>Email nao enviado: {createResult.emailError}</span>
+                  </div>
+                )}
+                {createResult.generatedPassword && (
+                  <div className="rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                    <strong>Password gerada:</strong> <code className="font-mono">{createResult.generatedPassword}</code>
+                    <p className="mt-1 text-xs">Guarda esta password caso o email nao chegue ao destinatario.</p>
+                  </div>
+                )}
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => { setCreateResult(null); setShowCreate(false); }} className="rounded-lg border px-3 py-1.5 text-xs hover:bg-white">Fechar</button>
+                  <button onClick={() => setCreateResult(null)} className="rounded-lg bg-primary px-3 py-1.5 text-xs text-white hover:bg-primary/90">Criar outro</button>
+                </div>
+              </div>
+            )}
+
+            {!createResult && (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 createUser.mutate({
                   name: form.name,
                   email: form.email,
-                  password: form.password,
+                  password: form.autoGeneratePassword ? undefined : form.password,
                   role: form.role as "ADMIN",
                   assignedChannelId: form.assignedChannelId || undefined,
                   assignedDashboardId: form.assignedDashboardId || undefined,
                   assignedSubChannelIds: form.assignedSubChannelIds.length ? form.assignedSubChannelIds : undefined,
+                  sendWelcomeEmail: form.sendWelcomeEmail,
                 });
               }}
               className="space-y-4"
@@ -192,14 +285,46 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium">Password *</label>
-                <div className="relative">
-                  <input type={showPassword ? "text" : "password"} required minLength={6} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full rounded-lg border px-3 py-2 pr-10 text-sm bg-card" placeholder="Min. 6 caracteres" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
+              {/* Password section */}
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.autoGeneratePassword}
+                    onChange={(e) => setForm({ ...form, autoGeneratePassword: e.target.checked })}
+                    className="rounded"
+                  />
+                  <KeyRound className="h-4 w-4 text-primary" />
+                  Gerar password automatica (recomendado)
+                </label>
+
+                {!form.autoGeneratePassword && (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">Password *</label>
+                    <div className="relative">
+                      <input type={showPassword ? "text" : "password"} required={!form.autoGeneratePassword} minLength={6} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full rounded-lg border px-3 py-2 pr-10 text-sm bg-card" placeholder="Min. 6 caracteres" />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.sendWelcomeEmail}
+                    onChange={(e) => setForm({ ...form, sendWelcomeEmail: e.target.checked })}
+                    className="rounded"
+                  />
+                  <Mail className="h-4 w-4 text-primary" />
+                  Enviar email de boas-vindas com credenciais
+                </label>
+                {form.sendWelcomeEmail && (
+                  <p className="text-xs text-muted-foreground pl-6">
+                    O utilizador vai receber um email com as credenciais e sera obrigado a alterar a password no primeiro login.
+                  </p>
+                )}
               </div>
 
               {/* Role Selection */}
@@ -309,6 +434,7 @@ export default function AdminUsersPage() {
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}
@@ -320,6 +446,7 @@ export default function AdminUsersPage() {
             <h2 className="mb-4 text-lg font-bold">Reset Password</h2>
             <form onSubmit={(e) => { e.preventDefault(); resetPassword.mutate({ userId: showResetPw, newPassword }); }} className="space-y-4">
               <input type="password" required minLength={6} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Nova password" />
+              <p className="text-xs text-muted-foreground">O utilizador sera obrigado a alterar esta password no proximo login.</p>
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setShowResetPw(null)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
                 <button type="submit" disabled={resetPassword.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">Guardar</button>
@@ -345,18 +472,22 @@ function ConsentBadge({ accepted, label }: { accepted: boolean; label: string })
 }
 
 // User row component
-function UserRow({ user, onChangeRole, onDeactivate, onResetPw }: {
+function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, onResetAndEmail, isBusy }: {
   user: {
     id: string; name: string; email: string; role: string;
     image: string | null; assignedChannel?: { name: string } | null;
     assignedDashboard?: { client: { name: string }; market: string } | null;
     consentPrivacyPolicy?: boolean; consentTerms?: boolean; consentDPA?: boolean;
     consentDataDeletion?: boolean; consentAIAnalysis?: boolean; consentsAcceptedAt?: string | null;
+    welcomeEmailSentAt?: string | null; mustChangePassword?: boolean;
     _count: { sessions: number; messages: number };
   };
   onChangeRole: (role: string) => void;
   onDeactivate: () => void;
   onResetPw: () => void;
+  onResendEmail: () => void;
+  onResetAndEmail: () => void;
+  isBusy?: boolean;
 }) {
   const hasAnyConsent = user.consentPrivacyPolicy || user.consentTerms || user.consentDPA;
 
@@ -364,6 +495,7 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw }: {
     <div className="p-3 md:p-4">
       <div className="flex items-center gap-3">
         {user.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img src={user.image} alt="" className="h-9 w-9 rounded-full" />
         ) : (
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
@@ -376,6 +508,16 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw }: {
             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", ROLE_COLORS[user.role] ?? "bg-gray-100")}>
               {ROLE_LABELS[user.role] ?? user.role}
             </span>
+            {user.mustChangePassword && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700" title="Utilizador ainda nao alterou a password">
+                1o login pendente
+              </span>
+            )}
+            {user.welcomeEmailSentAt && (
+              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700" title={`Email enviado em ${new Date(user.welcomeEmailSentAt).toLocaleString("pt-PT")}`}>
+                ✉️ enviado
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground truncate">{user.email}</p>
           {user.assignedChannel && (
@@ -393,7 +535,23 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw }: {
             <option value="GUEST_CLIENT">Cliente</option>
             <option value="GUEST_TEAM_MEMBER">Equipa Cliente</option>
           </select>
-          <button onClick={onResetPw} className="rounded border p-1.5 text-muted-foreground hover:bg-muted" title="Reset password"><RotateCcw className="h-3.5 w-3.5" /></button>
+          <button
+            onClick={onResendEmail}
+            disabled={isBusy}
+            className="rounded border p-1.5 text-muted-foreground hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50"
+            title="Reenviar email de acesso (gera nova password)"
+          >
+            <Send className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={onResetAndEmail}
+            disabled={isBusy}
+            className="rounded border p-1.5 text-muted-foreground hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50"
+            title="Reset password + enviar email"
+          >
+            <Mail className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={onResetPw} className="rounded border p-1.5 text-muted-foreground hover:bg-muted" title="Reset password manual"><RotateCcw className="h-3.5 w-3.5" /></button>
           <button onClick={onDeactivate} className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600" title="Desativar"><UserX className="h-3.5 w-3.5" /></button>
         </div>
       </div>

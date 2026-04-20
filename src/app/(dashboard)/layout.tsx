@@ -15,6 +15,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const userRole = (session?.user as Record<string, unknown>)?.role as string | undefined;
   const userId = (session?.user as Record<string, unknown>)?.id as string | undefined;
+  const mustChangePassword = (session?.user as Record<string, unknown>)?.mustChangePassword as boolean | undefined;
   const isGuest = userRole === "GUEST_CLIENT" || userRole === "GUEST_TEAM_MEMBER";
 
   // Redirect to login if not authenticated
@@ -23,6 +24,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.replace("/login");
     }
   }, [status, router]);
+
+  // Force password change on first login
+  useEffect(() => {
+    if (status === "authenticated" && mustChangePassword) {
+      router.replace("/first-login");
+    }
+  }, [status, mustChangePassword, router]);
 
   // Redirect guests to their assigned area
   useEffect(() => {

@@ -169,6 +169,7 @@ export const authOptions: NextAuthOptions = {
           (session.user as Record<string, unknown>).id = dbUser.id;
           (session.user as Record<string, unknown>).role = dbUser.role;
           (session.user as Record<string, unknown>).googleConnected = dbUser.googleConnected;
+          (session.user as Record<string, unknown>).mustChangePassword = dbUser.mustChangePassword;
         }
       }
       return session;

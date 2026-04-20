@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "./init";
 import bcrypt from "bcryptjs";
+import { sendWelcomeEmail, sendPasswordResetEmail, generateTempPassword } from "../services/email";
 
 export const adminRouter = router({
   // List all users
@@ -24,6 +25,8 @@ export const adminRouter = router({
         consentDataDeletion: true,
         consentAIAnalysis: true,
         consentsAcceptedAt: true,
+        mustChangePassword: true,
+        welcomeEmailSentAt: true,
         createdAt: true,
         _count: {
           select: { sessions: true, messages: true },
@@ -39,11 +42,12 @@ export const adminRouter = router({
       z.object({
         name: z.string().min(1),
         email: z.string().email(),
-        password: z.string().min(6),
+        password: z.string().min(6).optional(),
         role: z.enum(["ADMIN", "CONSULTANT", "MANAGER", "GUEST_CLIENT", "GUEST_TEAM_MEMBER"]).default("CONSULTANT"),
         assignedChannelId: z.string().optional(),
         assignedDashboardId: z.string().optional(),
         assignedSubChannelIds: z.array(z.string()).optional(),
+        sendWelcomeEmail: z.boolean().default(true),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -54,7 +58,9 @@ export const adminRouter = router({
         throw new Error("Email ja registado.");
       }
 
-      const hashedPassword = await bcrypt.hash(input.password, 12);
+      // Use provided password or generate a temporary one
+      const plainPassword = input.password || generateTempPassword();
+      const hashedPassword = await bcrypt.hash(plainPassword, 12);
 
       // Create user
       const user = await ctx.prisma.user.create({
@@ -65,6 +71,7 @@ export const adminRouter = router({
           role: input.role,
           assignedChannelId: input.assignedChannelId,
           assignedDashboardId: input.assignedDashboardId,
+          mustChangePassword: input.sendWelcomeEmail, // force change if auto-generated/sent
         },
       });
 
@@ -100,7 +107,82 @@ export const adminRouter = router({
         }
       }
 
-      return user;
+      // Send welcome email
+      let emailResult: { success: boolean; error?: string } = { success: false };
+      if (input.sendWelcomeEmail) {
+        // Fetch client name if guest
+        let clientName: string | undefined;
+        if (input.assignedChannelId) {
+          const channel = await ctx.prisma.channel.findUnique({
+            where: { id: input.assignedChannelId },
+            select: { client: { select: { name: true } } },
+          });
+          clientName = channel?.client?.name;
+        }
+
+        emailResult = await sendWelcomeEmail({
+          name: user.name,
+          email: user.email,
+          password: plainPassword,
+          role: user.role,
+          clientName,
+        });
+
+        if (emailResult.success) {
+          await ctx.prisma.user.update({
+            where: { id: user.id },
+            data: { welcomeEmailSentAt: new Date() },
+          });
+        }
+      }
+
+      return {
+        user,
+        emailSent: emailResult.success,
+        emailError: emailResult.error,
+        generatedPassword: !input.password ? plainPassword : undefined,
+      };
+    }),
+
+  // Resend welcome email (generates new temp password)
+  resendWelcomeEmail: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const user = await ctx.prisma.user.findUnique({
+        where: { id: input.userId },
+        include: {
+          assignedChannel: { include: { client: { select: { name: true } } } },
+        },
+      });
+      if (!user) throw new Error("Utilizador nao encontrado.");
+
+      const newPassword = generateTempPassword();
+      const hashed = await bcrypt.hash(newPassword, 12);
+
+      await ctx.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashed,
+          mustChangePassword: true,
+        },
+      });
+
+      const result = await sendWelcomeEmail({
+        name: user.name,
+        email: user.email,
+        password: newPassword,
+        role: user.role,
+        clientName: user.assignedChannel?.client?.name,
+      });
+
+      if (result.success) {
+        await ctx.prisma.user.update({
+          where: { id: user.id },
+          data: { welcomeEmailSentAt: new Date() },
+        });
+      }
+
+      return { success: result.success, error: result.error };
     }),
 
   // Update user
@@ -124,15 +206,66 @@ export const adminRouter = router({
       });
     }),
 
-  // Reset password
+  // Reset password (admin-set, no email)
   resetPassword: publicProcedure
     .input(z.object({ userId: z.string(), newPassword: z.string().min(6) }))
     .mutation(async ({ ctx, input }) => {
       const hashedPassword = await bcrypt.hash(input.newPassword, 12);
       return ctx.prisma.user.update({
         where: { id: input.userId },
-        data: { password: hashedPassword },
+        data: { password: hashedPassword, mustChangePassword: true },
       });
+    }),
+
+  // Reset password AND send email with new credentials
+  resetPasswordAndEmail: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const user = await ctx.prisma.user.findUnique({
+        where: { id: input.userId },
+      });
+      if (!user) throw new Error("Utilizador nao encontrado.");
+
+      const newPassword = generateTempPassword();
+      const hashed = await bcrypt.hash(newPassword, 12);
+
+      await ctx.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashed,
+          mustChangePassword: true,
+        },
+      });
+
+      const result = await sendPasswordResetEmail({
+        name: user.name,
+        email: user.email,
+        newPassword,
+      });
+
+      return { success: result.success, error: result.error };
+    }),
+
+  // User changes own password (first-login flow)
+  changeOwnPassword: publicProcedure
+    .input(z.object({ userId: z.string(), currentPassword: z.string(), newPassword: z.string().min(8) }))
+    .mutation(async ({ ctx, input }) => {
+      const user = await ctx.prisma.user.findUnique({ where: { id: input.userId } });
+      if (!user || !user.password) throw new Error("Utilizador invalido.");
+
+      const valid = await bcrypt.compare(input.currentPassword, user.password);
+      if (!valid) throw new Error("Password atual incorreta.");
+
+      const hashed = await bcrypt.hash(input.newPassword, 12);
+      await ctx.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashed,
+          mustChangePassword: false,
+        },
+      });
+
+      return { success: true };
     }),
 
   deactivateUser: publicProcedure.input(z.string()).mutation(async ({ ctx, input }) => {
@@ -142,4 +275,17 @@ export const adminRouter = router({
   activateUser: publicProcedure.input(z.string()).mutation(async ({ ctx, input }) => {
     return ctx.prisma.user.update({ where: { id: input }, data: { isActive: true } });
   }),
+
+  // Test email configuration
+  testEmail: publicProcedure
+    .input(z.object({ to: z.string().email() }))
+    .mutation(async ({ input }) => {
+      const { sendEmail } = await import("../services/email");
+      const result = await sendEmail({
+        to: input.to,
+        subject: "Teste BoomLab Platform",
+        html: `<html><body style="font-family:sans-serif;padding:40px;"><h2>Teste bem-sucedido!</h2><p>O envio de emails da BoomLab Platform esta a funcionar correctamente.</p></body></html>`,
+      });
+      return result;
+    }),
 });
