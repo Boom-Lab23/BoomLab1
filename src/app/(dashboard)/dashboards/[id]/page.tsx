@@ -4,7 +4,7 @@ import { use, useState } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Plus, X, Phone, TrendingUp, Users, Target, Calendar, BarChart3 } from "lucide-react";
+import { ArrowLeft, Plus, X, Phone, TrendingUp, Users, Target, Calendar, BarChart3, UserPlus, Trash2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
 
 const MARKET_LABELS: Record<string, string> = { CREDITO: "Credito", SEGUROS: "Seguros", IMOBILIARIO: "Imobiliario" };
@@ -40,6 +40,8 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   const [period, setPeriod] = useState<"week" | "month" | "trimester" | "year">("month");
   const [activeTab, setActiveTab] = useState<"overview" | "growth" | "vertentes">("overview");
   const [showEOD, setShowEOD] = useState(false);
+  const [showTeam, setShowTeam] = useState(false);
+  const [newCommercial, setNewCommercial] = useState("");
   const [eod, setEod] = useState<Record<string, string>>({ commercial: "", channel: "Cold Calling", date: new Date().toISOString().split("T")[0], callsMade: "", callsAnswered: "", conversions: "", agendamentos: "", notes: "" });
 
   const dashboard = trpc.dashboards.getById.useQuery(id);
@@ -51,6 +53,13 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   const addRecord = trpc.dashboards.addRecord.useMutation({
     onSuccess: () => { utils.dashboards.getById.invalidate(); utils.dashboards.kpis.invalidate(); utils.dashboards.growthKpis.invalidate(); utils.dashboards.chartData.invalidate(); setShowEOD(false); },
   });
+
+  const updateDashboard = trpc.dashboards.update.useMutation({
+    onSuccess: () => utils.dashboards.getById.invalidate(),
+  });
+
+  const users = trpc.admin.listUsers.useQuery();
+  const assignedUsers = (users.data ?? []).filter(u => u.assignedDashboardId === id);
 
   if (dashboard.isLoading) return <div className="p-8 text-center text-muted-foreground">A carregar...</div>;
   if (!dashboard.data) return <div className="p-8 text-center text-muted-foreground">Dashboard nao encontrada</div>;
@@ -72,10 +81,25 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
             <span className="text-sm text-muted-foreground">Departamento Comercial</span>
           </div>
         </div>
+        <button onClick={() => setShowTeam(true)} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted">
+          <Users className="h-4 w-4" /> Equipa ({db.commercials.length})
+        </button>
         <button onClick={() => setShowEOD(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
           <Plus className="h-4 w-4" /> Registo
         </button>
       </div>
+
+      {/* Team Members Badge */}
+      {db.commercials.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">Equipa Comercial:</span>
+          {db.commercials.map((name) => (
+            <span key={name} className="rounded-full px-2.5 py-0.5 text-xs font-medium" style={{ backgroundColor: `${color}15`, color }}>
+              {name}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg border bg-muted/50 p-1">
@@ -324,6 +348,117 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
+      {/* Team Management Dialog */}
+      {showTeam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-card p-6 animate-scale-in">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Equipa Comercial</h2>
+              <button onClick={() => setShowTeam(false)} className="rounded-lg p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Os nomes dos membros aparecerao no formulario de Registo Diario e nas classificacoes.
+            </p>
+
+            {/* Users with access to this dashboard */}
+            {assignedUsers.length > 0 && (
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-semibold text-muted-foreground">Utilizadores com acesso</p>
+                <div className="space-y-1">
+                  {assignedUsers.map(u => (
+                    <div key={u.id} className="flex items-center justify-between rounded-lg border p-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-medium text-primary">
+                          {u.name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{u.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{u.email}</p>
+                        </div>
+                      </div>
+                      {!db.commercials.includes(u.name) && (
+                        <button
+                          onClick={() => updateDashboard.mutate({ id, commercials: [...db.commercials, u.name] })}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Adicionar
+                        </button>
+                      )}
+                      {db.commercials.includes(u.name) && (
+                        <span className="text-xs text-muted-foreground">Ja adicionado</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Current team members */}
+            <div className="mb-4">
+              <p className="mb-2 text-xs font-semibold text-muted-foreground">Membros da equipa ({db.commercials.length})</p>
+              {db.commercials.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">Nenhum membro adicionado. Adiciona nomes abaixo.</p>
+              ) : (
+                <div className="space-y-1">
+                  {db.commercials.map((name) => (
+                    <div key={name} className="flex items-center justify-between rounded-lg border p-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-medium text-white" style={{ backgroundColor: color }}>
+                          {name.charAt(0)}
+                        </div>
+                        <p className="text-sm font-medium">{name}</p>
+                      </div>
+                      <button
+                        onClick={() => updateDashboard.mutate({ id, commercials: db.commercials.filter(n => n !== name) })}
+                        className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Add new member */}
+            <div className="border-t pt-3">
+              <p className="mb-2 text-xs font-semibold text-muted-foreground">Adicionar manualmente</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newCommercial}
+                  onChange={(e) => setNewCommercial(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newCommercial.trim()) {
+                      e.preventDefault();
+                      updateDashboard.mutate({ id, commercials: [...db.commercials, newCommercial.trim()] });
+                      setNewCommercial("");
+                    }
+                  }}
+                  placeholder="Nome do comercial"
+                  className="flex-1 rounded-lg border px-3 py-2 text-sm bg-card"
+                />
+                <button
+                  onClick={() => {
+                    if (!newCommercial.trim()) return;
+                    updateDashboard.mutate({ id, commercials: [...db.commercials, newCommercial.trim()] });
+                    setNewCommercial("");
+                  }}
+                  disabled={!newCommercial.trim() || updateDashboard.isPending}
+                  className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                >
+                  <UserPlus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end border-t pt-4 mt-4">
+              <button onClick={() => setShowTeam(false)} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* EOD Form */}
       {showEOD && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -353,7 +488,17 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
               addRecord.mutate(data as Parameters<typeof addRecord.mutate>[0]);
             }} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="mb-0.5 block text-xs font-medium">Comercial *</label><input type="text" required value={eod.commercial} onChange={(e) => setEod({ ...eod, commercial: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Comercial *</label>
+                  {db.commercials.length > 0 ? (
+                    <select required value={eod.commercial} onChange={(e) => setEod({ ...eod, commercial: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card">
+                      <option value="">Selecionar...</option>
+                      {db.commercials.map(name => <option key={name} value={name}>{name}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" required value={eod.commercial} onChange={(e) => setEod({ ...eod, commercial: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Adiciona membros na Equipa" />
+                  )}
+                </div>
                 <div><label className="mb-0.5 block text-xs font-medium">Data</label><input type="date" value={eod.date} onChange={(e) => setEod({ ...eod, date: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
               </div>
               <div><label className="mb-0.5 block text-xs font-medium">Canal</label>
