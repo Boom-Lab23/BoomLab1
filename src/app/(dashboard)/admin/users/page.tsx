@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   Users, Plus, X, Shield, ShieldCheck, UserCheck, UserX,
   Lock, Eye, EyeOff, RotateCcw, Calendar, MessageSquare,
-  Building2, User, CheckCircle2, XCircle,
+  Building2, User, CheckCircle2, XCircle, Mail, MoreHorizontal, RefreshCw,
 } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -46,6 +46,7 @@ export default function AdminUsersPage() {
     assignedChannelId: "",
     assignedDashboardId: "",
     assignedSubChannelIds: [] as string[],
+    sendWelcomeEmail: false,
   });
 
   const users = trpc.admin.listUsers.useQuery();
@@ -74,6 +75,8 @@ export default function AdminUsersPage() {
   });
 
   const resetPassword = trpc.admin.resetPassword.useMutation({
+  const resendWelcomeEmail = trpc.admin.resendWelcomeEmail.useMutation();
+  const resetPasswordAndSendEmail = trpc.admin.resetPasswordAndSendEmail.useMutation();
     onSuccess: () => { setShowResetPw(null); setNewPassword(""); },
   });
 
@@ -177,6 +180,7 @@ export default function AdminUsersPage() {
                   assignedChannelId: form.assignedChannelId || undefined,
                   assignedDashboardId: form.assignedDashboardId || undefined,
                   assignedSubChannelIds: form.assignedSubChannelIds.length ? form.assignedSubChannelIds : undefined,
+        sendWelcomeEmail: form.sendWelcomeEmail,
                 });
               }}
               className="space-y-4"
@@ -304,6 +308,20 @@ export default function AdminUsersPage() {
 
               <div className="flex justify-end gap-3 border-t pt-4">
                 <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted">Cancelar</button>
+          {/* Enviar email de boas-vindas */}
+          <label className="flex items-center gap-2 cursor-pointer select-none mt-2">
+            <input
+              type="checkbox"
+              checked={form.sendWelcomeEmail}
+              onChange={(e) => setForm(f => ({...f, sendWelcomeEmail: e.target.checked}))}
+              className="w-4 h-4 rounded border-gray-600 bg-[#1a1d1f] accent-[#2D76FC]"
+            />
+            <span className="text-sm text-gray-300 flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5 text-[#2D76FC]" />
+              Enviar email de boas-vindas com credenciais
+            </span>
+          </label>
+
                 <button type="submit" disabled={createUser.isPending || (isGuestRole && !form.assignedChannelId)} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
                   {createUser.isPending ? "A criar..." : "Criar Utilizador"}
                 </button>
@@ -393,6 +411,41 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw }: {
             <option value="GUEST_CLIENT">Cliente</option>
             <option value="GUEST_TEAM_MEMBER">Equipa Cliente</option>
           </select>
+                {/* Mais acoes */}
+                <div className="relative group/act">
+                  <button
+                    type="button"
+                    className="rounded border border-[#2a2d30] bg-[#1a1d1f] p-1.5 text-gray-400 hover:text-white hover:border-gray-500 transition-colors"
+                    title="Mais acoes"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                  <div className="absolute right-0 top-full mt-1 z-50 hidden group-hover/act:block bg-[#1a1d1f] border border-[#2a2d30] rounded-lg shadow-xl min-w-[200px] py-1">
+                    <button
+                      type="button"
+                      onClick={() => resendWelcomeEmail.mutate(user.id)}
+                      disabled={resendWelcomeEmail.isPending}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-[#2a2d30] hover:text-white transition-colors"
+                    >
+                      <Mail className="h-3.5 w-3.5 text-[#2D76FC]" />
+                      Reenviar acesso
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pw = prompt("Nova password (min. 6 chars):");
+                        if (pw && pw.length >= 6) {
+                          resetPasswordAndSendEmail.mutate({ userId: user.id, newPassword: pw });
+                        }
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-[#2a2d30] hover:text-white transition-colors"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 text-orange-400" />
+                      Reset password + email
+                    </button>
+                  </div>
+                </div>
+
           <button onClick={onResetPw} className="rounded border p-1.5 text-muted-foreground hover:bg-muted" title="Reset password"><RotateCcw className="h-3.5 w-3.5" /></button>
           <button onClick={onDeactivate} className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600" title="Desativar"><UserX className="h-3.5 w-3.5" /></button>
         </div>
