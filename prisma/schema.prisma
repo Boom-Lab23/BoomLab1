@@ -43,6 +43,7 @@ model User {
   messages           Message[]
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+  mustChangePassword Boolean   @default(false) // Flag para forçar mudança de password no 1º login
 }
 
 model Account {
