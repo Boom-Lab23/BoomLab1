@@ -1,0 +1,90 @@
+# BoomLab Platform — docker-compose para coexistir com n8n
+#
+# Este ficheiro é específico para o VPS Hostinger que já tem:
+#  - Traefik (em n8n-traefik-1) a ocupar portos 80/443
+#  - n8n (em n8n-n8n-1) em subdominio proprio
+#
+# O BoomLab liga-se a rede "n8n_default" do Traefik e fica acessivel em:
+#   https://servico.boomlab.cloud
+#
+# Usar no VPS com:
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  # ============================================================
+  # PostgreSQL 16 — base de dados do BoomLab (independente do n8n)
+  # ============================================================
+  boomlab-db:
+    image: postgres:16-alpine
+    container_name: boomlab-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-boomlab}
+      POSTGRES_USER: ${POSTGRES_USER:-boomlab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - boomlab_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-boomlab} -d ${POSTGRES_DB:-boomlab}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - boomlab-net
+
+  # ============================================================
+  # Next.js — app BoomLab (ligada a n8n_default para Traefik rotear)
+  # ============================================================
+  boomlab-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: boomlab-app
+    restart: always
+    depends_on:
+      boomlab-db:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-boomlab}:${POSTGRES_PASSWORD}@boomlab-db:5432/${POSTGRES_DB:-boomlab}?schema=public
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://servico.boomlab.cloud}
+      NODE_ENV: production
+    volumes:
+      - boomlab_uploads:/app/uploads
+    networks:
+      - boomlab-net      # acede a Postgres
+      - n8n_default      # exposto via Traefik existente
+    labels:
+      # ===== Traefik config =====
+      - "traefik.enable=true"
+      - "traefik.docker.network=n8n_default"
+      # Router: servico.boomlab.cloud -> boomlab-app:3000
+      - "traefik.http.routers.boomlab.rule=Host(`servico.boomlab.cloud`)"
+      - "traefik.http.routers.boomlab.tls=true"
+      - "traefik.http.routers.boomlab.entrypoints=web,websecure"
+      - "traefik.http.routers.boomlab.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.boomlab.loadbalancer.server.port=3000"
+      # Security headers (igual ao setup do n8n)
+      - "traefik.http.middlewares.boomlab-headers.headers.SSLRedirect=true"
+      - "traefik.http.middlewares.boomlab-headers.headers.STSSeconds=315360000"
+      - "traefik.http.middlewares.boomlab-headers.headers.browserXSSFilter=true"
+      - "traefik.http.middlewares.boomlab-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.boomlab-headers.headers.forceSTSHeader=true"
+      - "traefik.http.middlewares.boomlab-headers.headers.SSLHost=boomlab.cloud"
+      - "traefik.http.middlewares.boomlab-headers.headers.STSIncludeSubdomains=true"
+      - "traefik.http.middlewares.boomlab-headers.headers.STSPreload=true"
+      - "traefik.http.routers.boomlab.middlewares=boomlab-headers@docker"
+
+volumes:
+  boomlab_pgdata:
+    driver: local
+  boomlab_uploads:
+    driver: local
+
+networks:
+  boomlab-net:
+    driver: bridge
+    name: boomlab-net
+  n8n_default:
+    external: true
