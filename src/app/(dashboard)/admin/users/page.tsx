@@ -694,14 +694,18 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
             )}
           </div>
           <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-          {user.assignedChannel && (
+          {/* Acessos restritos SO para guests. Internos (admin/manager/consultor) tem acesso global. */}
+          {isGuest && user.assignedChannel && (
             <p className="text-xs text-orange-600">Canal: {user.assignedChannel.name}</p>
           )}
-          {user.assignedWorkspaceClient && (
+          {isGuest && user.assignedWorkspaceClient && (
             <p className="text-xs text-[#2D76FC]">Workspace: {user.assignedWorkspaceClient.name}</p>
           )}
-          {!user.assignedWorkspaceClient && user.assignedDashboard && (
+          {isGuest && !user.assignedWorkspaceClient && user.assignedDashboard && (
             <p className="text-xs text-[#2D76FC]">Dashboard: {user.assignedDashboard.client.name} ({user.assignedDashboard.market})</p>
+          )}
+          {!isGuest && (user.role === "MANAGER" || user.role === "ADMIN") && (
+            <p className="text-xs text-green-600">Acesso global a plataforma</p>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">

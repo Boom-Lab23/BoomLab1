@@ -69,6 +69,9 @@ export const adminRouter = router({
       const plainPassword = input.password || generateTempPassword();
       const hashedPassword = await bcrypt.hash(plainPassword, 12);
 
+      // Non-guests nao tem acessos restritos - ignora os campos assigned* se nao for guest
+      const isGuestRole = input.role === "GUEST_CLIENT" || input.role === "GUEST_TEAM_MEMBER";
+
       // Create user
       const user = await ctx.prisma.user.create({
         data: {
@@ -77,10 +80,10 @@ export const adminRouter = router({
           password: hashedPassword,
           role: input.role,
           isActive: true,
-          assignedChannelId: input.assignedChannelId,
-          assignedDashboardId: input.assignedDashboardId,
-          assignedWorkspaceClientId: input.assignedWorkspaceClientId,
-          mustChangePassword: input.sendWelcomeEmail, // force change if auto-generated/sent
+          assignedChannelId: isGuestRole ? input.assignedChannelId : null,
+          assignedDashboardId: isGuestRole ? input.assignedDashboardId : null,
+          assignedWorkspaceClientId: isGuestRole ? input.assignedWorkspaceClientId : null,
+          mustChangePassword: input.sendWelcomeEmail,
         },
       });
 
@@ -216,9 +219,23 @@ export const adminRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const patch = { ...input.data } as Record<string, unknown>;
+
+      // Se a role esta a ser mudada para NON-GUEST (ADMIN/CONSULTANT/MANAGER),
+      // limpa os campos de acessos restritos. Non-guests nao tem workspace/canal limitado.
+      if (
+        input.data.role &&
+        input.data.role !== "GUEST_CLIENT" &&
+        input.data.role !== "GUEST_TEAM_MEMBER"
+      ) {
+        patch.assignedChannelId = null;
+        patch.assignedWorkspaceClientId = null;
+        patch.assignedDashboardId = null;
+      }
+
       return ctx.prisma.user.update({
         where: { id: input.id },
-        data: input.data as Record<string, unknown>,
+        data: patch,
       });
     }),
 
