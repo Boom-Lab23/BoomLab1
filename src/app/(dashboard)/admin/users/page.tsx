@@ -45,6 +45,8 @@ export default function AdminUsersPage() {
   const [showResetPw, setShowResetPw] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [editPermsUserId, setEditPermsUserId] = useState<string | null>(null);
+  const [editPermsForm, setEditPermsForm] = useState({ assignedChannelId: "", assignedWorkspaceClientId: "" });
   const [createResult, setCreateResult] = useState<{
     emailSent: boolean;
     emailError?: string;
@@ -215,6 +217,13 @@ export default function AdminUsersPage() {
               onResetPw={() => setShowResetPw(user.id)}
               onResendEmail={() => resendWelcome.mutate({ userId: user.id })}
               onResetAndEmail={() => resetAndEmail.mutate({ userId: user.id })}
+              onEditPerms={() => {
+                setEditPermsUserId(user.id);
+                setEditPermsForm({
+                  assignedChannelId: user.assignedChannelId ?? "",
+                  assignedWorkspaceClientId: user.assignedWorkspaceClient?.id ?? "",
+                });
+              }}
               isBusy={resendWelcome.isPending || resetAndEmail.isPending}
             />
           ))}
@@ -241,6 +250,13 @@ export default function AdminUsersPage() {
               onResetPw={() => setShowResetPw(user.id)}
               onResendEmail={() => resendWelcome.mutate({ userId: user.id })}
               onResetAndEmail={() => resetAndEmail.mutate({ userId: user.id })}
+              onEditPerms={() => {
+                setEditPermsUserId(user.id);
+                setEditPermsForm({
+                  assignedChannelId: user.assignedChannelId ?? "",
+                  assignedWorkspaceClientId: user.assignedWorkspaceClient?.id ?? "",
+                });
+              }}
               isBusy={resendWelcome.isPending || resetAndEmail.isPending}
             />
           ))}
@@ -528,6 +544,87 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Permissions (workspace + channel) Dialog */}
+      {editPermsUserId && (() => {
+        const target = users.data?.find(u => u.id === editPermsUserId);
+        if (!target) return null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+            <div className="w-full max-w-md rounded-2xl bg-card p-6 animate-scale-in">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold">Editar Acessos</h2>
+                  <p className="text-xs text-muted-foreground">{target.name}</p>
+                </div>
+                <button onClick={() => setEditPermsUserId(null)} className="rounded-lg p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Workspace do cliente</label>
+                  <select
+                    value={editPermsForm.assignedWorkspaceClientId}
+                    onChange={(e) => setEditPermsForm({ ...editPermsForm, assignedWorkspaceClientId: e.target.value })}
+                    className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                  >
+                    <option value="">Sem acesso a workspace</option>
+                    {clientsList.data?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <p className="mt-1 text-xs text-muted-foreground">Da acesso a Dashboard + CRM Leads + Analise de Vendas do cliente selecionado.</p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Canal de mensagens</label>
+                  <select
+                    value={editPermsForm.assignedChannelId}
+                    onChange={(e) => setEditPermsForm({ ...editPermsForm, assignedChannelId: e.target.value })}
+                    className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                  >
+                    <option value="">Sem acesso a canal</option>
+                    {channels.data?.filter(c => c.type === "CLIENT").map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-muted-foreground">O cliente so ve este canal de mensagens. Nunca ve canais internos da BoomLab.</p>
+                </div>
+
+                {updateUser.error && (
+                  <p className="text-xs text-red-600">Erro: {updateUser.error.message}</p>
+                )}
+              </div>
+
+              <div className="mt-5 flex justify-end gap-3 border-t pt-4">
+                <button
+                  type="button"
+                  onClick={() => setEditPermsUserId(null)}
+                  className="rounded-lg border px-4 py-2 text-sm hover:bg-muted"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={updateUser.isPending}
+                  onClick={() => {
+                    updateUser.mutate({
+                      id: editPermsUserId,
+                      data: {
+                        assignedChannelId: editPermsForm.assignedChannelId || null,
+                        assignedWorkspaceClientId: editPermsForm.assignedWorkspaceClientId || null,
+                      },
+                    }, {
+                      onSuccess: () => setEditPermsUserId(null),
+                    });
+                  }}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {updateUser.isPending ? "A guardar..." : "Guardar acessos"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -545,10 +642,11 @@ function ConsentBadge({ accepted, label }: { accepted: boolean; label: string })
 }
 
 // User row component
-function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, onResetAndEmail, isBusy }: {
+function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, onResetAndEmail, onEditPerms, isBusy }: {
   user: {
     id: string; name: string; email: string; role: string;
     image: string | null; assignedChannel?: { name: string } | null;
+    assignedChannelId?: string | null;
     assignedDashboard?: { client: { name: string }; market: string } | null;
     assignedWorkspaceClient?: { id: string; name: string } | null;
     consentPrivacyPolicy?: boolean; consentTerms?: boolean; consentDPA?: boolean;
@@ -561,8 +659,10 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
   onResetPw: () => void;
   onResendEmail: () => void;
   onResetAndEmail: () => void;
+  onEditPerms: () => void;
   isBusy?: boolean;
 }) {
+  const isGuest = user.role === "GUEST_CLIENT" || user.role === "GUEST_TEAM_MEMBER";
   const hasAnyConsent = user.consentPrivacyPolicy || user.consentTerms || user.consentDPA;
 
   return (
@@ -628,6 +728,15 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
           >
             <Mail className="h-3.5 w-3.5" />
           </button>
+          {isGuest && (
+            <button
+              onClick={onEditPerms}
+              className="rounded border p-1.5 text-muted-foreground hover:bg-purple-50 hover:text-purple-600"
+              title="Editar acessos (workspace + canal)"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button onClick={onResetPw} className="rounded border p-1.5 text-muted-foreground hover:bg-muted" title="Reset password manual"><RotateCcw className="h-3.5 w-3.5" /></button>
           <button onClick={onDeactivate} className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600" title="Desativar"><UserX className="h-3.5 w-3.5" /></button>
         </div>

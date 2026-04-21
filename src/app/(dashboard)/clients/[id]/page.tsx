@@ -34,6 +34,17 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const completedSessions = c.sessions.filter((s) => s.status === "CONCLUIDA").length;
   const totalSessions = c.sessions.length;
 
+  // Proximas reunioes (futuras ou hoje, nao concluidas)
+  const now = new Date();
+  const upcomingSessions = c.sessions
+    .filter((s) => {
+      if (!s.date) return false;
+      if (s.status === "CONCLUIDA" || s.status === "CANCELADA" || s.status === "FALTOU") return false;
+      return new Date(s.date).getTime() >= now.setHours(0, 0, 0, 0);
+    })
+    .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
+    .slice(0, 5);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -140,6 +151,67 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                 </span>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* Upcoming Sessions */}
+        <div className="lg:col-span-2 rounded-xl border bg-card">
+          <div className="flex items-center justify-between border-b p-4">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              <h2 className="font-semibold">Proximas Reunioes</h2>
+            </div>
+            <span className="text-sm text-muted-foreground">{upcomingSessions.length}</span>
+          </div>
+          <div className="divide-y">
+            {upcomingSessions.length === 0 ? (
+              <div className="p-6 text-sm text-center text-muted-foreground">Sem reunioes agendadas proximamente.</div>
+            ) : (
+              upcomingSessions.map((session) => {
+                const pillar = getPillarFromModule(session.module);
+                const d = session.date ? new Date(session.date) : null;
+                const isToday = d && d.toDateString() === new Date().toDateString();
+                const daysUntil = d ? Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
+                return (
+                  <Link
+                    key={session.id}
+                    href={`/sessions/${session.id}`}
+                    className="flex items-center gap-3 p-3 transition-colors hover:bg-muted/50"
+                  >
+                    <div className="flex flex-col items-center min-w-[56px] rounded-lg p-2" style={{ background: pillar ? `${pillar.color}15` : "#f3f4f6" }}>
+                      <span className="text-[10px] uppercase text-muted-foreground">
+                        {d?.toLocaleDateString("pt-PT", { month: "short" }).replace(".", "")}
+                      </span>
+                      <span className="text-lg font-bold" style={{ color: pillar?.color ?? "#6b7280" }}>
+                        {d?.getDate()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{session.title}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {pillar && <span className="h-2 w-2 rounded-full" style={{ backgroundColor: pillar.color }} />}
+                        <span>{session.topic ?? session.module}</span>
+                        <span>&middot;</span>
+                        <span>{d?.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                        isToday ? "bg-primary text-white" : daysUntil <= 2 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"
+                      )}>
+                        {isToday ? "Hoje" : daysUntil === 1 ? "Amanha" : `em ${daysUntil}d`}
+                      </span>
+                      <p className="mt-1 text-[10px]">
+                        <span className={cn("rounded px-1.5 py-0.5 text-[9px]", getStatusColor(session.status))}>
+                          {formatStatus(session.status)}
+                        </span>
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })
+            )}
           </div>
         </div>
 

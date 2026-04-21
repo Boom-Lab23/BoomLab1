@@ -38,21 +38,62 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       {/* Player */}
-      <div className="rounded-xl border bg-gray-900 p-6">
-        <div className="flex items-center gap-4">
-          <button className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-900 hover:bg-gray-100">
-            <Play className="h-5 w-5 ml-0.5" />
-          </button>
-          <div className="flex-1">
-            <div className="h-2 rounded-full bg-gray-700">
-              <div className="h-2 w-0 rounded-full bg-white" />
-            </div>
-            <div className="mt-1 flex justify-between text-xs text-gray-300">
-              <span>0:00</span>
-              <span>{rec.duration ? `${Math.floor(rec.duration / 60)}:${String(rec.duration % 60).padStart(2, "0")}` : "-"}</span>
-            </div>
+      <div className="rounded-xl border bg-gray-900 p-4 md:p-6">
+        {rec.fileUrl ? (
+          <>
+            {/\.(mp4|webm|mov)(\?|$)/i.test(rec.fileUrl) ? (
+              <video src={rec.fileUrl} controls className="w-full rounded-lg bg-black" preload="metadata">
+                O teu browser nao suporta video.
+              </video>
+            ) : /\.(mp3|wav|m4a|ogg|aac)(\?|$)/i.test(rec.fileUrl) || rec.fileUrl.startsWith("data:audio") ? (
+              <audio src={rec.fileUrl} controls className="w-full" preload="metadata">
+                O teu browser nao suporta audio.
+              </audio>
+            ) : rec.fileUrl.includes("fireflies.ai") ? (
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20">
+                    <Play className="h-5 w-5 text-orange-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">Gravacao no Fireflies</p>
+                    <p className="text-xs text-gray-400">Abre no Fireflies para ouvir com transcricao sincronizada</p>
+                  </div>
+                </div>
+                <a
+                  href={rec.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
+                >
+                  Abrir no Fireflies
+                </a>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <p className="text-sm text-gray-300">Gravacao disponivel externamente</p>
+                <a
+                  href={rec.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100"
+                >
+                  Abrir / Download
+                </a>
+              </div>
+            )}
+            {rec.duration && (
+              <p className="mt-2 text-xs text-gray-400">
+                Duracao: {Math.floor(rec.duration / 60)}:{String(rec.duration % 60).padStart(2, "0")}
+              </p>
+            )}
+          </>
+        ) : (
+          <div className="flex items-center gap-3 text-gray-400">
+            <Play className="h-5 w-5" />
+            <p className="text-sm">Sem ficheiro de audio/video disponivel. Apenas a transcricao foi importada.</p>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -121,12 +162,19 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
             ) : (
-              <div className="text-center">
+              <div className="text-center py-6">
                 <Brain className="mx-auto h-12 w-12 text-muted-foreground/30" />
                 <p className="mt-2 text-sm text-muted-foreground">Analise IA ainda nao realizada</p>
-                <button className="mt-3 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700">
-                  Analisar com IA
-                </button>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Para analisar esta chamada, vai ao{" "}
+                  <Link href={`/workspace/${rec.clientId}`} className="text-purple-600 underline">
+                    Workspace do cliente
+                  </Link>{" "}
+                  → Analise de Vendas → Analisar Chamada (IA).
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Tom, ritmo, cadencia e 8 dimensoes de scoring sao avaliados automaticamente usando a Base de Conhecimento do mercado do cliente.
+                </p>
               </div>
             )}
           </div>

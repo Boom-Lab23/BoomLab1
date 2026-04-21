@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { router, publicProcedure } from "./init";
+import { generateActionPlanDraft } from "../services/action-plan-workflow";
 
 export const sessionsRouter = router({
   list: publicProcedure
@@ -107,6 +108,28 @@ export const sessionsRouter = router({
       include: { client: true, assignedTo: true },
       orderBy: { date: "asc" },
       take: 10,
+    });
+  }),
+
+  // Generate action plan (manual trigger) - calls Claude with transcript + KB
+  generateActionPlan: publicProcedure
+    .input(z.string()) // sessionId
+    .mutation(async ({ ctx, input }) => {
+      const session = await ctx.prisma.session.findUnique({ where: { id: input } });
+      if (!session) throw new Error("Sessao nao encontrada.");
+      if (!session.firefliesNotes) {
+        throw new Error("Esta sessao nao tem transcricao do Fireflies. Faz sync primeiro.");
+      }
+      const draftId = await generateActionPlanDraft(input);
+      const updated = await ctx.prisma.session.findUnique({ where: { id: input } });
+      return { draftId, actionPlan: updated?.actionPlan };
+    }),
+
+  // Get action plan drafts for a session
+  actionPlanDrafts: publicProcedure.input(z.string()).query(async ({ ctx, input }) => {
+    return ctx.prisma.actionPlanDraft.findMany({
+      where: { sessionId: input },
+      orderBy: { createdAt: "desc" },
     });
   }),
 });

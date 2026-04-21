@@ -123,35 +123,6 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
           })}
         </div>
 
-        {/* Pillar Section - hidden for guests */}
-        {!isGuest && <div className="mt-5">
-          <button
-            onClick={() => setPillarsOpen(!pillarsOpen)}
-            className="flex w-full items-center justify-between px-3 py-1 text-[11px] font-semibold uppercase tracking-wider"
-            style={{ color: "hsl(var(--sidebar-fg) / 0.6)" }}
-          >
-            Pilares
-            <ChevronDown className={cn("h-3 w-3 transition-transform", !pillarsOpen && "-rotate-90")} />
-          </button>
-          {pillarsOpen && (
-            <div className="mt-1 space-y-0.5 animate-fade-in">
-              {pillarNav.map((pillar) => (
-                <Link
-                  key={pillar.id}
-                  href={`/sessions?module=${pillar.id}`}
-                  onClick={handleNav}
-                  className="flex items-center gap-2.5 rounded-lg px-3 py-[6px] text-[13px] transition-all duration-150 hover:text-white"
-                  style={{ color: "hsl(var(--sidebar-fg))" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "hsl(var(--sidebar-hover))"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                >
-                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: pillar.color }} />
-                  {pillar.label}
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>}
       </nav>
 
       {/* Bottom */}

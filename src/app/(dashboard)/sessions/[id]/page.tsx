@@ -41,6 +41,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const sendToSlack = trpc.slack.sendActionPlan.useMutation({
     onSuccess: () => session.refetch(),
   });
+  const generatePlan = trpc.sessions.generateActionPlan.useMutation({
+    onSuccess: () => session.refetch(),
+  });
 
   if (session.isLoading) {
     return <div className="p-8 text-center text-muted-foreground">A carregar...</div>;
@@ -295,18 +298,47 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
             ) : actionItems.length > 0 ? (
-              <ul className="space-y-2">
-                {actionItems.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-green-600" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-3">
+                <ul className="space-y-2">
+                  {actionItems.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-green-600" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                {s.firefliesNotes && (
+                  <button
+                    onClick={() => generatePlan.mutate(s.id)}
+                    disabled={generatePlan.isPending}
+                    className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {generatePlan.isPending ? "A gerar plano estruturado..." : "Gerar plano estruturado com IA"}
+                  </button>
+                )}
+              </div>
             ) : (
-              <p className="text-sm text-muted-foreground italic">
-                Plano de acao sera gerado automaticamente quando a reuniao for analisada pela IA.
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground italic">
+                  {s.firefliesNotes
+                    ? "Transcricao recebida mas plano ainda nao gerado. Clica no botao abaixo para gerar agora."
+                    : "Plano de acao sera gerado automaticamente apos a reuniao ser transcrita pelo Fireflies."}
+                </p>
+                {s.firefliesNotes && (
+                  <button
+                    onClick={() => generatePlan.mutate(s.id)}
+                    disabled={generatePlan.isPending}
+                    className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {generatePlan.isPending ? "A gerar plano com IA..." : "Gerar Plano de Acao com IA"}
+                  </button>
+                )}
+                {generatePlan.error && (
+                  <p className="text-xs text-red-600">Erro: {generatePlan.error.message}</p>
+                )}
+              </div>
             )}
           </div>
         </div>

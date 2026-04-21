@@ -163,6 +163,10 @@ export async function analyzeSalesCall(args: {
       : "Imobiliario (mediacao imobiliaria)")
     : "(nao definido)";
 
+  // Compute basic audio-signal proxies from transcript (if it has timestamps)
+  // Fireflies transcripts are formatted as "[mm:ss] Speaker: text"
+  const hasTimestamps = /\[\d+:\d{2}\]/.test(transcript);
+
   const systemPrompt = `Es um analista senior de chamadas comerciais da BoomLab Agency. Avalias chamadas/reunioes de equipas de vendas dos clientes da BoomLab.
 
 CLIENTE A SER ANALISADO:
@@ -182,6 +186,20 @@ O teu trabalho:
 4. Identificar pontos fracos (concretos, acionaveis)
 5. Dar dicas praticas e foco para chamadas futuras
 
+ANALISE DE TOM, RITMO E CADENCIA (baseada em pistas textuais):
+Embora nao tenhas acesso ao audio, podes inferir aspetos de delivery a partir da transcricao:
+- TOM DE VOZ: deduzido por escolhas de palavras, exclamacoes, perguntas, afirmacoes.
+  Exemplos: "hum...", "tipo...", "sabes?" sugerem hesitacao. Frases diretas sugerem confianca.
+- RITMO / CADENCIA: ${hasTimestamps
+    ? "USA OS TIMESTAMPS [mm:ss]! Calcula palavras-por-minuto aproximadas. <120wpm = lento, 120-160wpm = equilibrado, >180wpm = apressado. Nota pausas longas e interrupcoes."
+    : "Sem timestamps disponiveis. Estima ritmo por comprimento de frases e uso de pontuacao."}
+- PREENCHIMENTOS ("uhm", "hum", "pronto", "tipo", "tas a ver"): conta ocorrencias e avalia se prejudicam a clareza.
+- INTERRUPCOES vs ESCUTA ATIVA: nota quando o comercial interrompe a lead ou vice-versa.
+- PAUSAS ESTRATEGICAS: frases curtas apos perguntas abertas sao positivas. Monologos longos sao negativos.
+- ASSIMETRIA DE TALK-TIME: calcula aproximadamente quem fala mais. Ideal numa chamada de vendas: lead fala 60-70%, comercial 30-40%.
+
+Inclui estas observacoes em strengths / weaknesses / generalTips conforme aplicavel.
+
 Responde APENAS em JSON valido com esta estrutura exata:
 {
   "classification": "Bom" | "Medio" | "Mau",
@@ -194,9 +212,9 @@ Responde APENAS em JSON valido com esta estrutura exata:
   "passagemValor": <0-5>,
   "respostaObjecoes": <0-5>,
   "estruturaMeet": <0-5>,
-  "strengths": "texto livre com pontos fortes, usa bullet points separados por quebras de linha",
-  "weaknesses": "texto livre com pontos fracos",
-  "generalTips": "dicas praticas de melhoria",
+  "strengths": "texto livre com pontos fortes, usa bullet points separados por quebras de linha. INCLUI observacoes concretas sobre tom e ritmo quando positivas.",
+  "weaknesses": "texto livre com pontos fracos. INCLUI problemas de tom, ritmo, preenchimentos ou interrupcoes.",
+  "generalTips": "dicas praticas de melhoria incluindo delivery (tom, ritmo, pausas, preenchimentos)",
   "focusNext": "foco principal para as proximas chamadas deste comercial",
   "summary": "resumo executivo de 2-3 frases da chamada e avaliacao"
 }

@@ -7,8 +7,16 @@ export async function generateActionPlanDraft(sessionId: string): Promise<string
     include: { client: true, assignedTo: true },
   });
 
-  if (!session.firefliesNotes) {
-    throw new Error("Sessao sem transcricao.");
+  // Prefer Fireflies notes, fall back to summary, then to manual notes
+  const transcriptSource = session.firefliesNotes
+    || session.firefliesSummary
+    || session.notes;
+  if (!transcriptSource) {
+    throw new Error("Sessao sem transcricao nem notas. Faz sync do Fireflies primeiro.");
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY em falta no ambiente.");
   }
 
   // Get knowledge base
@@ -60,27 +68,47 @@ Responde em JSON:
       messages: [
         {
           role: "user",
-          content: `Transcricao:\n\n${session.firefliesNotes.slice(0, 60000)}`,
+          content: `Transcricao / notas:\n\n${transcriptSource.slice(0, 60000)}`,
         },
       ],
     }),
   });
 
-  if (!response.ok) throw new Error(`Claude API error: ${response.status}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    console.error("[generateActionPlanDraft] Claude API error", response.status, body.slice(0, 300));
+    throw new Error(`Claude API error ${response.status}: ${body.slice(0, 120)}`);
+  }
 
   const data = await response.json();
-  const text = data.content[0]?.text ?? "";
+  const text: string = data.content?.[0]?.text ?? "";
   const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("Falha ao processar resposta da IA");
+  if (!jsonMatch) {
+    console.error("[generateActionPlanDraft] Resposta sem JSON:", text.slice(0, 300));
+    throw new Error("A IA nao devolveu JSON valido. Tenta novamente.");
+  }
 
-  const result = JSON.parse(jsonMatch[0]);
+  let result: { actionPlan?: { items?: Array<{ task: string; responsible?: string; deadline?: string; priority?: string }>; nextMeetingTopics?: string[]; followUpDate?: string }; clientMessage?: string; internalNotes?: string };
+  try {
+    result = JSON.parse(jsonMatch[0]);
+  } catch (err) {
+    console.error("[generateActionPlanDraft] JSON parse failed", err);
+    throw new Error("Resposta da IA invalida (JSON mal-formado).");
+  }
+
+  // Normalize structure - garante que items e sempre um array
+  const plan = result.actionPlan ?? { items: [], nextMeetingTopics: [], followUpDate: "" };
+  plan.items = Array.isArray(plan.items) ? plan.items : [];
+  plan.nextMeetingTopics = Array.isArray(plan.nextMeetingTopics) ? plan.nextMeetingTopics : [];
+  plan.followUpDate = plan.followUpDate ?? "";
+  result.actionPlan = plan;
 
   // Save as draft (NOT sent automatically)
   const draft = await prisma.actionPlanDraft.create({
     data: {
       sessionId,
-      content: result.actionPlan as Record<string, unknown>,
-      message: result.clientMessage,
+      content: plan as unknown as Record<string, unknown>,
+      message: result.clientMessage ?? "",
       status: "DRAFT",
     },
   });
@@ -89,13 +117,12 @@ Responde em JSON:
   await prisma.session.update({
     where: { id: sessionId },
     data: {
-      actionPlan: result.actionPlan as Record<string, unknown>,
-      actionItems: result.actionPlan.items?.map(
-        (i: { task: string }) => i.task
-      ) ?? [],
+      actionPlan: plan as unknown as Record<string, unknown>,
+      actionItems: plan.items.map((i) => i.task) as unknown as object,
     },
   });
 
+  console.log("[generateActionPlanDraft] OK", sessionId, "items:", plan.items.length);
   return draft.id;
 }
 
