@@ -9,7 +9,7 @@ Guia completo para migrar de Vercel/Neon para um **Hostinger VPS self-hosted** c
 - **VPS Hostinger KVM 2** (2 vCPU, 8GB RAM, 100GB SSD) — ~8€/mês
   - SO: **Ubuntu 22.04 LTS**
   - SSH key configurada na compra
-- Domínio **`servico.boomlab.agency`** (já tens)
+- Domínio **`servico.boomlab.cloud`** (já tens)
 - Acesso ao repo GitHub `Boom-Lab23/BoomLab1`
 - API keys já existentes (Anthropic, Fireflies, Gmail, Google OAuth, AssemblyAI)
 
@@ -28,7 +28,7 @@ A      servico   <IP-DO-VPS>   (o IP que o Hostinger te dá)
 
 Aguardar ~1h para propagação. Verifica com:
 ```bash
-dig +short servico.boomlab.agency
+dig +short servico.boomlab.cloud
 ```
 
 ---
@@ -131,7 +131,7 @@ cd /opt/boomlab
 docker compose exec -T db psql -U boomlab -d boomlab < neon-dump.sql
 ```
 
-Testar login em `https://servico.boomlab.agency` com conta existente.
+Testar login em `https://servico.boomlab.cloud` com conta existente.
 
 ---
 
@@ -168,9 +168,9 @@ Na [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
 
 1. Abrir o OAuth 2.0 Client ID da BoomLab Platform
 2. Em **Authorized redirect URIs**, confirmar que já tens:
-   - `https://servico.boomlab.agency/api/auth/callback/google`
+   - `https://servico.boomlab.cloud/api/auth/callback/google`
 3. Em **Authorized JavaScript origins**:
-   - `https://servico.boomlab.agency`
+   - `https://servico.boomlab.cloud`
 
 ---
 
@@ -178,14 +178,14 @@ Na [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
 
 Na [dashboard Fireflies](https://app.fireflies.ai/integrations):
 
-- Webhook URL: `https://servico.boomlab.agency/api/webhooks/fireflies`
+- Webhook URL: `https://servico.boomlab.cloud/api/webhooks/fireflies`
 - (mesmo URL de antes, continua a apontar para o mesmo domínio)
 
 ---
 
 ### 9. Teste final
 
-- [ ] `https://servico.boomlab.agency` abre (cadeado verde)
+- [ ] `https://servico.boomlab.cloud` abre (cadeado verde)
 - [ ] Login com credenciais existentes funciona
 - [ ] Workspace mostra clientes
 - [ ] Mensagens carregam
@@ -245,7 +245,7 @@ gunzip -c backups/db_2026-04-21_03-00.sql.gz | \
 ## 🆘 Troubleshooting
 
 ### Caddy não consegue emitir SSL
-- Verifica que o DNS já propagou: `dig +short servico.boomlab.agency`
+- Verifica que o DNS já propagou: `dig +short servico.boomlab.cloud`
 - Verifica portas 80 e 443 abertas no firewall: `ufw status`
 - Logs: `docker compose logs caddy`
 
@@ -259,8 +259,8 @@ gunzip -c backups/db_2026-04-21_03-00.sql.gz | \
 - Considerar upgrade para KVM 4
 
 ### PWA não aparece botão "Instalar"
-- Manifest servido com content-type certo: `curl https://servico.boomlab.agency/manifest.webmanifest`
-- Ícones acessíveis: `curl https://servico.boomlab.agency/icons/icon-192.png`
+- Manifest servido com content-type certo: `curl https://servico.boomlab.cloud/manifest.webmanifest`
+- Ícones acessíveis: `curl https://servico.boomlab.cloud/icons/icon-192.png`
 - Service Worker registado: DevTools > Application > Service Workers
 
 ---
@@ -269,7 +269,7 @@ gunzip -c backups/db_2026-04-21_03-00.sql.gz | \
 
 ### Uptime Robot (grátis)
 1. Criar conta em uptimerobot.com
-2. Adicionar monitor HTTP(S): `https://servico.boomlab.agency`
+2. Adicionar monitor HTTP(S): `https://servico.boomlab.cloud`
 3. Alertas por email/SMS se cair
 
 ### Logs centralizados (avançado)

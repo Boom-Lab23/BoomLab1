@@ -5,7 +5,7 @@
 #  - Redirect HTTP -> HTTPS
 #  - HTTP/2 + HTTP/3
 
-servico.boomlab.agency {
+servico.boomlab.cloud {
     # Proxy reverso para o container Next.js
     reverse_proxy app:3000 {
         # Timeouts longos para operacoes de IA e upload de audio
@@ -43,5 +43,5 @@ servico.boomlab.agency {
 # Redirect do dominio raiz boomlab.agency (caso seja tb usado)
 # Descomentar se necessario:
 # boomlab.agency {
-#     redir https://servico.boomlab.agency{uri} permanent
+#     redir https://servico.boomlab.cloud{uri} permanent
 # }

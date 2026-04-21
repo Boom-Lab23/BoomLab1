@@ -48,7 +48,7 @@ services:
     environment:
       # Override DATABASE_URL para apontar ao postgres interno
       DATABASE_URL: postgresql://${POSTGRES_USER:-boomlab}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-boomlab}?schema=public
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://servico.boomlab.agency}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://servico.boomlab.cloud}
       NODE_ENV: production
     volumes:
       # Uploads persistentes (ficheiros de mensagens, Base de Conhecimento, etc.)
