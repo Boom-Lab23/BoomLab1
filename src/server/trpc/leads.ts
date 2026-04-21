@@ -95,31 +95,37 @@ export const leadsRouter = router({
       return conflicts;
     }),
 
-  // Create a new lead - checks for duplicates first
+  // Create a new lead - HARD BLOCK if email/phone/NIF already exists in this client
   create: publicProcedure
     .input(z.object({
       clientId: z.string(),
       commercial: z.string().min(1),
-      name: z.string().min(1),
-      company: z.string().optional(),
+      company: z.string().min(1, "Nome da empresa e obrigatorio"),  // OBRIGATORIO
+      phone: z.string().min(1, "Telefone e obrigatorio"),            // OBRIGATORIO
+      name: z.string().optional().default(""),                       // Nome do decisor (opcional)
       email: z.string().email().optional().or(z.literal("")),
-      phone: z.string().optional(),
       nif: z.string().optional(),
       source: z.string().optional(),
       status: z.enum(LEAD_STATUS).default("NOVA"),
       priority: z.string().optional(),
       notes: z.string().optional(),
       tags: z.array(z.string()).optional(),
+      forceCreate: z.boolean().default(false),  // admin override: permite criar mesmo duplicada
     }))
     .mutation(async ({ ctx, input }) => {
-      // Check for duplicate match (within same client, any commercial)
+      // Normalize campos para comparacao
+      const normalizedEmail = input.email ? input.email.trim().toLowerCase() : null;
+      const normalizedPhone = input.phone ? input.phone.replace(/\s/g, "") : null;
+      const normalizedNif = input.nif ? input.nif.trim() : null;
+
       const orClauses: Record<string, unknown>[] = [];
-      if (input.email) orClauses.push({ email: input.email });
-      if (input.phone) orClauses.push({ phone: input.phone });
-      if (input.nif) orClauses.push({ nif: input.nif });
+      if (normalizedEmail) orClauses.push({ email: normalizedEmail });
+      if (normalizedPhone) orClauses.push({ phone: normalizedPhone });
+      if (normalizedNif) orClauses.push({ nif: normalizedNif });
 
       let duplicateOfId: string | null = null;
       let duplicateOwner: string | null = null;
+      let matchedOn: string | null = null;
 
       if (orClauses.length > 0) {
         const existing = await ctx.prisma.lead.findFirst({
@@ -127,23 +133,44 @@ export const leadsRouter = router({
             clientId: input.clientId,
             OR: orClauses,
           },
-          select: { id: true, commercial: true },
+          select: { id: true, commercial: true, name: true, email: true, phone: true, nif: true },
         });
         if (existing) {
           duplicateOfId = existing.id;
           duplicateOwner = existing.commercial;
+          // Identificar em que campo deu match
+          if (normalizedEmail && existing.email === normalizedEmail) matchedOn = "email";
+          else if (normalizedNif && existing.nif === normalizedNif) matchedOn = "NIF";
+          else if (normalizedPhone && existing.phone === normalizedPhone) matchedOn = "telefone";
+
+          // HARD BLOCK: nao deixa criar se ja existe (a menos que forceCreate)
+          if (!input.forceCreate) {
+            throw new Error(
+              `DUPLICADA:${matchedOn}:${duplicateOwner}:${existing.name}`
+            );
+          }
         }
       }
 
+      // Remove campo forceCreate antes de criar (nao existe no schema)
+      const { forceCreate: _forceCreate, ...rest } = input;
+      void _forceCreate;
+
+      // Se name vazio, usa o company como fallback (name e obrigatorio no Prisma schema)
+      const finalName = rest.name && rest.name.trim().length > 0 ? rest.name : rest.company;
+
       const lead = await ctx.prisma.lead.create({
         data: {
-          ...input,
-          email: input.email || null,
+          ...rest,
+          name: finalName,
+          email: normalizedEmail,
+          phone: normalizedPhone ?? "",
+          nif: normalizedNif,
           duplicateOfId,
         },
       });
 
-      return { lead, duplicateWarning: duplicateOwner ? { commercial: duplicateOwner, leadId: duplicateOfId } : null };
+      return { lead, duplicateWarning: duplicateOwner ? { commercial: duplicateOwner, leadId: duplicateOfId, matchedOn } : null };
     }),
 
   // Update lead

@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft, BarChart3, Users, Phone, ExternalLink, Plus, X, AlertTriangle,
-  Mail, Eye, EyeOff, Trash2, Sparkles, Upload, Brain, Loader2,
+  Mail, Eye, EyeOff, Trash2, Sparkles, Brain, Loader2, Edit,
 } from "lucide-react";
 
 type Tab = "dashboard" | "leads" | "analysis";
@@ -133,6 +133,7 @@ function DashboardTab({ clientId, dashboardId }: { clientId: string; dashboardId
 // ============ LEADS TAB ============
 function LeadsTab({ clientId }: { clientId: string }) {
   const [showCreate, setShowCreate] = useState(false);
+  const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
   // selectedCommercial: "" = "Duplicados entre comerciais", nome = folha do comercial
   // Inicializa com o 1o comercial da equipa (ou vazio para ver duplicados)
   const [selectedCommercial, setSelectedCommercial] = useState<string | null>(null);
@@ -150,19 +151,50 @@ function LeadsTab({ clientId }: { clientId: string }) {
   const duplicates = trpc.leads.duplicates.useQuery({ clientId });
   const utils = trpc.useUtils();
 
+  const resetForm = () => setForm({ commercial: "", name: "", company: "", email: "", phone: "", nif: "", source: "cold-calling", status: "NOVA", priority: "media", notes: "" });
+
   const createLead = trpc.leads.create.useMutation({
     onSuccess: () => {
       utils.leads.list.invalidate();
       utils.leads.commercialsWithCounts.invalidate();
       utils.leads.duplicates.invalidate();
       setShowCreate(false);
-      setForm({ commercial: "", name: "", company: "", email: "", phone: "", nif: "", source: "cold-calling", status: "NOVA", priority: "media", notes: "" });
+      resetForm();
     },
   });
 
   const updateLead = trpc.leads.update.useMutation({
-    onSuccess: () => { utils.leads.list.invalidate(); utils.leads.commercialsWithCounts.invalidate(); },
+    onSuccess: () => {
+      utils.leads.list.invalidate();
+      utils.leads.commercialsWithCounts.invalidate();
+      utils.leads.duplicates.invalidate();
+      setEditingLeadId(null);
+      setShowCreate(false);
+      resetForm();
+    },
   });
+
+  // Open edit dialog with lead values pre-filled
+  function startEditLead(lead: {
+    id: string; commercial: string; name: string; company: string | null;
+    email: string | null; phone: string | null; nif: string | null;
+    source: string | null; status: string; priority: string | null; notes: string | null;
+  }) {
+    setEditingLeadId(lead.id);
+    setForm({
+      commercial: lead.commercial,
+      name: lead.name ?? "",
+      company: lead.company ?? "",
+      email: lead.email ?? "",
+      phone: lead.phone ?? "",
+      nif: lead.nif ?? "",
+      source: lead.source ?? "cold-calling",
+      status: lead.status,
+      priority: lead.priority ?? "media",
+      notes: lead.notes ?? "",
+    });
+    setShowCreate(true);
+  }
 
   const deleteLead = trpc.leads.delete.useMutation({
     onSuccess: () => { utils.leads.list.invalidate(); utils.leads.commercialsWithCounts.invalidate(); utils.leads.duplicates.invalidate(); },
@@ -334,10 +366,22 @@ function LeadsTab({ clientId }: { clientId: string }) {
                   </td>
                   <td className="p-2 text-right text-xs">{l.conversionValue ? `${l.conversionValue.toLocaleString("pt-PT")}€` : "-"}</td>
                   <td className="p-2 text-right">
-                    <button onClick={() => { if (confirm("Apagar esta lead?")) deleteLead.mutate(l.id); }}
-                      className="text-muted-foreground hover:text-red-600 p-1">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <button
+                        onClick={() => startEditLead(l)}
+                        className="text-muted-foreground hover:text-primary p-1"
+                        title="Editar lead"
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => { if (confirm("Apagar esta lead?")) deleteLead.mutate(l.id); }}
+                        className="text-muted-foreground hover:text-red-600 p-1"
+                        title="Apagar"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -351,24 +395,42 @@ function LeadsTab({ clientId }: { clientId: string }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-card p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">Nova Lead</h2>
-              <button onClick={() => setShowCreate(false)} className="rounded-lg p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
+              <h2 className="text-lg font-bold">{editingLeadId ? "Editar Lead" : "Nova Lead"}</h2>
+              <button onClick={() => { setShowCreate(false); setEditingLeadId(null); resetForm(); }} className="rounded-lg p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
             <form onSubmit={(e) => {
               e.preventDefault();
-              createLead.mutate({
-                clientId,
-                commercial: form.commercial,
-                name: form.name,
-                company: form.company || undefined,
-                email: form.email || undefined,
-                phone: form.phone || undefined,
-                nif: form.nif || undefined,
-                source: form.source,
-                status: form.status as "NOVA",
-                priority: form.priority,
-                notes: form.notes || undefined,
-              });
+              if (editingLeadId) {
+                updateLead.mutate({
+                  id: editingLeadId,
+                  data: {
+                    commercial: form.commercial,
+                    company: form.company,
+                    phone: form.phone,
+                    name: form.name,
+                    email: form.email,
+                    nif: form.nif,
+                    source: form.source,
+                    status: form.status as "NOVA",
+                    priority: form.priority,
+                    notes: form.notes,
+                  },
+                });
+              } else {
+                createLead.mutate({
+                  clientId,
+                  commercial: form.commercial,
+                  company: form.company,   // obrigatorio
+                  phone: form.phone,       // obrigatorio
+                  name: form.name || undefined,
+                  email: form.email || undefined,
+                  nif: form.nif || undefined,
+                  source: form.source,
+                  status: form.status as "NOVA",
+                  priority: form.priority,
+                  notes: form.notes || undefined,
+                });
+              }
             }} className="space-y-3">
               <div>
                 <label className="mb-0.5 block text-xs font-medium">Comercial *</label>
@@ -383,10 +445,10 @@ function LeadsTab({ clientId }: { clientId: string }) {
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="mb-0.5 block text-xs font-medium">Nome *</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
-                <div><label className="mb-0.5 block text-xs font-medium">Empresa</label><input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
+                <div><label className="mb-0.5 block text-xs font-medium">Empresa *</label><input required value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Nome da empresa" /></div>
+                <div><label className="mb-0.5 block text-xs font-medium">Telefone *</label><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="+351..." /></div>
+                <div><label className="mb-0.5 block text-xs font-medium">Nome do decisor</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Pessoa com quem estas a falar (opcional)" /></div>
                 <div><label className="mb-0.5 block text-xs font-medium">Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
-                <div><label className="mb-0.5 block text-xs font-medium">Telefone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
                 <div><label className="mb-0.5 block text-xs font-medium">NIF</label><input value={form.nif} onChange={(e) => setForm({ ...form, nif: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
                 <div><label className="mb-0.5 block text-xs font-medium">Origem</label>
                   <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card">
@@ -404,16 +466,47 @@ function LeadsTab({ clientId }: { clientId: string }) {
               </div>
               <div><label className="mb-0.5 block text-xs font-medium">Notas</label><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
 
-              {createLead.data?.duplicateWarning && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                  <AlertTriangle className="h-3 w-3 inline mr-1" />
-                  Atencao: esta lead pode ser duplicada de uma ja registada pelo comercial <strong>{createLead.data.duplicateWarning.commercial}</strong>.
+              {/* HARD BLOCK: lead duplicada detectada */}
+              {createLead.error?.message.startsWith("DUPLICADA:") && (() => {
+                const parts = createLead.error.message.split(":");
+                const matchedOn = parts[1];
+                const ownerCommercial = parts[2];
+                const existingName = parts.slice(3).join(":");
+                return (
+                  <div className="rounded-lg border-2 border-red-400 bg-red-50 p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                      <div className="flex-1 text-sm text-red-900">
+                        <p className="font-bold">Lead ja existe!</p>
+                        <p className="mt-1 text-xs">
+                          Ja existe uma lead registada com o mesmo <strong>{matchedOn}</strong>.
+                        </p>
+                        <div className="mt-2 rounded border border-red-300 bg-white p-2 text-xs">
+                          <p>🏢 <strong>{existingName}</strong></p>
+                          <p className="text-red-700 mt-0.5">👤 Comercial: <strong>{ownerCommercial}</strong></p>
+                        </div>
+                        <p className="mt-2 text-[11px] text-red-800">
+                          Coordena com {ownerCommercial} antes de avancar. Nao podes registar a mesma lead em 2 sitios.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {createLead.error && !createLead.error.message.startsWith("DUPLICADA:") && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+                  Erro: {createLead.error.message}
                 </div>
               )}
 
               <div className="flex justify-end gap-3 border-t pt-3">
-                <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
-                <button type="submit" disabled={createLead.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">{createLead.isPending ? "..." : "Criar"}</button>
+                <button type="button" onClick={() => { setShowCreate(false); setEditingLeadId(null); resetForm(); }} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
+                <button type="submit" disabled={createLead.isPending || updateLead.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
+                  {editingLeadId
+                    ? (updateLead.isPending ? "A guardar..." : "Guardar alteracoes")
+                    : (createLead.isPending ? "..." : "Criar")}
+                </button>
               </div>
             </form>
           </div>
