@@ -43,7 +43,7 @@ export default function AdminUsersPage() {
     emailError?: string;
     generatedPassword?: string;
   } | null>(null);
-  const [resendNotice, setResendNotice] = useState<{ userId: string; success: boolean; error?: string } | null>(null);
+  const [resendNotice, setResendNotice] = useState<{ userId: string; success: boolean; error?: string; newPassword?: string; email?: string } | null>(null);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -94,16 +94,27 @@ export default function AdminUsersPage() {
   const resendWelcome = trpc.admin.resendWelcomeEmail.useMutation({
     onSuccess: (data, variables) => {
       utils.admin.listUsers.invalidate();
-      setResendNotice({ userId: variables.userId, success: data.success, error: data.error });
-      setTimeout(() => setResendNotice(null), 5000);
+      setResendNotice({
+        userId: variables.userId,
+        success: data.success,
+        error: data.error,
+        newPassword: data.newPassword,
+        email: data.email,
+      });
+      // Mantem aberto ate o admin fechar manualmente (a password e info util)
     },
   });
 
   const resetAndEmail = trpc.admin.resetPasswordAndEmail.useMutation({
     onSuccess: (data, variables) => {
       utils.admin.listUsers.invalidate();
-      setResendNotice({ userId: variables.userId, success: data.success, error: data.error });
-      setTimeout(() => setResendNotice(null), 5000);
+      setResendNotice({
+        userId: variables.userId,
+        success: data.success,
+        error: data.error,
+        newPassword: data.newPassword,
+        email: data.email,
+      });
     },
   });
 
@@ -136,15 +147,28 @@ export default function AdminUsersPage() {
       {/* Global resend notice */}
       {resendNotice && (
         <div className={cn(
-          "flex items-center gap-2 rounded-lg border p-3 text-sm",
+          "rounded-lg border p-3 text-sm",
           resendNotice.success ? "border-green-200 bg-green-50 text-green-800" : "border-red-200 bg-red-50 text-red-700"
         )}>
-          {resendNotice.success ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-          <span>
-            {resendNotice.success
-              ? "Email enviado com sucesso."
-              : `Falha a enviar email: ${resendNotice.error ?? "erro desconhecido"}`}
-          </span>
+          <div className="flex items-start gap-2">
+            {resendNotice.success ? <CheckCircle2 className="h-4 w-4 mt-0.5" /> : <AlertCircle className="h-4 w-4 mt-0.5" />}
+            <div className="flex-1">
+              <p className="font-medium">
+                {resendNotice.success
+                  ? "Email enviado com sucesso."
+                  : `Falha a enviar email: ${resendNotice.error ?? "erro desconhecido"}`}
+              </p>
+              {resendNotice.newPassword && (
+                <div className="mt-2 rounded border border-green-300 bg-white p-2 text-xs text-green-900">
+                  <p className="font-semibold mb-1">Credenciais geradas (guarda por precaucao):</p>
+                  <p>Email: <code className="font-mono bg-gray-100 px-1 rounded">{resendNotice.email}</code></p>
+                  <p>Password: <code className="font-mono bg-gray-100 px-1 rounded select-all">{resendNotice.newPassword}</code></p>
+                  <p className="text-green-700 mt-1">O cliente pode usar estas credenciais mesmo que o email tenha falhado. Email normalizado automaticamente para lowercase.</p>
+                </div>
+              )}
+            </div>
+            <button onClick={() => setResendNotice(null)} className="text-xs opacity-60 hover:opacity-100">&times;</button>
+          </div>
         </div>
       )}
 

@@ -168,17 +168,21 @@ export const adminRouter = router({
       const newPassword = generateTempPassword();
       const hashed = await bcrypt.hash(newPassword, 12);
 
+      // Normalize email to lowercase when updating (fix case-sensitivity)
+      const normalizedEmail = user.email.trim().toLowerCase();
       await ctx.prisma.user.update({
         where: { id: user.id },
         data: {
+          email: normalizedEmail,
           password: hashed,
           mustChangePassword: true,
+          isActive: true,
         },
       });
 
       const result = await sendWelcomeEmail({
         name: user.name,
-        email: user.email,
+        email: normalizedEmail,
         password: newPassword,
         role: user.role,
         clientName: user.assignedChannel?.client?.name,
@@ -191,7 +195,8 @@ export const adminRouter = router({
         });
       }
 
-      return { success: result.success, error: result.error };
+      // Devolve a password ao admin para poder verificar
+      return { success: result.success, error: result.error, newPassword, email: normalizedEmail };
     }),
 
   // Update user
@@ -239,22 +244,25 @@ export const adminRouter = router({
 
       const newPassword = generateTempPassword();
       const hashed = await bcrypt.hash(newPassword, 12);
+      const normalizedEmail = user.email.trim().toLowerCase();
 
       await ctx.prisma.user.update({
         where: { id: user.id },
         data: {
+          email: normalizedEmail,
           password: hashed,
           mustChangePassword: true,
+          isActive: true,
         },
       });
 
       const result = await sendPasswordResetEmail({
         name: user.name,
-        email: user.email,
+        email: normalizedEmail,
         newPassword,
       });
 
-      return { success: result.success, error: result.error };
+      return { success: result.success, error: result.error, newPassword, email: normalizedEmail };
     }),
 
   // User changes own password (first-login flow)
