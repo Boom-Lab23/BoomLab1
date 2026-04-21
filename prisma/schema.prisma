@@ -210,12 +210,16 @@ model Lead {
   clientId        String                         // Cliente a que pertence esta lead (a empresa BoomLab)
   client          Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
   commercial      String                         // Nome do comercial que tem esta lead (dentro da equipa do cliente)
-  // Lead identification
-  name            String                         // Nome da lead (pessoa ou empresa)
-  company         String?
-  email           String?
-  phone           String?
-  nif             String?                        // NIF / VAT
+  // Company info (obrigatorio company e pelo menos 1 contacto empresa)
+  company         String                         // Nome da empresa (obrigatorio)
+  companyEmail    String?                        // Email geral da empresa
+  companyLandline String?                        // Nº fixo da empresa
+  companyMobile   String?                        // Nº movel da empresa
+  nif             String?                        // NIF / VAT da empresa
+  // Decisor (opcional - podem ser varios)
+  name            String                         // Nome do decisor (se vazio, copia de company)
+  email           String?                        // Email do decisor
+  phone           String?                        // Nº do decisor (movel ou fixo)
   // Lead status & pipeline
   status          LeadStatus @default(NOVA)
   source          String?                        // Canal origem: cold-calling, linkedin, anuncios, etc.

@@ -100,27 +100,41 @@ export const leadsRouter = router({
     .input(z.object({
       clientId: z.string(),
       commercial: z.string().min(1),
-      company: z.string().min(1, "Nome da empresa e obrigatorio"),  // OBRIGATORIO
-      phone: z.string().min(1, "Telefone e obrigatorio"),            // OBRIGATORIO
-      name: z.string().optional().default(""),                       // Nome do decisor (opcional)
-      email: z.string().email().optional().or(z.literal("")),
+      // Empresa (obrigatorio)
+      company: z.string().min(1, "Nome da empresa e obrigatorio"),
+      companyEmail: z.string().email().optional().or(z.literal("")),
+      companyLandline: z.string().optional(),
+      companyMobile: z.string().optional(),
       nif: z.string().optional(),
+      // Decisor (opcional)
+      name: z.string().optional().default(""),        // nome do decisor
+      email: z.string().email().optional().or(z.literal("")),
+      phone: z.string().optional(),                   // nº do decisor
+      // Pipeline
       source: z.string().optional(),
       status: z.enum(LEAD_STATUS).default("NOVA"),
       priority: z.string().optional(),
       notes: z.string().optional(),
       tags: z.array(z.string()).optional(),
-      forceCreate: z.boolean().default(false),  // admin override: permite criar mesmo duplicada
+      forceCreate: z.boolean().default(false),
     }))
     .mutation(async ({ ctx, input }) => {
       // Normalize campos para comparacao
       const normalizedEmail = input.email ? input.email.trim().toLowerCase() : null;
+      const normalizedCompanyEmail = input.companyEmail ? input.companyEmail.trim().toLowerCase() : null;
       const normalizedPhone = input.phone ? input.phone.replace(/\s/g, "") : null;
+      const normalizedLandline = input.companyLandline ? input.companyLandline.replace(/\s/g, "") : null;
+      const normalizedMobile = input.companyMobile ? input.companyMobile.replace(/\s/g, "") : null;
       const normalizedNif = input.nif ? input.nif.trim() : null;
 
+      // Duplicado = match em QUALQUER campo de identificacao (email decisor, email geral,
+      // fixo, movel, movel decisor, NIF)
       const orClauses: Record<string, unknown>[] = [];
       if (normalizedEmail) orClauses.push({ email: normalizedEmail });
+      if (normalizedCompanyEmail) orClauses.push({ companyEmail: normalizedCompanyEmail });
       if (normalizedPhone) orClauses.push({ phone: normalizedPhone });
+      if (normalizedLandline) orClauses.push({ companyLandline: normalizedLandline });
+      if (normalizedMobile) orClauses.push({ companyMobile: normalizedMobile });
       if (normalizedNif) orClauses.push({ nif: normalizedNif });
 
       let duplicateOfId: string | null = null;
@@ -139,9 +153,12 @@ export const leadsRouter = router({
           duplicateOfId = existing.id;
           duplicateOwner = existing.commercial;
           // Identificar em que campo deu match
-          if (normalizedEmail && existing.email === normalizedEmail) matchedOn = "email";
-          else if (normalizedNif && existing.nif === normalizedNif) matchedOn = "NIF";
-          else if (normalizedPhone && existing.phone === normalizedPhone) matchedOn = "telefone";
+          if (normalizedNif && existing.nif === normalizedNif) matchedOn = "NIF";
+          else if (normalizedEmail && existing.email === normalizedEmail) matchedOn = "email decisor";
+          else if (normalizedCompanyEmail && (existing as unknown as { companyEmail: string }).companyEmail === normalizedCompanyEmail) matchedOn = "email empresa";
+          else if (normalizedPhone && existing.phone === normalizedPhone) matchedOn = "nº decisor";
+          else if (normalizedLandline && (existing as unknown as { companyLandline: string }).companyLandline === normalizedLandline) matchedOn = "fixo empresa";
+          else if (normalizedMobile && (existing as unknown as { companyMobile: string }).companyMobile === normalizedMobile) matchedOn = "movel empresa";
 
           // HARD BLOCK: nao deixa criar se ja existe (a menos que forceCreate)
           if (!input.forceCreate) {
@@ -164,7 +181,10 @@ export const leadsRouter = router({
           ...rest,
           name: finalName,
           email: normalizedEmail,
-          phone: normalizedPhone ?? "",
+          companyEmail: normalizedCompanyEmail,
+          phone: normalizedPhone,
+          companyLandline: normalizedLandline,
+          companyMobile: normalizedMobile,
           nif: normalizedNif,
           duplicateOfId,
         },
@@ -180,6 +200,9 @@ export const leadsRouter = router({
       data: z.object({
         name: z.string().optional(),
         company: z.string().optional(),
+        companyEmail: z.string().optional(),
+        companyLandline: z.string().optional(),
+        companyMobile: z.string().optional(),
         email: z.string().optional(),
         phone: z.string().optional(),
         nif: z.string().optional(),

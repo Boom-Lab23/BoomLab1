@@ -138,8 +138,13 @@ function LeadsTab({ clientId }: { clientId: string }) {
   // Inicializa com o 1o comercial da equipa (ou vazio para ver duplicados)
   const [selectedCommercial, setSelectedCommercial] = useState<string | null>(null);
   const [form, setForm] = useState({
-    commercial: "", name: "", company: "", email: "", phone: "", nif: "",
-    source: "cold-calling", status: "NOVA", priority: "media", notes: "",
+    commercial: "",
+    // Empresa
+    company: "", companyEmail: "", companyLandline: "", companyMobile: "", nif: "",
+    // Decisor
+    name: "", email: "", phone: "",
+    // Pipeline
+    source: "prospecao-ativa", status: "NOVA", priority: "media", notes: "",
   });
 
   const dashboard = trpc.dashboards.getByClientId.useQuery(clientId);
@@ -151,7 +156,7 @@ function LeadsTab({ clientId }: { clientId: string }) {
   const duplicates = trpc.leads.duplicates.useQuery({ clientId });
   const utils = trpc.useUtils();
 
-  const resetForm = () => setForm({ commercial: "", name: "", company: "", email: "", phone: "", nif: "", source: "cold-calling", status: "NOVA", priority: "media", notes: "" });
+  const resetForm = () => setForm({ commercial: "", company: "", companyEmail: "", companyLandline: "", companyMobile: "", nif: "", name: "", email: "", phone: "", source: "prospecao-ativa", status: "NOVA", priority: "media", notes: "" });
 
   const createLead = trpc.leads.create.useMutation({
     onSuccess: () => {
@@ -176,19 +181,23 @@ function LeadsTab({ clientId }: { clientId: string }) {
 
   // Open edit dialog with lead values pre-filled
   function startEditLead(lead: {
-    id: string; commercial: string; name: string; company: string | null;
+    id: string; commercial: string; name: string; company: string;
+    companyEmail?: string | null; companyLandline?: string | null; companyMobile?: string | null;
     email: string | null; phone: string | null; nif: string | null;
     source: string | null; status: string; priority: string | null; notes: string | null;
   }) {
     setEditingLeadId(lead.id);
     setForm({
       commercial: lead.commercial,
-      name: lead.name ?? "",
       company: lead.company ?? "",
+      companyEmail: lead.companyEmail ?? "",
+      companyLandline: lead.companyLandline ?? "",
+      companyMobile: lead.companyMobile ?? "",
+      nif: lead.nif ?? "",
+      name: lead.name ?? "",
       email: lead.email ?? "",
       phone: lead.phone ?? "",
-      nif: lead.nif ?? "",
-      source: lead.source ?? "cold-calling",
+      source: lead.source ?? "prospecao-ativa",
       status: lead.status,
       priority: lead.priority ?? "media",
       notes: lead.notes ?? "",
@@ -406,10 +415,13 @@ function LeadsTab({ clientId }: { clientId: string }) {
                   data: {
                     commercial: form.commercial,
                     company: form.company,
-                    phone: form.phone,
+                    companyEmail: form.companyEmail,
+                    companyLandline: form.companyLandline,
+                    companyMobile: form.companyMobile,
+                    nif: form.nif,
                     name: form.name,
                     email: form.email,
-                    nif: form.nif,
+                    phone: form.phone,
                     source: form.source,
                     status: form.status as "NOVA",
                     priority: form.priority,
@@ -421,10 +433,13 @@ function LeadsTab({ clientId }: { clientId: string }) {
                   clientId,
                   commercial: form.commercial,
                   company: form.company,   // obrigatorio
-                  phone: form.phone,       // obrigatorio
+                  companyEmail: form.companyEmail || undefined,
+                  companyLandline: form.companyLandline || undefined,
+                  companyMobile: form.companyMobile || undefined,
+                  nif: form.nif || undefined,
                   name: form.name || undefined,
                   email: form.email || undefined,
-                  nif: form.nif || undefined,
+                  phone: form.phone || undefined,
                   source: form.source,
                   status: form.status as "NOVA",
                   priority: form.priority,
@@ -444,26 +459,72 @@ function LeadsTab({ clientId }: { clientId: string }) {
                     className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Nome do comercial" />
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="mb-0.5 block text-xs font-medium">Empresa *</label><input required value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Nome da empresa" /></div>
-                <div><label className="mb-0.5 block text-xs font-medium">Telefone *</label><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="+351..." /></div>
-                <div><label className="mb-0.5 block text-xs font-medium">Nome do decisor</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Pessoa com quem estas a falar (opcional)" /></div>
-                <div><label className="mb-0.5 block text-xs font-medium">Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
-                <div><label className="mb-0.5 block text-xs font-medium">NIF</label><input value={form.nif} onChange={(e) => setForm({ ...form, nif: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
-                <div><label className="mb-0.5 block text-xs font-medium">Origem</label>
+              {/* EMPRESA (obrigatoria) */}
+              <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-3">
+                <p className="mb-2 text-xs font-semibold text-blue-900">🏢 Empresa</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="col-span-2">
+                    <label className="mb-0.5 block text-[11px] font-medium">Nome Empresa *</label>
+                    <input required value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" />
+                  </div>
+                  <div>
+                    <label className="mb-0.5 block text-[11px] font-medium">Email Geral</label>
+                    <input type="email" value={form.companyEmail} onChange={(e) => setForm({ ...form, companyEmail: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="geral@empresa.pt" />
+                  </div>
+                  <div>
+                    <label className="mb-0.5 block text-[11px] font-medium">NIF</label>
+                    <input value={form.nif} onChange={(e) => setForm({ ...form, nif: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" />
+                  </div>
+                  <div>
+                    <label className="mb-0.5 block text-[11px] font-medium">Nº Fixo</label>
+                    <input value={form.companyLandline} onChange={(e) => setForm({ ...form, companyLandline: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="21..." />
+                  </div>
+                  <div>
+                    <label className="mb-0.5 block text-[11px] font-medium">Nº Movel</label>
+                    <input value={form.companyMobile} onChange={(e) => setForm({ ...form, companyMobile: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="9..." />
+                  </div>
+                </div>
+              </div>
+
+              {/* DECISOR (opcional) */}
+              <div className="rounded-lg border border-purple-200 bg-purple-50/30 p-3">
+                <p className="mb-2 text-xs font-semibold text-purple-900">👤 Decisor (opcional)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="col-span-2">
+                    <label className="mb-0.5 block text-[11px] font-medium">Nome do Decisor</label>
+                    <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Pessoa com quem estas a falar" />
+                  </div>
+                  <div>
+                    <label className="mb-0.5 block text-[11px] font-medium">Email</label>
+                    <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" />
+                  </div>
+                  <div>
+                    <label className="mb-0.5 block text-[11px] font-medium">Nº Telefone</label>
+                    <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Origem</label>
                   <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card">
-                    <option value="cold-calling">Cold Calling</option>
-                    <option value="linkedin">LinkedIn</option>
-                    <option value="anuncios">Anuncios</option>
-                    <option value="parcerias">Parcerias</option>
-                    <option value="referencias">Referencias</option>
-                    <option value="presenciais">Presenciais</option>
-                    <option value="companhia">Leads Companhia</option>
-                    <option value="cross-sell">Cross-sell</option>
-                    <option value="outros">Outros</option>
+                    <option value="referencia">Referencia</option>
+                    <option value="prospecao-ativa">Prospecao ativa</option>
+                    <option value="redes-sociais">Redes sociais</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Prioridade</label>
+                  <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card">
+                    <option value="alta">Alta</option>
+                    <option value="media">Media</option>
+                    <option value="baixa">Baixa</option>
                   </select>
                 </div>
               </div>
+
               <div><label className="mb-0.5 block text-xs font-medium">Notas</label><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" /></div>
 
               {/* HARD BLOCK: lead duplicada detectada */}

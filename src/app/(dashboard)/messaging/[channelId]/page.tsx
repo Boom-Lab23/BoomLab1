@@ -57,6 +57,8 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
   const [message, setMessage] = useState("");
   const [pendingFiles, setPendingFiles] = useState<Array<{ name: string; url: string; size: number; type: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsForm, setSettingsForm] = useState({ name: "", description: "", icon: "", isPrivate: false });
   const [activeSubChannel, setActiveSubChannel] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [showPermissions, setShowPermissions] = useState<string | null>(null);
@@ -91,6 +93,13 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
   const updatePerm = trpc.messaging.updatePermission.useMutation({
     onSuccess: () => channelData.refetch(),
   });
+  const updateChannel = trpc.messaging.updateChannel.useMutation({
+    onSuccess: () => { channelData.refetch(); setShowSettings(false); },
+  });
+  const deleteChannel = trpc.messaging.deleteChannel.useMutation({
+    onSuccess: () => { window.location.href = "/messaging"; },
+  });
+
   const removeMember = trpc.messaging.removeMember.useMutation({
     onSuccess: () => channelData.refetch(),
   });
@@ -258,10 +267,23 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
             <Users className="h-3.5 w-3.5" />
             Membros ({channel.members.length})
           </button>
-          <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted">
-            <Settings2 className="h-3.5 w-3.5" />
-            Configuracoes
-          </button>
+          {!isGuest && (
+            <button
+              onClick={() => {
+                setSettingsForm({
+                  name: channel.name,
+                  description: channel.description ?? "",
+                  icon: channel.icon ?? "",
+                  isPrivate: channel.isPrivate,
+                });
+                setShowSettings(true);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              Configuracoes
+            </button>
+          )}
         </div>
       </div>
 
@@ -394,6 +416,113 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
           </div>
         </div>
       </div>
+
+      {/* Channel Settings Dialog */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-card p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Settings2 className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-bold">Configuracoes do Canal</h2>
+              </div>
+              <button onClick={() => setShowSettings(false)} className="rounded-lg p-1 hover:bg-muted">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium">Nome do canal *</label>
+                <input
+                  type="text"
+                  value={settingsForm.name}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, name: e.target.value })}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium">Icon (emoji ou URL)</label>
+                <input
+                  type="text"
+                  value={settingsForm.icon}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, icon: e.target.value })}
+                  placeholder="🚀 ou https://..."
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium">Descricao</label>
+                <textarea
+                  value={settingsForm.description}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, description: e.target.value })}
+                  rows={3}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                  placeholder="Do que se trata este canal?"
+                />
+              </div>
+              <label className="flex items-center gap-2 rounded-lg border p-3 cursor-pointer hover:bg-muted/50">
+                <input
+                  type="checkbox"
+                  checked={settingsForm.isPrivate}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, isPrivate: e.target.checked })}
+                  className="rounded"
+                />
+                <div>
+                  <p className="text-sm font-medium flex items-center gap-1">
+                    <Lock className="h-3 w-3" /> Canal privado
+                  </p>
+                  <p className="text-xs text-muted-foreground">So membros podem ver este canal</p>
+                </div>
+              </label>
+
+              {updateChannel.error && (
+                <p className="text-xs text-red-600">Erro: {updateChannel.error.message}</p>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-between border-t pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm(`Apagar o canal "${channel.name}" permanentemente? Todas as mensagens serao perdidas.`)) {
+                    deleteChannel.mutate({ channelId });
+                  }
+                }}
+                className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-100"
+                disabled={deleteChannel.isPending}
+              >
+                {deleteChannel.isPending ? "A apagar..." : "Apagar canal"}
+              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(false)}
+                  className="rounded-lg border px-4 py-2 text-sm hover:bg-muted"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={updateChannel.isPending || !settingsForm.name.trim()}
+                  onClick={() => {
+                    updateChannel.mutate({
+                      channelId,
+                      name: settingsForm.name,
+                      description: settingsForm.description || null,
+                      icon: settingsForm.icon || null,
+                      isPrivate: settingsForm.isPrivate,
+                    });
+                  }}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {updateChannel.isPending ? "A guardar..." : "Guardar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Members Panel (slide-out) */}
       {showMembers && (

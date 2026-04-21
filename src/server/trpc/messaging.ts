@@ -178,6 +178,31 @@ export const messagingRouter = router({
       return channel;
     }),
 
+  // Update channel (name, description, privacy, icon)
+  updateChannel: publicProcedure
+    .input(z.object({
+      channelId: z.string(),
+      name: z.string().min(1).optional(),
+      description: z.string().nullable().optional(),
+      icon: z.string().nullable().optional(),
+      isPrivate: z.boolean().optional(),
+      isArchived: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { channelId, ...data } = input;
+      return ctx.prisma.channel.update({
+        where: { id: channelId },
+        data,
+      });
+    }),
+
+  // Delete channel (cascades to sub-channels + messages)
+  deleteChannel: publicProcedure
+    .input(z.object({ channelId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.channel.delete({ where: { id: input.channelId } });
+    }),
+
   // =====================
   // SUB-CHANNELS
   // =====================
