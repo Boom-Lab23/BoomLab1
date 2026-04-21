@@ -55,6 +55,8 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
   const guestBlocked = isGuest && assignedChannelId !== channelId;
 
   const [message, setMessage] = useState("");
+  const [pendingFiles, setPendingFiles] = useState<Array<{ name: string; url: string; size: number; type: string }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeSubChannel, setActiveSubChannel] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [showPermissions, setShowPermissions] = useState<string | null>(null);
@@ -131,16 +133,52 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
     : channel.name;
 
   function handleSend() {
-    if (!message.trim()) return;
+    if (!message.trim() && pendingFiles.length === 0) return;
     const authorId = channel.members[0]?.userId;
     if (!authorId) return;
 
     sendMessage.mutate({
-      content: message,
+      content: message || (pendingFiles.length > 0 ? `[${pendingFiles.length} ficheiro(s) anexado(s)]` : ""),
       channelId: activeSubChannel ? undefined : channelId,
       subChannelId: activeSubChannel ?? undefined,
       authorId,
+      attachments: pendingFiles.length > 0 ? pendingFiles : undefined,
+    }, {
+      onSuccess: () => {
+        setMessage("");
+        setPendingFiles([]);
+      },
     });
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    // Max 10MB por ficheiro; converte para data URL
+    const maxSize = 10 * 1024 * 1024;
+    for (const file of files) {
+      if (file.size > maxSize) {
+        alert(`Ficheiro ${file.name} e demasiado grande (max 10MB).`);
+        continue;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPendingFiles((prev) => [...prev, {
+          name: file.name,
+          url: reader.result as string,
+          size: file.size,
+          type: file.type,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    }
+    // Reset input so same file can be picked again
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function removePendingFile(index: number) {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   function formatTime(date: Date | string) {
@@ -263,6 +301,34 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
                   {msg.isPinned && <Pin className="h-3 w-3 text-orange-500" />}
                 </div>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
+                {/* Attachments */}
+                {Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(msg.attachments as Array<{ name: string; url: string; size?: number; type?: string }>).map((att, i) => {
+                      const isImage = att.type?.startsWith("image/") || /\.(png|jpg|jpeg|gif|webp)$/i.test(att.name);
+                      if (isImage) {
+                        return (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                            <img src={att.url} alt={att.name} className="max-h-40 max-w-xs rounded-lg border hover:opacity-80" />
+                          </a>
+                        );
+                      }
+                      return (
+                        <a
+                          key={i}
+                          href={att.url}
+                          download={att.name}
+                          className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs hover:bg-muted"
+                        >
+                          <Paperclip className="h-3 w-3 text-muted-foreground" />
+                          <span className="max-w-[200px] truncate font-medium">{att.name}</span>
+                          {att.size && <span className="text-muted-foreground">{(att.size / 1024).toFixed(0)}KB</span>}
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
                 {msg._count.replies > 0 && (
                   <button className="mt-0.5 text-xs text-primary hover:underline">
                     {msg._count.replies} resposta{msg._count.replies > 1 ? "s" : ""}
@@ -282,8 +348,38 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
 
         {/* Message Input */}
         <div className="border-t bg-card p-3">
+          {/* Pending files preview */}
+          {pendingFiles.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {pendingFiles.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-lg border bg-muted/50 px-2 py-1 text-xs">
+                  <Paperclip className="h-3 w-3" />
+                  <span className="max-w-[180px] truncate">{f.name}</span>
+                  <span className="text-muted-foreground">{(f.size / 1024).toFixed(0)}KB</span>
+                  <button onClick={() => removePendingFile(i)} className="text-red-600 hover:underline">&times;</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
           <div className="flex items-end gap-2 rounded-xl border px-3 py-2">
-            <button className="rounded p-1 text-muted-foreground hover:bg-muted"><Paperclip className="h-4 w-4" /></button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title="Anexar ficheiro (max 10MB)"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -291,7 +387,7 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
               placeholder={`Mensagem para #${currentName}...`}
               className="flex-1 resize-none bg-transparent text-sm outline-none" rows={1}
             />
-            <button onClick={handleSend} disabled={!message.trim() || sendMessage.isPending}
+            <button onClick={handleSend} disabled={(!message.trim() && pendingFiles.length === 0) || sendMessage.isPending}
               className="rounded-lg bg-primary p-1.5 text-white hover:bg-primary/90 disabled:opacity-50">
               <Send className="h-4 w-4" />
             </button>

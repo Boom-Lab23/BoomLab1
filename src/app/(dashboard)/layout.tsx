@@ -33,12 +33,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [status, mustChangePassword, router]);
 
   // Redirect guests to their assigned area
-  // Guests may only access: /workspace, /messaging, /settings, /first-login
+  // Guests may only access: /workspace, /messaging, /settings, /dashboards/[own], /first-login
   useEffect(() => {
     if (!isGuest) return;
     if (pathname.startsWith("/messaging")) return;
     if (pathname.startsWith("/workspace")) return;
     if (pathname.startsWith("/settings")) return;
+    if (pathname.startsWith("/dashboards/")) return;  // Dashboard detail OK (guard feito na pagina)
     if (pathname.startsWith("/first-login")) return;
 
     // Default redirect: prefer workspace if assigned, otherwise messaging

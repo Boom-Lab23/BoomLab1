@@ -23,6 +23,8 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   const { id } = use(params);
   const { data: authSession } = useSession();
   const userRole = (authSession?.user as Record<string, unknown>)?.role as string | undefined;
+  const isGuest = userRole === "GUEST_CLIENT" || userRole === "GUEST_TEAM_MEMBER";
+  const assignedWorkspaceClientId = (authSession?.user as Record<string, unknown>)?.assignedWorkspaceClientId as string | undefined;
   // Only ADMIN / CONSULTANT / MANAGER can delete. Guests (equipas comerciais do cliente) nao.
   const canDeleteRecords = userRole === "ADMIN" || userRole === "CONSULTANT" || userRole === "MANAGER";
 
@@ -105,6 +107,16 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   if (!dashboard.data) return <div className="p-8 text-center text-muted-foreground">Dashboard nao encontrada</div>;
 
   const db = dashboard.data;
+
+  // Guard para clientes: so podem ver dashboards do seu cliente atribuido
+  if (isGuest && db.clientId !== assignedWorkspaceClientId) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-lg font-semibold">Acesso negado</p>
+        <p className="mt-2 text-sm text-muted-foreground">Esta dashboard nao pertence ao teu workspace.</p>
+      </div>
+    );
+  }
   const color = MARKET_COLORS[market] ?? "#2D76FC";
   const k = kpis.data;
 
