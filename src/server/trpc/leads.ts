@@ -104,7 +104,7 @@ export const leadsRouter = router({
       company: z.string().min(1, "Nome da empresa e obrigatorio"),
       companyEmail: z.string().email().optional().or(z.literal("")),
       companyLandline: z.string().optional(),
-      companyMobile: z.string().optional(),
+      companyMobile: z.string().min(1, "Telemovel da empresa e obrigatorio"),
       nif: z.string().optional(),
       // Decisor (opcional)
       name: z.string().optional().default(""),        // nome do decisor

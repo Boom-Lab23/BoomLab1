@@ -449,14 +449,20 @@ function LeadsTab({ clientId }: { clientId: string }) {
             }} className="space-y-3">
               <div>
                 <label className="mb-0.5 block text-xs font-medium">Comercial *</label>
-                {commercials.length > 0 ? (
-                  <select required value={form.commercial} onChange={(e) => setForm({ ...form, commercial: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card">
-                    <option value="">Selecionar...</option>
-                    {commercials.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                ) : (
-                  <input type="text" required value={form.commercial} onChange={(e) => setForm({ ...form, commercial: e.target.value })}
-                    className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Nome do comercial" />
+                <select
+                  required
+                  value={form.commercial}
+                  onChange={(e) => setForm({ ...form, commercial: e.target.value })}
+                  disabled={commercials.length === 0}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <option value="">{commercials.length === 0 ? "Sem comerciais - adiciona na Dashboard > Equipa" : "Selecionar..."}</option>
+                  {commercials.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                {commercials.length === 0 && (
+                  <p className="mt-1 text-[10px] text-amber-600">
+                    ⚠ Nao ha comerciais definidos. Vai ao separador Dashboard, clica em &quot;Equipa&quot; e adiciona os membros da equipa comercial do cliente.
+                  </p>
                 )}
               </div>
               {/* EMPRESA (obrigatoria) */}
@@ -480,8 +486,8 @@ function LeadsTab({ clientId }: { clientId: string }) {
                     <input value={form.companyLandline} onChange={(e) => setForm({ ...form, companyLandline: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="21..." />
                   </div>
                   <div>
-                    <label className="mb-0.5 block text-[11px] font-medium">Nº Movel</label>
-                    <input value={form.companyMobile} onChange={(e) => setForm({ ...form, companyMobile: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="9..." />
+                    <label className="mb-0.5 block text-[11px] font-medium">Nº Movel *</label>
+                    <input required value={form.companyMobile} onChange={(e) => setForm({ ...form, companyMobile: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="9..." />
                   </div>
                 </div>
               </div>
