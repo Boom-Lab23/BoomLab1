@@ -16,7 +16,7 @@ services:
   # PostgreSQL 16 — base de dados do BoomLab (independente do n8n)
   # ============================================================
   boomlab-db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     container_name: boomlab-db
     restart: always
     env_file:
