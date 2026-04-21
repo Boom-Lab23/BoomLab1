@@ -1,0 +1,47 @@
+# Caddyfile — BoomLab Platform
+# Caddy trata automaticamente de:
+#  - HTTPS (Let's Encrypt)
+#  - Renovacao de certificados
+#  - Redirect HTTP -> HTTPS
+#  - HTTP/2 + HTTP/3
+
+servico.boomlab.agency {
+    # Proxy reverso para o container Next.js
+    reverse_proxy app:3000 {
+        # Timeouts longos para operacoes de IA e upload de audio
+        transport http {
+            read_timeout 10m
+            write_timeout 10m
+        }
+    }
+
+    # Headers de seguranca
+    header {
+        # HTTPS forçado no browser por 1 ano
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Protecao contra MIME sniffing
+        X-Content-Type-Options nosniff
+        # Controlo de referrer (privacidade)
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Nao exposta header do servidor
+        -Server
+    }
+
+    # Compressao (reduz tamanho de respostas)
+    encode gzip zstd
+
+    # Logs em formato JSON para analise
+    log {
+        output file /data/access.log {
+            roll_size 100mb
+            roll_keep 10
+        }
+        format json
+    }
+}
+
+# Redirect do dominio raiz boomlab.agency (caso seja tb usado)
+# Descomentar se necessario:
+# boomlab.agency {
+#     redir https://servico.boomlab.agency{uri} permanent
+# }

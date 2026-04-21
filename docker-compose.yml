@@ -1,0 +1,90 @@
+# Docker Compose — BoomLab Platform self-hosted
+# Stack: Caddy (HTTPS) + Next.js app + PostgreSQL
+#
+# Deploy no VPS:
+#   1. git clone https://github.com/Boom-Lab23/BoomLab1.git /opt/boomlab
+#   2. cd /opt/boomlab
+#   3. cp .env.production.example .env.production
+#   4. editar .env.production com secrets reais
+#   5. docker compose up -d --build
+#   6. Caddy trata do SSL automaticamente (precisa do DNS já apontar para o VPS)
+
+services:
+  # ============================================================
+  # PostgreSQL 16 — base de dados principal
+  # ============================================================
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-boomlab}
+      POSTGRES_USER: ${POSTGRES_USER:-boomlab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-boomlab} -d ${POSTGRES_DB:-boomlab}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Exposto SO na rede interna Docker, NAO acessivel de fora
+    networks:
+      - boomlab-net
+
+  # ============================================================
+  # Next.js — app BoomLab
+  # ============================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    environment:
+      # Override DATABASE_URL para apontar ao postgres interno
+      DATABASE_URL: postgresql://${POSTGRES_USER:-boomlab}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-boomlab}?schema=public
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://servico.boomlab.agency}
+      NODE_ENV: production
+    volumes:
+      # Uploads persistentes (ficheiros de mensagens, Base de Conhecimento, etc.)
+      - uploads:/app/uploads
+    networks:
+      - boomlab-net
+
+  # ============================================================
+  # Caddy — reverse proxy + HTTPS automatico (Let's Encrypt)
+  # ============================================================
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # certificados SSL persistentes
+      - caddy_config:/config
+    depends_on:
+      - app
+    networks:
+      - boomlab-net
+
+volumes:
+  pgdata:
+    driver: local
+  uploads:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+networks:
+  boomlab-net:
+    driver: bridge

@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.local
+.env.development
+*.log
+README.md
+DEPLOY.md
+.vercel
+.vscode
+.idea
+docker/backup-*.sql
+coverage
+.turbo
