@@ -15,15 +15,33 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+        const email = credentials.email.trim().toLowerCase();
+        const password = credentials.password; // NUNCA trim na password real
+
+        // Tenta lookup case-insensitive (insensitive mode do Postgres)
+        let user = await prisma.user.findFirst({
+          where: { email: { equals: email, mode: "insensitive" } },
         });
 
-        if (!user || !user.password) return null;
-        if (!user.isActive) return null;
+        // Fallback para lookup exato (caso de indice unico sensivel a caixa)
+        if (!user) {
+          user = await prisma.user.findUnique({ where: { email: credentials.email } });
+        }
 
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) return null;
+        if (!user || !user.password) {
+          console.log("[auth] login falhou: email nao encontrado ou sem password", email);
+          return null;
+        }
+        if (!user.isActive) {
+          console.log("[auth] login falhou: user inativo", email);
+          return null;
+        }
+
+        const isValid = await bcrypt.compare(password, user.password);
+        if (!isValid) {
+          console.log("[auth] login falhou: password invalida para", email);
+          return null;
+        }
 
         return {
           id: user.id,

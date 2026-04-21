@@ -54,8 +54,12 @@ export const adminRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.prisma.user.findUnique({
-        where: { email: input.email },
+      // Normalize email - always lowercase + trim
+      const normalizedEmail = input.email.trim().toLowerCase();
+
+      // Case-insensitive lookup to detect duplicates
+      const existing = await ctx.prisma.user.findFirst({
+        where: { email: { equals: normalizedEmail, mode: "insensitive" } },
       });
       if (existing) {
         throw new Error("Email ja registado.");
@@ -69,9 +73,10 @@ export const adminRouter = router({
       const user = await ctx.prisma.user.create({
         data: {
           name: input.name,
-          email: input.email,
+          email: normalizedEmail,
           password: hashedPassword,
           role: input.role,
+          isActive: true,
           assignedChannelId: input.assignedChannelId,
           assignedDashboardId: input.assignedDashboardId,
           assignedWorkspaceClientId: input.assignedWorkspaceClientId,
