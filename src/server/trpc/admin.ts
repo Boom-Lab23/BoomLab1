@@ -4,8 +4,46 @@ import bcrypt from "bcryptjs";
 import { sendWelcomeEmail, sendPasswordResetEmail, generateTempPassword } from "../services/email";
 
 export const adminRouter = router({
+  // Limpa acessos restritos de users non-guest (migracao one-off para dados antigos)
+  cleanupNonGuestAccesses: publicProcedure.mutation(async ({ ctx }) => {
+    const result = await ctx.prisma.user.updateMany({
+      where: {
+        role: { in: ["ADMIN", "CONSULTANT", "MANAGER"] },
+        OR: [
+          { assignedChannelId: { not: null } },
+          { assignedWorkspaceClientId: { not: null } },
+          { assignedDashboardId: { not: null } },
+        ],
+      },
+      data: {
+        assignedChannelId: null,
+        assignedWorkspaceClientId: null,
+        assignedDashboardId: null,
+      },
+    });
+    return { cleaned: result.count };
+  }),
+
   // List all users
   listUsers: publicProcedure.query(async ({ ctx }) => {
+    // Auto-cleanup SINCRONO: limpa acessos obsoletos de non-guests antes de devolver.
+    // Garante que o admin ve sempre o estado correcto (gestores/admin/consultant sem acessos restritos).
+    await ctx.prisma.user.updateMany({
+      where: {
+        role: { in: ["ADMIN", "CONSULTANT", "MANAGER"] },
+        OR: [
+          { assignedChannelId: { not: null } },
+          { assignedWorkspaceClientId: { not: null } },
+          { assignedDashboardId: { not: null } },
+        ],
+      },
+      data: {
+        assignedChannelId: null,
+        assignedWorkspaceClientId: null,
+        assignedDashboardId: null,
+      },
+    }).catch((err) => console.error("[listUsers] cleanup failed:", err));
+
     return ctx.prisma.user.findMany({
       select: {
         id: true,
