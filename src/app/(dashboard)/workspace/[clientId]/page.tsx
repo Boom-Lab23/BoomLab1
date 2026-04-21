@@ -477,6 +477,16 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
     },
   });
 
+  const uploadAudio = trpc.salesAnalysis.uploadAudioToAssembly.useMutation();
+  const analyzeCallDeep = trpc.salesAnalysis.analyzeCallDeep.useMutation({
+    onSuccess: () => {
+      utils.salesAnalysis.list.invalidate();
+      utils.salesAnalysis.statsPerCommercial.invalidate();
+      setShowAnalyze(false);
+      setAnalyzeForm({ commercial: "", leadName: "", callType: "Discovery Call", callDate: new Date().toISOString().split("T")[0], visibility: "COMMERCIAL_ONLY", transcript: "", audioFileName: "", audioUrl: "", durationMinutes: "" });
+    },
+  });
+
   const updateAnalysis = trpc.salesAnalysis.update.useMutation({
     onSuccess: () => utils.salesAnalysis.list.invalidate(),
   });
@@ -794,9 +804,14 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                 </div>
               </div>
 
-              {/* Audio file (optional) */}
-              <div>
-                <label className="mb-0.5 block text-xs font-medium">Ficheiro de audio / video (opcional)</label>
+              {/* Audio file (MODO DEEP) */}
+              <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
+                <p className="text-xs font-semibold text-purple-900 mb-1">
+                  🎙️ Modo Audio Profundo (AssemblyAI)
+                </p>
+                <p className="text-[11px] text-purple-800 mb-2">
+                  Carrega o audio/video e a IA transcreve + analisa tom, ritmo real (wpm), pausas, preenchimentos, talk-time, interrupcoes e sentimento.
+                </p>
                 <input
                   type="file"
                   accept="audio/*,video/*"
@@ -811,43 +826,91 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                     });
                     reader.readAsDataURL(file);
                   }}
-                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card file:mr-3 file:rounded file:border-0 file:bg-purple-600 file:text-white file:text-xs file:px-3 file:py-1.5 file:cursor-pointer"
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-white file:mr-3 file:rounded file:border-0 file:bg-purple-600 file:text-white file:text-xs file:px-3 file:py-1.5 file:cursor-pointer"
                 />
                 {analyzeForm.audioFileName && (
-                  <p className="mt-1 text-xs text-green-600">
+                  <p className="mt-1 text-xs text-green-700">
                     ✓ {analyzeForm.audioFileName}
                     <button type="button" onClick={() => setAnalyzeForm({ ...analyzeForm, audioFileName: "", audioUrl: "" })} className="ml-2 text-red-600 hover:underline">remover</button>
                   </p>
                 )}
-                <p className="mt-1 text-[10px] text-muted-foreground">O audio fica guardado. A transcricao abaixo e que alimenta a IA.</p>
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="w-full border-t border-muted" />
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-card px-2 text-[10px] text-muted-foreground uppercase">ou cola transcricao</span>
+                </div>
               </div>
 
               <div>
-                <label className="mb-0.5 block text-xs font-medium">Transcricao da chamada *</label>
+                <label className="mb-0.5 block text-xs font-medium">Transcricao da chamada (modo rapido)</label>
                 <textarea
-                  required
                   value={analyzeForm.transcript}
                   onChange={(e) => setAnalyzeForm({ ...analyzeForm, transcript: e.target.value })}
                   className="w-full rounded-lg border px-3 py-2 text-sm bg-card font-mono"
-                  rows={10}
-                  placeholder="Cola aqui a transcricao completa da chamada (minimo 100 caracteres)..."
+                  rows={8}
+                  placeholder="Se nao tens o ficheiro de audio, cola aqui a transcricao (min 100 chars). IA avalia sem metricas reais de audio."
                 />
                 <p className="mt-1 text-[10px] text-muted-foreground">
                   {analyzeForm.transcript.length} caracteres
                 </p>
               </div>
 
-              {analyzeCall.error && (
+              {(analyzeCall.error || analyzeCallDeep.error || uploadAudio.error) && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
-                  Erro: {analyzeCall.error.message}
+                  Erro: {(analyzeCall.error ?? analyzeCallDeep.error ?? uploadAudio.error)?.message}
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 border-t pt-3">
+              {(uploadAudio.isPending || analyzeCallDeep.isPending) && (
+                <div className="rounded-lg border border-purple-200 bg-purple-50 p-2 text-xs text-purple-800">
+                  <Loader2 className="h-3 w-3 inline animate-spin" /> {uploadAudio.isPending ? "A enviar audio para AssemblyAI..." : "A transcrever + analisar (pode demorar 1-5 min consoante a duracao)..."}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 border-t pt-3 flex-wrap">
                 <button type="button" onClick={() => setShowAnalyze(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
-                <button type="submit" disabled={analyzeCall.isPending || analyzeForm.transcript.length < 100}
-                  className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50">
-                  {analyzeCall.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> A analisar...</> : <><Sparkles className="h-4 w-4" /> Analisar com IA</>}
+
+                {/* Analise rapida (so transcricao) */}
+                <button
+                  type="submit"
+                  disabled={analyzeCall.isPending || analyzeForm.transcript.length < 100}
+                  className="flex items-center gap-2 rounded-lg border border-purple-600 bg-white px-4 py-2 text-sm font-medium text-purple-600 hover:bg-purple-50 disabled:opacity-50"
+                >
+                  {analyzeCall.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> A analisar...</> : <><Sparkles className="h-4 w-4" /> Analise rapida</>}
+                </button>
+
+                {/* Analise profunda (audio + IA) */}
+                <button
+                  type="button"
+                  disabled={!analyzeForm.audioUrl || !analyzeForm.commercial || uploadAudio.isPending || analyzeCallDeep.isPending}
+                  onClick={async () => {
+                    if (!analyzeForm.audioUrl || !analyzeForm.commercial) return;
+                    try {
+                      // 1) Upload file to AssemblyAI temp storage
+                      const { uploadUrl } = await uploadAudio.mutateAsync({ dataUrl: analyzeForm.audioUrl });
+                      // 2) Trigger deep analysis
+                      await analyzeCallDeep.mutateAsync({
+                        clientId,
+                        commercial: analyzeForm.commercial,
+                        leadName: analyzeForm.leadName || undefined,
+                        callType: analyzeForm.callType,
+                        callDate: new Date(analyzeForm.callDate),
+                        audioUrl: uploadUrl,
+                        visibility: analyzeForm.visibility,
+                      });
+                    } catch (err) {
+                      console.error(err);
+                    }
+                  }}
+                  className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {(uploadAudio.isPending || analyzeCallDeep.isPending)
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> A analisar audio...</>
+                    : <>🎙️ Analise profunda (audio)</>}
                 </button>
               </div>
             </form>

@@ -154,6 +154,10 @@ model Recording {
   aiScore     Float?
   scriptName  String?
   analyzedAt  DateTime?
+  // AssemblyAI deep audio analysis
+  assemblyTranscriptId String?    // ID do transcript AssemblyAI (para correlacao)
+  audioAnalysis        Json?      // Resultado completo: sentiment, tom, pausas, wpm, etc.
+  audioAnalyzedAt      DateTime?
   callSubmissions CallSubmission[]
   feedbacks       Feedback[]
   salesAnalysis   SalesAnalysis?

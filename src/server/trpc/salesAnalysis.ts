@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "./init";
 import { analyzeSalesCall } from "../services/sales-call-analyzer";
+import { analyzeAudioFromUrl, uploadAudioBuffer } from "../services/assembly-ai";
 
 const VISIBILITY = ["COMMERCIAL_ONLY", "WHOLE_TEAM"] as const;
 
@@ -159,6 +160,113 @@ export const salesAnalysisRouter = router({
   delete: publicProcedure.input(z.string()).mutation(async ({ ctx, input }) => {
     return ctx.prisma.salesAnalysis.delete({ where: { id: input } });
   }),
+
+  // ============================================================
+  // Upload de audio para AssemblyAI (data URL base64)
+  // ============================================================
+  uploadAudioToAssembly: publicProcedure
+    .input(z.object({
+      dataUrl: z.string().startsWith("data:"),  // data URL do browser
+    }))
+    .mutation(async ({ input }) => {
+      // Extract base64 from data URL
+      const match = input.dataUrl.match(/^data:[^;]+;base64,(.+)$/);
+      if (!match) throw new Error("Data URL invalida.");
+      const buffer = Buffer.from(match[1], "base64");
+      const uploadUrl = await uploadAudioBuffer(buffer);
+      return { uploadUrl };
+    }),
+
+  // ============================================================
+  // analyzeCallDeep - usa AssemblyAI para transcricao + metricas reais
+  // depois passa a transcricao ao Claude para avaliacao qualitativa
+  // ============================================================
+  analyzeCallDeep: publicProcedure
+    .input(z.object({
+      clientId: z.string(),
+      commercial: z.string().min(1),
+      leadName: z.string().optional(),
+      callType: z.string().default("Discovery Call"),
+      callDate: z.date().default(() => new Date()),
+      audioUrl: z.string().url(),   // URL publico (upload da AssemblyAI ou externo)
+      visibility: z.enum(["COMMERCIAL_ONLY", "WHOLE_TEAM"]).default("COMMERCIAL_ONLY"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 1. AssemblyAI: transcreve + calcula metricas reais de audio
+      const { transcript, metrics, plainText } = await analyzeAudioFromUrl(input.audioUrl);
+
+      // 2. Claude: avalia qualitativamente usando a transcricao + metricas como contexto
+      const enrichedTranscript = `${plainText}
+
+=== METRICAS DE DELIVERY (AssemblyAI) ===
+Duracao: ${Math.round(metrics.durationSeconds / 60)} min
+Ritmo global: ${metrics.wordsPerMinute.toFixed(0)} palavras/min
+Preenchimentos: ${metrics.fillerWords.total} (${metrics.fillerWords.perMinute.toFixed(1)} por min)
+  - Distribuicao: ${Object.entries(metrics.fillerWords.byWord).map(([k, v]) => `${k}: ${v}`).join(", ")}
+Pausas longas (>1.5s): total ${metrics.totalSilenceSec.toFixed(0)}s, maior ${metrics.longestPauseSec.toFixed(1)}s
+Interrupcoes: ${metrics.interruptions}
+Sentimento: ${metrics.sentimentBreakdown.positive} positivos, ${metrics.sentimentBreakdown.negative} negativos, ${metrics.sentimentBreakdown.neutral} neutros
+
+Talk-time por speaker:
+${metrics.speakers.map(s => `  ${s.speaker}: ${s.talkTimePct.toFixed(0)}% do tempo, ${s.wpm.toFixed(0)}wpm, ${s.wordCount} palavras`).join("\n")}`;
+
+      const aiResult = await analyzeSalesCall({
+        clientId: input.clientId,
+        transcript: enrichedTranscript,
+        commercial: input.commercial,
+        leadName: input.leadName,
+        callType: input.callType,
+      });
+
+      // 3. Persiste Recording com tudo
+      const rec = await ctx.prisma.recording.create({
+        data: {
+          title: `${input.commercial} x ${input.leadName ?? "Lead"} - ${input.callType}`,
+          type: "CALL",
+          duration: Math.round(metrics.durationSeconds),
+          fileUrl: input.audioUrl,
+          transcript: plainText,
+          clientId: input.clientId,
+          aiAnalysis: aiResult as unknown as Record<string, unknown>,
+          aiScore: aiResult.overallScore,
+          analyzedAt: new Date(),
+          assemblyTranscriptId: transcript.id,
+          audioAnalysis: metrics as unknown as Record<string, unknown>,
+          audioAnalyzedAt: new Date(),
+        },
+      });
+
+      // 4. Cria SalesAnalysis ligada
+      const analysis = await ctx.prisma.salesAnalysis.create({
+        data: {
+          clientId: input.clientId,
+          recordingId: rec.id,
+          commercial: input.commercial,
+          leadName: input.leadName,
+          callType: input.callType,
+          callDate: input.callDate,
+          durationMinutes: Math.round(metrics.durationSeconds / 60),
+          visibility: input.visibility,
+          classification: aiResult.classification,
+          overallScore: aiResult.overallScore,
+          clarezaFluidez: aiResult.clarezaFluidez,
+          tomVoz: aiResult.tomVoz,
+          expositivoConversacional: aiResult.expositivoConversacional,
+          assertividadeControlo: aiResult.assertividadeControlo,
+          empatia: aiResult.empatia,
+          passagemValor: aiResult.passagemValor,
+          respostaObjecoes: aiResult.respostaObjecoes,
+          estruturaMeet: aiResult.estruturaMeet,
+          strengths: aiResult.strengths,
+          weaknesses: aiResult.weaknesses,
+          generalTips: aiResult.generalTips,
+          focusNext: aiResult.focusNext,
+          summary: aiResult.summary,
+        },
+      });
+
+      return { analysis, recording: rec, metrics, aiResult };
+    }),
 
   // ============================================================
   // analyzeCall - upload a transcript (or audio+transcript) and
