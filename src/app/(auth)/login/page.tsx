@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Rocket, Mail, Lock, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { Rocket, Mail, Lock, AlertCircle, Smartphone } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +12,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isComunicacao, setIsComunicacao] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    setIsComunicacao(window.location.hostname.includes("comunicacao"));
+    setIsStandalone(window.matchMedia("(display-mode: standalone)").matches);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,8 +50,24 @@ export default function LoginPage() {
             <Rocket className="h-7 w-7 text-white" />
           </div>
           <h1 className="mt-4 text-2xl font-bold text-white">BoomLab</h1>
-          <p className="mt-1 text-sm text-gray-400">Plataforma de Gestao de Servico</p>
+          <p className="mt-1 text-sm text-gray-400">
+            {isComunicacao ? "Comunicação" : "Plataforma de Gestão de Serviço"}
+          </p>
         </div>
+
+        {/* Install CTA - so aparece no dominio comunicacao quando NAO esta instalado */}
+        {isComunicacao && !isStandalone && (
+          <Link
+            href="/install"
+            className="flex items-center justify-between gap-2 rounded-lg border border-[#2D76FC]/40 bg-[#2D76FC]/10 px-3 py-2.5 text-xs text-[#2D76FC] hover:bg-[#2D76FC]/20 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Smartphone className="h-4 w-4" />
+              <span>Instala a app no teu dispositivo</span>
+            </span>
+            <span className="text-[10px] opacity-80">→</span>
+          </Link>
+        )}
 
         {/* Error */}
         {error && (
@@ -92,9 +116,12 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-400">
-          Nao tens conta? <a href="/register" className="text-[#2D76FC] hover:underline">Criar conta</a>
-        </p>
+        {/* Register link - so visivel no dominio principal da equipa */}
+        {!isComunicacao && (
+          <p className="text-center text-sm text-gray-400">
+            Nao tens conta? <a href="/register" className="text-[#2D76FC] hover:underline">Criar conta</a>
+          </p>
+        )}
       </div>
     </div>
   );
