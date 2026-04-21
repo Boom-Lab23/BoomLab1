@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, User, AlertCircle, CheckCircle2, Shield } from "lucide-react";
@@ -8,11 +8,18 @@ import { BoomLabLogo } from "@/components/logo";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [isComunicacao, setIsComunicacao] = useState(false);
+
+  useEffect(() => {
+    setIsComunicacao(window.location.hostname.includes("comunicacao"));
+  }, []);
+
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
     confirmPassword: "",
+    company: "",
   });
   const [consents, setConsents] = useState({
     privacyPolicy: false,
@@ -53,6 +60,9 @@ export default function RegisterPage() {
           name: form.name,
           email: form.email,
           password: form.password,
+          company: form.company || undefined,
+          // Se veio do dominio comunicacao.* -> e cliente -> criar como GUEST_CLIENT pendente
+          source: isComunicacao ? "comunicacao" : "servico",
           consents: {
             privacyPolicy: consents.privacyPolicy,
             terms: consents.terms,
@@ -71,7 +81,11 @@ export default function RegisterPage() {
         return;
       }
 
-      router.push("/login?registered=true");
+      if (data.pendingActivation) {
+        router.push("/login?registered=pending");
+      } else {
+        router.push("/login?registered=true");
+      }
     } catch {
       setError("Erro de ligacao. Tenta novamente.");
       setLoading(false);
@@ -84,8 +98,20 @@ export default function RegisterPage() {
         {/* Logo */}
         <div className="text-center">
           <BoomLabLogo size={56} className="mx-auto" />
-          <h1 className="mt-4 text-2xl font-bold text-white">Criar Conta</h1>
-          <p className="mt-1 text-sm text-gray-400">BoomLab Platform</p>
+          <h1 className="mt-4 text-2xl font-bold text-white">
+            {isComunicacao ? "Pedir Acesso" : "Criar Conta"}
+          </h1>
+          <p className="mt-1 text-sm text-gray-400">
+            {isComunicacao ? "BoomLab Comunicação" : "BoomLab Platform"}
+          </p>
+          {isComunicacao && (
+            <div className="mt-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-left text-xs text-blue-100">
+              <p className="font-semibold">ℹ️ Como funciona?</p>
+              <p className="mt-1 text-blue-200">
+                Cria aqui a tua conta. Recebemos uma notificação e <strong>activamos o acesso</strong> ao teu workspace e canal de comunicação em 1-2 dias úteis. Receberás um email quando estiver pronto.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Error */}
@@ -107,6 +133,17 @@ export default function RegisterPage() {
                 placeholder="Nome completo" />
             </div>
           </div>
+
+          {/* Empresa - OBRIGATORIO so para clientes (comunicacao) */}
+          {isComunicacao && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-300">Empresa *</label>
+              <input type="text" required value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })}
+                className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 px-3 text-sm text-white placeholder:text-gray-500 focus:border-[#2D76FC] focus:outline-none focus:ring-1 focus:ring-[#2D76FC]/30"
+                placeholder="Nome da tua empresa" />
+              <p className="mt-1 text-[11px] text-gray-500">Indica a empresa que contratou o serviço BoomLab</p>
+            </div>
+          )}
 
           {/* Email */}
           <div>

@@ -1,14 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Mail, Lock, AlertCircle, Smartphone } from "lucide-react";
+import { Mail, Lock, AlertCircle, Smartphone, CheckCircle2, Clock } from "lucide-react";
 import { BoomLabLogo } from "@/components/logo";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center" style={{ background: "hsl(220, 15%, 8%)" }}><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#2D76FC] border-t-transparent" /></div>}>
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginInner() {
   const router = useRouter();
+  const search = useSearchParams();
+  const registered = search.get("registered");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -84,6 +94,28 @@ export default function LoginPage() {
             </span>
             <span className="text-[10px] opacity-80">→</span>
           </Link>
+        )}
+
+        {/* Registered success messages */}
+        {registered === "true" && !error && (
+          <div className="flex items-start gap-2 rounded-lg bg-green-500/10 border border-green-500/30 p-3 text-sm text-green-300">
+            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Conta criada!</p>
+              <p className="mt-0.5 text-xs">Já podes fazer login com as tuas credenciais.</p>
+            </div>
+          </div>
+        )}
+        {registered === "pending" && !error && (
+          <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-200">
+            <Clock className="h-4 w-4 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Pedido de acesso recebido ✓</p>
+              <p className="mt-0.5 text-xs">
+                A BoomLab foi notificada e vai ativar o teu acesso em <strong>1-2 dias úteis</strong>. Recebes um email assim que estiver pronto.
+              </p>
+            </div>
+          </div>
         )}
 
         {/* Error */}

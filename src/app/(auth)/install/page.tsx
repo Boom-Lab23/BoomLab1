@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Smartphone, Monitor, Apple, Chrome, Download,
   ArrowRight, CheckCircle2, MessageSquare, LayoutDashboard,
-  Share2, MoreVertical, X,
+  Share2, MoreVertical, X, UserPlus, LogIn,
 } from "lucide-react";
 import { BoomLabLogo } from "@/components/logo";
 
@@ -266,12 +266,42 @@ export default function InstallPage() {
           </div>
         )}
 
-        {/* Skip */}
+        {/* Login vs Register */}
         {!installed && (
-          <div className="mt-8 text-center">
-            <Link href="/login" className="text-sm text-gray-400 hover:text-white underline underline-offset-4">
-              Saltar e usar no browser
-            </Link>
+          <div className="mt-10">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                <div className="w-full border-t border-white/10" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-[#101112] px-3 text-[10px] text-gray-500 uppercase tracking-wider">
+                  Já tens conta?
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <Link
+                href="/login"
+                className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors"
+              >
+                <LogIn className="h-4 w-4" />
+                Fazer login
+              </Link>
+              <Link
+                href="/register"
+                className="flex items-center justify-center gap-2 rounded-xl border border-[#2D76FC]/40 bg-[#2D76FC]/10 px-4 py-3 text-sm font-medium text-[#2D76FC] hover:bg-[#2D76FC]/20 transition-colors"
+              >
+                <UserPlus className="h-4 w-4" />
+                Criar conta
+              </Link>
+            </div>
+
+            <p className="mt-3 text-center text-[11px] text-gray-500">
+              {isComunicacao
+                ? "Se ainda não recebeste convite da BoomLab, cria a tua conta e avisa-nos para ativarmos o acesso."
+                : "Usa o email que te foi fornecido pela BoomLab."}
+            </p>
           </div>
         )}
 
