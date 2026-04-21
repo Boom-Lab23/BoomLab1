@@ -17,11 +17,13 @@ model User {
   isActive         Boolean   @default(true)
   googleCalId      String?
   googleConnected  Boolean   @default(false)
-  // Guest: which channel and dashboard they have access to
+  // Guest: which channel and workspace they have access to
   assignedChannelId   String?
   assignedChannel     Channel?          @relation("GuestChannel", fields: [assignedChannelId], references: [id])
-  assignedDashboardId String?
+  assignedDashboardId String?                          // legacy - mantido para compat
   assignedDashboard   ClientDashboard?  @relation(fields: [assignedDashboardId], references: [id])
+  assignedWorkspaceClientId String?                    // Guest tem acesso ao workspace deste cliente (dashboard + CRM leads + sales analysis)
+  assignedWorkspaceClient   Client?           @relation("GuestWorkspace", fields: [assignedWorkspaceClientId], references: [id])
   // RGPD Consents
   consentPrivacyPolicy    Boolean   @default(false)  // Politica de privacidade (obrigatorio)
   consentTerms            Boolean   @default(false)  // Termos de consentimento (obrigatorio)
@@ -98,6 +100,7 @@ model Client {
   dashboard        ClientDashboard?
   leads            Lead[]
   salesAnalyses    SalesAnalysis[]
+  guestUsers       User[]       @relation("GuestWorkspace")
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 }

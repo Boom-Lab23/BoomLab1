@@ -31,9 +31,23 @@ const LEAD_STATUS_COLORS: Record<string, string> = {
 export default function ClientWorkspacePage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params);
   const [tab, setTab] = useState<Tab>("dashboard");
+  const { data: authSession } = useSession();
+  const role = (authSession?.user as Record<string, unknown>)?.role as string | undefined;
+  const isGuest = role === "GUEST_CLIENT" || role === "GUEST_TEAM_MEMBER";
+  const assignedWorkspaceClientId = (authSession?.user as Record<string, unknown>)?.assignedWorkspaceClientId as string | undefined;
+  const guestBlocked = isGuest && assignedWorkspaceClientId !== clientId;
 
-  const client = trpc.clients.getById.useQuery(clientId);
-  const dashboard = trpc.dashboards.getByClientId.useQuery(clientId);
+  const client = trpc.clients.getById.useQuery(clientId, { enabled: !guestBlocked });
+  const dashboard = trpc.dashboards.getByClientId.useQuery(clientId, { enabled: !guestBlocked });
+
+  if (guestBlocked) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-lg font-semibold">Acesso negado</p>
+        <p className="mt-2 text-sm text-muted-foreground">Nao tens permissoes para aceder a este workspace.</p>
+      </div>
+    );
+  }
 
   if (client.isLoading) return <div className="p-8 text-center text-muted-foreground">A carregar...</div>;
   if (!client.data) return <div className="p-8 text-center text-muted-foreground">Cliente nao encontrado</div>;
@@ -119,7 +133,9 @@ function DashboardTab({ clientId, dashboardId }: { clientId: string; dashboardId
 // ============ LEADS TAB ============
 function LeadsTab({ clientId }: { clientId: string }) {
   const [showCreate, setShowCreate] = useState(false);
-  const [selectedCommercial, setSelectedCommercial] = useState<string>("");
+  // selectedCommercial: "" = "Duplicados entre comerciais", nome = folha do comercial
+  // Inicializa com o 1o comercial da equipa (ou vazio para ver duplicados)
+  const [selectedCommercial, setSelectedCommercial] = useState<string | null>(null);
   const [form, setForm] = useState({
     commercial: "", name: "", company: "", email: "", phone: "", nif: "",
     source: "cold-calling", status: "NOVA", priority: "media", notes: "",
@@ -154,18 +170,94 @@ function LeadsTab({ clientId }: { clientId: string }) {
 
   const commercials = dashboard.data?.commercials ?? [];
 
+  // By default, select first commercial so CRM opens on their sheet
+  const hasInitialized = selectedCommercial !== null;
+  if (!hasInitialized && commercials.length > 0) {
+    // initialize to first commercial on first render
+    setTimeout(() => setSelectedCommercial(commercials[0]), 0);
+  }
+
+  const countsByName = new Map((counts.data ?? []).map(c => [c.name, c]));
+  const duplicatesByLeadId = new Map<string, string[]>();
+  for (const conflict of duplicates.data ?? []) {
+    for (const l of conflict.leads) {
+      const existing = duplicatesByLeadId.get(l.id) ?? [];
+      duplicatesByLeadId.set(l.id, [...new Set([...existing, ...conflict.commercials.filter(c => c !== l.commercial)])]);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Header row */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-lg font-semibold">CRM Leads</h2>
+        <div>
+          <h2 className="text-lg font-semibold">CRM Leads</h2>
+          <p className="text-xs text-muted-foreground">Uma folha por comercial. Cada um ve as suas leads. Sistema deteta duplicados entre comerciais.</p>
+        </div>
         <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90">
           <Plus className="h-4 w-4" /> Nova Lead
         </button>
       </div>
 
-      {/* Duplicate warnings */}
-      {duplicates.data && duplicates.data.length > 0 && (
+      {/* Commercial pages (each commercial = own sheet) */}
+      <div className="flex gap-1 overflow-x-auto flex-wrap items-center">
+        <span className="text-xs text-muted-foreground mr-1">Folha de:</span>
+        {commercials.length === 0 ? (
+          <span className="text-xs italic text-muted-foreground">Adiciona comerciais na dashboard primeiro</span>
+        ) : (
+          commercials.map((name) => {
+            const c = countsByName.get(name);
+            const total = c?.total ?? 0;
+            const won = c?.won ?? 0;
+            return (
+              <button key={name}
+                onClick={() => setSelectedCommercial(name)}
+                className={cn("rounded-full px-3 py-1.5 text-xs font-medium border whitespace-nowrap flex items-center gap-1 transition-colors",
+                  selectedCommercial === name ? "bg-primary text-white border-primary" : "bg-card hover:bg-muted"
+                )}
+              >
+                {name} <span className="opacity-75">({total})</span>
+                {won > 0 && <span className="rounded bg-green-100 text-green-700 px-1 text-[10px]">{won}G</span>}
+              </button>
+            );
+          })
+        )}
+        <span className="border-l mx-2 h-5" />
+        <button
+          onClick={() => setSelectedCommercial("")}
+          className={cn("rounded-full px-3 py-1.5 text-xs font-medium border whitespace-nowrap flex items-center gap-1",
+            selectedCommercial === "" ? "bg-amber-500 text-white border-amber-500" : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+          )}
+          title="Ver todas as leads agregadas e conflitos entre comerciais"
+        >
+          <AlertTriangle className="h-3 w-3" />
+          Vista conjunta ({(counts.data ?? []).reduce((s, c) => s + c.total, 0)})
+          {duplicates.data && duplicates.data.length > 0 && (
+            <span className="rounded bg-red-500 text-white px-1 text-[10px]">{duplicates.data.length}</span>
+          )}
+        </button>
+      </div>
+
+      {/* Header do comercial atual */}
+      {selectedCommercial && (
+        <div className="rounded-lg border bg-primary/5 p-3 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
+            {selectedCommercial.charAt(0)}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold">Folha de {selectedCommercial}</p>
+            <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
+              <span>{countsByName.get(selectedCommercial)?.total ?? 0} leads total</span>
+              <span className="text-green-600">{countsByName.get(selectedCommercial)?.won ?? 0} ganhas</span>
+              <span className="text-blue-600">{countsByName.get(selectedCommercial)?.active ?? 0} ativas</span>
+              <span className="text-red-600">{countsByName.get(selectedCommercial)?.lost ?? 0} perdidas</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate warnings - only visible in conjunct view */}
+      {selectedCommercial === "" && duplicates.data && duplicates.data.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-start gap-2 mb-2">
             <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5" />
@@ -179,7 +271,7 @@ function LeadsTab({ clientId }: { clientId: string }) {
             </div>
           </div>
           <div className="space-y-2 mt-3">
-            {duplicates.data.slice(0, 5).map((conflict, i) => (
+            {duplicates.data.slice(0, 10).map((conflict, i) => (
               <div key={i} className="rounded-lg border border-amber-200 bg-white p-2 text-xs">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold">{conflict.leads[0].name}</span>
@@ -193,31 +285,6 @@ function LeadsTab({ clientId }: { clientId: string }) {
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Commercial tabs */}
-      {counts.data && counts.data.length > 0 && (
-        <div className="flex gap-1 overflow-x-auto flex-wrap">
-          <button
-            onClick={() => setSelectedCommercial("")}
-            className={cn("rounded-full px-3 py-1.5 text-xs font-medium border whitespace-nowrap",
-              !selectedCommercial ? "bg-primary text-white border-primary" : "bg-card hover:bg-muted"
-            )}
-          >
-            Todos ({counts.data.reduce((s, c) => s + c.total, 0)})
-          </button>
-          {counts.data.map(c => (
-            <button key={c.name}
-              onClick={() => setSelectedCommercial(c.name)}
-              className={cn("rounded-full px-3 py-1.5 text-xs font-medium border whitespace-nowrap flex items-center gap-1",
-                selectedCommercial === c.name ? "bg-primary text-white border-primary" : "bg-card hover:bg-muted"
-              )}
-            >
-              {c.name} <span className="opacity-75">({c.total})</span>
-              {c.won > 0 && <span className="rounded bg-green-100 text-green-700 px-1 text-[10px]">{c.won}G</span>}
-            </button>
-          ))}
         </div>
       )}
 
@@ -239,10 +306,15 @@ function LeadsTab({ clientId }: { clientId: string }) {
               {leads.isLoading && <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">A carregar...</td></tr>}
               {leads.data?.length === 0 && <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Sem leads. Clica em &quot;Nova Lead&quot; para comecar.</td></tr>}
               {leads.data?.map(l => (
-                <tr key={l.id} className="hover:bg-muted/50">
+                <tr key={l.id} className={cn("hover:bg-muted/50", duplicatesByLeadId.has(l.id) && "bg-amber-50/50")}>
                   <td className="p-2">
                     <div className="font-medium">{l.name}</div>
-                    {l.duplicateOfId && <div className="text-[10px] text-amber-600 flex items-center gap-0.5"><AlertTriangle className="h-2.5 w-2.5" /> duplicada</div>}
+                    {duplicatesByLeadId.has(l.id) && (
+                      <div className="text-[10px] text-amber-600 flex items-center gap-0.5" title="Esta lead tambem esta noutros comerciais">
+                        <AlertTriangle className="h-2.5 w-2.5" />
+                        tambem em: {(duplicatesByLeadId.get(l.id) ?? []).join(", ")}
+                      </div>
+                    )}
                   </td>
                   <td className="p-2 text-xs">{l.commercial}</td>
                   <td className="p-2 text-xs">{l.company ?? "-"}</td>

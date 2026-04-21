@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft, Plus, X, Phone, TrendingUp, Users, Target, BarChart3, UserPlus, Trash2,
-  Network, CheckCircle2, Handshake,
+  Network, CheckCircle2, Handshake, Filter, Check, AlertTriangle,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -31,6 +31,16 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   const [showEOD, setShowEOD] = useState(false);
   const [showTeam, setShowTeam] = useState(false);
   const [newCommercial, setNewCommercial] = useState("");
+
+  // Bulk-delete state
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDialog, setShowBulkDialog] = useState(false);
+  const [bulkFilter, setBulkFilter] = useState({
+    commercial: "",
+    from: "",
+    to: "",
+  });
 
   const dashboard = trpc.dashboards.getById.useQuery(id);
   const kpis = trpc.dashboards.kpis.useQuery({ dashboardId: id, period });
@@ -71,6 +81,20 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
       utils.dashboards.kpis.invalidate();
       utils.dashboards.growthKpis.invalidate();
       utils.dashboards.chartData.invalidate();
+    },
+  });
+
+  const deleteRecords = trpc.dashboards.deleteRecords.useMutation({
+    onSuccess: (res) => {
+      utils.dashboards.getById.invalidate();
+      utils.dashboards.kpis.invalidate();
+      utils.dashboards.growthKpis.invalidate();
+      utils.dashboards.chartData.invalidate();
+      alert(`${res.deleted} registo(s) apagado(s) com sucesso.`);
+      setShowBulkDialog(false);
+      setSelectedIds(new Set());
+      setSelectMode(false);
+      setBulkFilter({ commercial: "", from: "", to: "" });
     },
   });
 

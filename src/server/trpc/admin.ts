@@ -19,6 +19,8 @@ export const adminRouter = router({
         assignedChannel: { select: { id: true, name: true } },
         assignedDashboardId: true,
         assignedDashboard: { select: { id: true, client: { select: { name: true } }, market: true } },
+        assignedWorkspaceClientId: true,
+        assignedWorkspaceClient: { select: { id: true, name: true } },
         consentPrivacyPolicy: true,
         consentTerms: true,
         consentDPA: true,
@@ -46,6 +48,7 @@ export const adminRouter = router({
         role: z.enum(["ADMIN", "CONSULTANT", "MANAGER", "GUEST_CLIENT", "GUEST_TEAM_MEMBER"]).default("CONSULTANT"),
         assignedChannelId: z.string().optional(),
         assignedDashboardId: z.string().optional(),
+        assignedWorkspaceClientId: z.string().optional(),
         assignedSubChannelIds: z.array(z.string()).optional(),
         sendWelcomeEmail: z.boolean().default(true),
       })
@@ -71,6 +74,7 @@ export const adminRouter = router({
           role: input.role,
           assignedChannelId: input.assignedChannelId,
           assignedDashboardId: input.assignedDashboardId,
+          assignedWorkspaceClientId: input.assignedWorkspaceClientId,
           mustChangePassword: input.sendWelcomeEmail, // force change if auto-generated/sent
         },
       });
@@ -196,6 +200,8 @@ export const adminRouter = router({
           role: z.enum(["ADMIN", "CONSULTANT", "MANAGER", "GUEST_CLIENT", "GUEST_TEAM_MEMBER"]).optional(),
           isActive: z.boolean().optional(),
           assignedChannelId: z.string().nullable().optional(),
+          assignedWorkspaceClientId: z.string().nullable().optional(),
+          assignedDashboardId: z.string().nullable().optional(),
         }),
       })
     )

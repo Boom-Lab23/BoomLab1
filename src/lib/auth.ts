@@ -170,6 +170,8 @@ export const authOptions: NextAuthOptions = {
           (session.user as Record<string, unknown>).role = dbUser.role;
           (session.user as Record<string, unknown>).googleConnected = dbUser.googleConnected;
           (session.user as Record<string, unknown>).mustChangePassword = dbUser.mustChangePassword;
+          (session.user as Record<string, unknown>).assignedChannelId = dbUser.assignedChannelId;
+          (session.user as Record<string, unknown>).assignedWorkspaceClientId = dbUser.assignedWorkspaceClientId;
         }
       }
       return session;

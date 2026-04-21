@@ -2,6 +2,7 @@
 
 import { use, useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
@@ -47,6 +48,12 @@ const PERMISSION_LABELS: Record<string, string> = {
 
 export default function ChannelPage({ params }: { params: Promise<{ channelId: string }> }) {
   const { channelId } = use(params);
+  const { data: authSession } = useSession();
+  const role = (authSession?.user as Record<string, unknown>)?.role as string | undefined;
+  const isGuest = role === "GUEST_CLIENT" || role === "GUEST_TEAM_MEMBER";
+  const assignedChannelId = (authSession?.user as Record<string, unknown>)?.assignedChannelId as string | undefined;
+  const guestBlocked = isGuest && assignedChannelId !== channelId;
+
   const [message, setMessage] = useState("");
   const [activeSubChannel, setActiveSubChannel] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
@@ -103,6 +110,14 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  if (guestBlocked) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-lg font-semibold">Acesso negado</p>
+        <p className="mt-2 text-sm text-muted-foreground">Nao tens permissoes para aceder a este canal.</p>
+      </div>
+    );
+  }
   if (channelData.isLoading) {
     return <div className="p-8 text-center text-muted-foreground">A carregar...</div>;
   }

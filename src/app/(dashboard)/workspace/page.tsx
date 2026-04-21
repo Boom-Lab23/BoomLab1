@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { trpc } from "@/lib/trpc";
-import { BarChart3, Users, Phone, ChevronRight, Building2, Shield, Home, FolderKanban } from "lucide-react";
+import { BarChart3, Users, Phone, ChevronRight, Building2, Shield, Home, FolderKanban, Lock } from "lucide-react";
 
 const MARKET_CONFIG = {
   CREDITO: { label: "Credito", color: "#2D76FC", icon: Building2 },
@@ -11,8 +14,41 @@ const MARKET_CONFIG = {
 } as const;
 
 export default function WorkspacePage() {
-  const clients = trpc.clients.list.useQuery({});
-  const dashboards = trpc.dashboards.list.useQuery();
+  const { data: session } = useSession();
+  const router = useRouter();
+  const role = (session?.user as Record<string, unknown>)?.role as string | undefined;
+  const isGuest = role === "GUEST_CLIENT" || role === "GUEST_TEAM_MEMBER";
+  const assignedWorkspaceClientId = (session?.user as Record<string, unknown>)?.assignedWorkspaceClientId as string | undefined;
+
+  // Guests: redirect to their own workspace, or show empty state
+  useEffect(() => {
+    if (isGuest && assignedWorkspaceClientId) {
+      router.replace(`/workspace/${assignedWorkspaceClientId}`);
+    }
+  }, [isGuest, assignedWorkspaceClientId, router]);
+
+  const clients = trpc.clients.list.useQuery({}, { enabled: !isGuest });
+  const dashboards = trpc.dashboards.list.useQuery(undefined, { enabled: !isGuest });
+
+  // Guest without workspace assigned: show informative empty state
+  if (isGuest && !assignedWorkspaceClientId) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="rounded-xl border bg-card p-8 text-center max-w-md">
+          <Lock className="mx-auto h-10 w-10 text-muted-foreground/40" />
+          <h1 className="mt-3 text-lg font-bold">Sem workspace atribuido</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            A BoomLab ainda nao te atribuiu acesso a um workspace. Fala com o teu gestor BoomLab para ativar o acesso.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Guest with workspace: while redirect happens show a loader
+  if (isGuest) {
+    return <div className="p-8 text-center text-muted-foreground">A abrir o teu workspace...</div>;
+  }
 
   const dashboardByClient = new Map((dashboards.data ?? []).map(d => [d.clientId, d]));
   const clientList = clients.data ?? [];

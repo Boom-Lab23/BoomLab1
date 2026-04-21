@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   LayoutDashboard, Users, Calendar, FileText, Rocket, Settings, Brain,
   BarChart3, UserCheck, Handshake, Megaphone, Phone, Linkedin,
@@ -41,6 +42,20 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [pillarsOpen, setPillarsOpen] = useState(true);
+  const { data: session } = useSession();
+  const role = (session?.user as Record<string, unknown>)?.role as string | undefined;
+  const isGuest = role === "GUEST_CLIENT" || role === "GUEST_TEAM_MEMBER";
+  const assignedWorkspaceClientId = (session?.user as Record<string, unknown>)?.assignedWorkspaceClientId as string | undefined;
+  const assignedChannelId = (session?.user as Record<string, unknown>)?.assignedChannelId as string | undefined;
+
+  // Filter nav for guests: only Workspace (if assigned) + Messages (if assigned channel)
+  const visibleNav = isGuest
+    ? mainNav.filter((item) => {
+        if (item.href === "/workspace" && assignedWorkspaceClientId) return true;
+        if (item.href === "/messaging" && assignedChannelId) return true;
+        return false;
+      })
+    : mainNav;
 
   function handleNav() {
     onClose?.();
@@ -71,7 +86,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* Main Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin">
         <div className="space-y-0.5">
-          {mainNav.map((item) => {
+          {visibleNav.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
               <Link
@@ -97,8 +112,8 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
           })}
         </div>
 
-        {/* Pillar Section */}
-        <div className="mt-5">
+        {/* Pillar Section - hidden for guests */}
+        {!isGuest && <div className="mt-5">
           <button
             onClick={() => setPillarsOpen(!pillarsOpen)}
             className="flex w-full items-center justify-between px-3 py-1 text-[11px] font-semibold uppercase tracking-wider"
@@ -125,7 +140,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
               ))}
             </div>
           )}
-        </div>
+        </div>}
       </nav>
 
       {/* Bottom */}

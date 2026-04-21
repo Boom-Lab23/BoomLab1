@@ -52,9 +52,29 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   const s = session.data;
   const pillar = getPillarFromModule(s.module);
-  const actionItems = (s.actionItems as string[] | null) ?? [];
-  const actionPlan = s.actionPlan as unknown as ActionPlan | null;
-  const analysis = s.aiAnalysis as unknown as SessionAnalysis | null;
+  const actionItems = Array.isArray(s.actionItems) ? (s.actionItems as string[]) : [];
+
+  // Defensive parsing: action plan and analysis may be stored in different shapes
+  const rawPlan = s.actionPlan as unknown as Partial<ActionPlan> | null;
+  const actionPlan: ActionPlan | null = rawPlan && Array.isArray(rawPlan.items)
+    ? {
+        items: rawPlan.items,
+        nextMeetingTopics: Array.isArray(rawPlan.nextMeetingTopics) ? rawPlan.nextMeetingTopics : [],
+        followUpDate: rawPlan.followUpDate ?? "",
+      }
+    : null;
+
+  const rawAnalysis = s.aiAnalysis as unknown as Partial<SessionAnalysis> | null;
+  const analysis: SessionAnalysis | null = rawAnalysis
+    ? {
+        summary: rawAnalysis.summary ?? "",
+        feedback: rawAnalysis.feedback ?? "",
+        score: typeof rawAnalysis.score === "number" ? rawAnalysis.score : 0,
+        strengths: Array.isArray(rawAnalysis.strengths) ? rawAnalysis.strengths : [],
+        improvements: Array.isArray(rawAnalysis.improvements) ? rawAnalysis.improvements : [],
+        keyDecisions: Array.isArray(rawAnalysis.keyDecisions) ? rawAnalysis.keyDecisions : [],
+      }
+    : null;
 
   const priorityColors: Record<string, string> = {
     alta: "bg-red-100 text-red-700",

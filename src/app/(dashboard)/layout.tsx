@@ -33,15 +33,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [status, mustChangePassword, router]);
 
   // Redirect guests to their assigned area
+  // Guests may only access: /messaging (+ assigned channel) and /workspace (+ assigned client workspace)
   useEffect(() => {
     if (!isGuest) return;
+    if (pathname.startsWith("/messaging")) return;
+    if (pathname.startsWith("/workspace")) return;
+    if (pathname.startsWith("/first-login")) return;
 
-    // Allow messaging and dashboards paths for guests
-    if (pathname.startsWith("/messaging") || pathname.startsWith("/dashboards")) return;
-
-    // Default redirect to messaging
-    router.replace("/messaging");
-  }, [isGuest, pathname, router]);
+    // Default redirect: prefer workspace if assigned, otherwise messaging
+    const assignedWorkspaceClientId = (session?.user as Record<string, unknown>)?.assignedWorkspaceClientId as string | undefined;
+    router.replace(assignedWorkspaceClientId ? `/workspace/${assignedWorkspaceClientId}` : "/messaging");
+  }, [isGuest, pathname, router, session]);
 
   // Show nothing while checking auth
   if (status === "loading") {
@@ -57,12 +59,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (status === "unauthenticated") return null;
 
-  // Guest view - no sidebar, only messaging + dashboard
+  // Guest view - minimal sidebar with only Messaging + Workspace (when assigned)
   if (isGuest) {
     return (
-      <div className="flex h-screen flex-col overflow-hidden">
-        <Header onMenuClick={() => {}} />
-        <main className="flex-1 overflow-y-auto bg-background p-4">{children}</main>
+      <div className="flex h-screen overflow-hidden">
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-40 bg-black/50 lg:hidden animate-fade-in" onClick={() => setSidebarOpen(false)} />
+        )}
+        <div className={`fixed inset-y-0 left-0 z-50 lg:relative lg:z-auto transform transition-transform duration-200 ease-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+          <Sidebar onClose={() => setSidebarOpen(false)} />
+        </div>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Header onMenuClick={() => setSidebarOpen(true)} />
+          <main className="flex-1 overflow-y-auto bg-background p-4 md:p-6 scrollbar-thin">{children}</main>
+        </div>
       </div>
     );
   }

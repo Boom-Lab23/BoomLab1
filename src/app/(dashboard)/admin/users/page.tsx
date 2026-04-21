@@ -51,6 +51,7 @@ export default function AdminUsersPage() {
     role: "CONSULTANT" as string,
     assignedChannelId: "",
     assignedDashboardId: "",
+    assignedWorkspaceClientId: "",
     assignedSubChannelIds: [] as string[],
     sendWelcomeEmail: true,
     autoGeneratePassword: true,
@@ -59,6 +60,7 @@ export default function AdminUsersPage() {
   const users = trpc.admin.listUsers.useQuery();
   const channels = trpc.messaging.channels.useQuery({});
   const dashboardsList = trpc.dashboards.list.useQuery();
+  const clientsList = trpc.clients.list.useQuery({});
   const utils = trpc.useUtils();
 
   const createUser = trpc.admin.createUser.useMutation({
@@ -69,7 +71,7 @@ export default function AdminUsersPage() {
         emailError: data.emailError,
         generatedPassword: data.generatedPassword,
       });
-      setForm({ name: "", email: "", password: "", role: "CONSULTANT", assignedChannelId: "", assignedDashboardId: "", assignedSubChannelIds: [], sendWelcomeEmail: true, autoGeneratePassword: true });
+      setForm({ name: "", email: "", password: "", role: "CONSULTANT", assignedChannelId: "", assignedDashboardId: "", assignedWorkspaceClientId: "", assignedSubChannelIds: [], sendWelcomeEmail: true, autoGeneratePassword: true });
     },
   });
 
@@ -268,6 +270,7 @@ export default function AdminUsersPage() {
                   role: form.role as "ADMIN",
                   assignedChannelId: form.assignedChannelId || undefined,
                   assignedDashboardId: form.assignedDashboardId || undefined,
+                  assignedWorkspaceClientId: form.assignedWorkspaceClientId || undefined,
                   assignedSubChannelIds: form.assignedSubChannelIds.length ? form.assignedSubChannelIds : undefined,
                   sendWelcomeEmail: form.sendWelcomeEmail,
                 });
@@ -403,23 +406,46 @@ export default function AdminUsersPage() {
                     </div>
                   )}
 
-                  {/* Dashboard access */}
+                  {/* Workspace access (completo: Dashboard + CRM Leads + Sales Analysis) */}
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-orange-800">Dashboard (opcional)</label>
+                    <label className="mb-1 block text-sm font-medium text-orange-800">Workspace (opcional)</label>
                     <select
-                      value={form.assignedDashboardId}
-                      onChange={(e) => setForm({ ...form, assignedDashboardId: e.target.value })}
+                      value={form.assignedWorkspaceClientId}
+                      onChange={(e) => setForm({ ...form, assignedWorkspaceClientId: e.target.value })}
                       className="w-full rounded-lg border px-3 py-2 text-sm bg-white"
                     >
-                      <option value="">Sem acesso a dashboard</option>
-                      {dashboardsList.data?.map((db) => (
-                        <option key={db.id} value={db.id}>{db.client.name} ({db.market})</option>
+                      <option value="">Sem acesso a workspace</option>
+                      {clientsList.data?.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>
                     <p className="mt-1 text-xs text-orange-600">
-                      Se selecionado, o utilizador tambem tera acesso a esta dashboard comercial.
+                      Da acesso ao workspace do cliente (Dashboard + CRM Leads + Analise de Vendas).
                     </p>
                   </div>
+
+                  {/* Legacy dashboard-only access (oculto se workspace atribuido) */}
+                  {!form.assignedWorkspaceClientId && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-orange-700">Opcoes avancadas (legacy)</summary>
+                      <div className="mt-2">
+                        <label className="mb-1 block text-xs font-medium text-orange-800">Dashboard isolada (opcional)</label>
+                        <select
+                          value={form.assignedDashboardId}
+                          onChange={(e) => setForm({ ...form, assignedDashboardId: e.target.value })}
+                          className="w-full rounded-lg border px-3 py-2 text-xs bg-white"
+                        >
+                          <option value="">Nao atribuir</option>
+                          {dashboardsList.data?.map((db) => (
+                            <option key={db.id} value={db.id}>{db.client.name} ({db.market})</option>
+                          ))}
+                        </select>
+                        <p className="mt-1 text-[10px] text-orange-600">
+                          Alternativa: so dashboard isolada (sem CRM Leads ou Sales Analysis). Preferir o Workspace acima.
+                        </p>
+                      </div>
+                    </details>
+                  )}
                 </div>
               )}
 
@@ -477,6 +503,7 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
     id: string; name: string; email: string; role: string;
     image: string | null; assignedChannel?: { name: string } | null;
     assignedDashboard?: { client: { name: string }; market: string } | null;
+    assignedWorkspaceClient?: { id: string; name: string } | null;
     consentPrivacyPolicy?: boolean; consentTerms?: boolean; consentDPA?: boolean;
     consentDataDeletion?: boolean; consentAIAnalysis?: boolean; consentsAcceptedAt?: string | null;
     welcomeEmailSentAt?: string | null; mustChangePassword?: boolean;
@@ -523,7 +550,10 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
           {user.assignedChannel && (
             <p className="text-xs text-orange-600">Canal: {user.assignedChannel.name}</p>
           )}
-          {user.assignedDashboard && (
+          {user.assignedWorkspaceClient && (
+            <p className="text-xs text-[#2D76FC]">Workspace: {user.assignedWorkspaceClient.name}</p>
+          )}
+          {!user.assignedWorkspaceClient && user.assignedDashboard && (
             <p className="text-xs text-[#2D76FC]">Dashboard: {user.assignedDashboard.client.name} ({user.assignedDashboard.market})</p>
           )}
         </div>

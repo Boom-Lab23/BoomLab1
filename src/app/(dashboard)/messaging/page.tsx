@@ -13,13 +13,16 @@ import {
 export default function MessagingPage() {
   const { data: session } = useSession();
   const userId = (session?.user as Record<string, unknown>)?.id as string | undefined;
+  const role = (session?.user as Record<string, unknown>)?.role as string | undefined;
+  const isGuest = role === "GUEST_CLIENT" || role === "GUEST_TEAM_MEMBER";
+  const assignedChannelId = (session?.user as Record<string, unknown>)?.assignedChannelId as string | undefined;
 
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [newChannel, setNewChannel] = useState({ name: "", description: "", clientId: "", type: "CLIENT" as string });
 
   const channels = trpc.messaging.channels.useQuery({});
-  const clients = trpc.clients.list.useQuery({});
+  const clients = trpc.clients.list.useQuery({}, { enabled: !isGuest });
   const utils = trpc.useUtils();
 
   const createChannel = trpc.messaging.createChannel.useMutation({
@@ -30,9 +33,13 @@ export default function MessagingPage() {
     },
   });
 
-  const allChannels = channels.data ?? [];
+  const allChannelsRaw = channels.data ?? [];
+  // Guests only see their assigned channel - NEVER see BoomLab internal channels
+  const allChannels = isGuest
+    ? allChannelsRaw.filter((c) => c.id === assignedChannelId)
+    : allChannelsRaw;
   const clientChannels = allChannels.filter((c) => c.type === "CLIENT");
-  const boomLabChannels = allChannels.filter((c) => c.type === "TEAM" || c.type === "GENERAL");
+  const boomLabChannels = isGuest ? [] : allChannels.filter((c) => c.type === "TEAM" || c.type === "GENERAL");
 
   const filteredClients = clientChannels.filter((ch) =>
     search ? ch.name.toLowerCase().includes(search.toLowerCase()) : true
@@ -45,13 +52,15 @@ export default function MessagingPage() {
           <h1 className="text-2xl font-bold">Mensagens</h1>
           <p className="text-muted-foreground">Canais de comunicacao por cliente</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          Novo Canal
-        </button>
+        {!isGuest && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            Novo Canal
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -66,8 +75,8 @@ export default function MessagingPage() {
         />
       </div>
 
-      {/* BoomLab Internal */}
-      <div className="rounded-xl border bg-card">
+      {/* BoomLab Internal - hidden for guests (clientes nao podem ver canais internos) */}
+      {!isGuest && <div className="rounded-xl border bg-card">
         <div className="flex items-center gap-2 border-b p-3 px-4">
           <Rocket className="h-4 w-4 text-[#2D76FC]" />
           <h3 className="text-sm font-semibold">BoomLab Interno</h3>
@@ -97,7 +106,7 @@ export default function MessagingPage() {
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Client Channels */}
       <div className="rounded-xl border bg-card">
