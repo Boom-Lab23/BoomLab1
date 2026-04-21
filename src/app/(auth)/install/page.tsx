@@ -59,7 +59,7 @@ export default function InstallPage() {
   }, []);
 
   async function handleInstallClick() {
-    // Se o browser suporta, chama o prompt nativo
+    // Se o browser suporta instalacao nativa, chama o prompt
     if (installEvent) {
       await installEvent.prompt();
       const choice = await installEvent.userChoice;
@@ -68,7 +68,14 @@ export default function InstallPage() {
       }
       return;
     }
-    // Caso contrário, mostra instruções manuais
+    // iOS Safari - guarda a URL atual como ponto de partida da PWA.
+    // Se o user instalar de "/install", a app fica presa nesse ecra.
+    // Por isso redirecionamos para /login para que o user instale a partir daí.
+    if (platform === "ios") {
+      setShowInstructions(true);
+      return;
+    }
+    // Desktop/Android sem prompt - mostra instrucoes manuais
     setShowInstructions(true);
   }
 
@@ -209,6 +216,17 @@ export default function InstallPage() {
                     <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
                       ⚠️ Tem de ser no <strong>Safari</strong>. Chrome e Firefox no iPhone não suportam instalação.
                     </div>
+                    <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200">
+                      🚨 <strong>Importante:</strong> para a app instalada funcionar correctamente, tens de fazer a instalação a partir da <strong>página principal</strong>, não desta página. Clica no botão abaixo para ir para a página certa.
+                    </div>
+                    <Link
+                      href="/login"
+                      className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#2D76FC] px-4 py-3 text-sm font-semibold hover:bg-[#2563EB]"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                      Ir para a página de login (para depois instalar)
+                    </Link>
+                    <p className="mb-3 text-xs text-gray-400">Depois de ires para o login, segue estes passos:</p>
                     <ol className="space-y-3 text-sm text-gray-200">
                       <Step num={1} icon={Share2}>
                         Na barra de <strong>baixo</strong> do Safari, toca no botão <strong>Partilhar</strong> (⬆️ quadrado com seta)

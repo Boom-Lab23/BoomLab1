@@ -15,10 +15,15 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [isComunicacao, setIsComunicacao] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [cameFromInstall, setCameFromInstall] = useState(false);
 
   useEffect(() => {
     setIsComunicacao(window.location.hostname.includes("comunicacao"));
     setIsStandalone(window.matchMedia("(display-mode: standalone)").matches);
+    setIsIOS(/iphone|ipad|ipod/i.test(navigator.userAgent));
+    // Se veio da pagina /install, mostra instrucoes em destaque
+    setCameFromInstall(document.referrer.includes("/install"));
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -54,8 +59,21 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Instrucoes iOS em destaque quando veio da pagina /install */}
+        {cameFromInstall && isIOS && !isStandalone && (
+          <div className="rounded-xl border-2 border-[#2D76FC] bg-[#2D76FC]/10 p-3 text-center">
+            <p className="text-sm font-semibold text-white">📲 Instalar no iPhone</p>
+            <p className="mt-1 text-xs text-blue-100">
+              Toca no botão <strong>Partilhar ⬆️</strong> (barra de baixo) → <strong>&quot;Adicionar ao Ecrã Principal&quot;</strong>
+            </p>
+            <p className="mt-1 text-[11px] text-blue-200/80">
+              Faz isto <strong>antes</strong> de entrar, para a app ficar no sítio certo
+            </p>
+          </div>
+        )}
+
         {/* Install CTA - so aparece no dominio comunicacao quando NAO esta instalado */}
-        {isComunicacao && !isStandalone && (
+        {isComunicacao && !isStandalone && !cameFromInstall && (
           <Link
             href="/install"
             className="flex items-center justify-between gap-2 rounded-lg border border-[#2D76FC]/40 bg-[#2D76FC]/10 px-3 py-2.5 text-xs text-[#2D76FC] hover:bg-[#2D76FC]/20 transition-colors"
