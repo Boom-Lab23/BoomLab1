@@ -48,14 +48,25 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const assignedWorkspaceClientId = (session?.user as Record<string, unknown>)?.assignedWorkspaceClientId as string | undefined;
   const assignedChannelId = (session?.user as Record<string, unknown>)?.assignedChannelId as string | undefined;
 
-  // Filter nav for guests: only Workspace (if assigned) + Messages (if assigned channel)
+  // Filter nav for guests:
+  // - Workspace SEMPRE visivel (pagina trata do caso "sem workspace atribuido")
+  // - Messaging SEMPRE visivel (mesma logica)
+  // - Outras rotas escondidas
+  // Assim o cliente ve os items mesmo que a sessao ainda nao tenha atualizado
+  // o campo assignedWorkspaceClientId apos o admin atribuir.
+  const guestAllowed = new Set(["/workspace", "/messaging", "/settings"]);
+  const adminOnly = new Set(["/admin/users"]);
+  const isAdminOrManager = role === "ADMIN" || role === "MANAGER";
+
   const visibleNav = isGuest
-    ? mainNav.filter((item) => {
-        if (item.href === "/workspace" && assignedWorkspaceClientId) return true;
-        if (item.href === "/messaging" && assignedChannelId) return true;
-        return false;
-      })
-    : mainNav;
+    ? mainNav.filter((item) => guestAllowed.has(item.href))
+    : mainNav.filter((item) => {
+        if (adminOnly.has(item.href) && !isAdminOrManager) return false;
+        return true;
+      });
+
+  // unused-but-informative: assignedChannelId / assignedWorkspaceClientId
+  void assignedChannelId; void assignedWorkspaceClientId;
 
   function handleNav() {
     onClose?.();

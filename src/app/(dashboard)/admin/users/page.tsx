@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +35,12 @@ const ROLE_ICONS: Record<string, React.ElementType> = {
 };
 
 export default function AdminUsersPage() {
+  const { data: authSession } = useSession();
+  const myRole = (authSession?.user as Record<string, unknown>)?.role as string | undefined;
+  const isAdmin = myRole === "ADMIN";
+  const isManager = myRole === "MANAGER";
+  const canManage = isAdmin || isManager;
+
   const [showCreate, setShowCreate] = useState(false);
   const [showResetPw, setShowResetPw] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
@@ -126,6 +133,15 @@ export default function AdminUsersPage() {
   const guestUsers = users.data?.filter((u) => u.isActive && u.role.startsWith("GUEST")) ?? [];
   const inactiveUsers = users.data?.filter((u) => !u.isActive) ?? [];
 
+  if (!canManage) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-lg font-semibold">Acesso negado</p>
+        <p className="mt-2 text-sm text-muted-foreground">Apenas administradores e gestores podem gerir utilizadores.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -133,6 +149,7 @@ export default function AdminUsersPage() {
           <h1 className="text-2xl font-bold">Gestao de Utilizadores</h1>
           <p className="text-muted-foreground">
             {internalUsers.length} equipa, {guestUsers.length} clientes, {inactiveUsers.length} inativos
+            {isManager && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">Gestor</span>}
           </p>
         </div>
         <button
@@ -143,6 +160,12 @@ export default function AdminUsersPage() {
           Novo Utilizador
         </button>
       </div>
+
+      {isManager && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          Como <strong>gestor</strong>, podes atribuir acessos (workspace + canal de mensagens) a clientes e equipas, reenviar credenciais e resetar passwords. Operacoes destrutivas (apagar contas, alterar roles) sao reservadas a administradores.
+        </div>
+      )}
 
       {/* Global resend notice */}
       {resendNotice && (
