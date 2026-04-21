@@ -18,10 +18,11 @@ services:
     image: postgres:16-alpine
     container_name: boomlab-db
     restart: always
+    env_file:
+      - .env.production
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-boomlab}
       POSTGRES_USER: ${POSTGRES_USER:-boomlab}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - boomlab_pgdata:/var/lib/postgresql/data
     healthcheck:
