@@ -66,9 +66,10 @@ export const dashboardsRouter = router({
       callsMade: z.number().default(0),
       callsAnswered: z.number().default(0),
       callsNotAnswered: z.number().default(0),
-      // Renamed pipeline
-      reunioesEfetuadas: z.number().default(0),
-      conversoesFeitas: z.number().default(0),
+      // Pipeline comercial (3 etapas distintas)
+      reunioesAgendadas: z.number().default(0),  // Reunioes marcadas (pipeline)
+      reunioesEfetuadas: z.number().default(0),  // Reunioes que aconteceram
+      conversoesFeitas: z.number().default(0),   // Contratos fechados
       // Legacy (kept for compat)
       conversions: z.number().optional(),
       agendamentos: z.number().optional(),
@@ -122,11 +123,14 @@ export const dashboardsRouter = router({
       const month = months[date.getMonth()];
       const q = Math.floor(date.getMonth() / 3) + 1;
 
-      // Use new fields as source of truth; fall back to legacy if provided
-      const conversions = input.conversoesFeitas || input.conversions || 0;
-      const reunioes = input.reunioesEfetuadas || input.reunioes || input.agendamentos || 0;
-      const convRate = input.callsMade > 0 ? (conversions / input.callsMade) * 100 : 0;
-      const showUp = reunioes > 0 ? (conversions / reunioes) * 100 : 0;
+      // New pipeline (3 etapas)
+      const reunioesAgendadas = input.reunioesAgendadas || input.agendamentos || 0;
+      const reunioesEfetuadas = input.reunioesEfetuadas || input.reunioes || 0;
+      const conversoesFeitas = input.conversoesFeitas || input.conversions || 0;
+
+      // Taxas
+      const convRate = input.callsMade > 0 ? (conversoesFeitas / input.callsMade) * 100 : 0;
+      const showUp = reunioesAgendadas > 0 ? (reunioesEfetuadas / reunioesAgendadas) * 100 : 0;
 
       return ctx.prisma.dashboardRecord.create({
         data: {
@@ -141,12 +145,12 @@ export const dashboardsRouter = router({
           callsMade: input.callsMade,
           callsAnswered: input.callsAnswered,
           callsNotAnswered: input.callsNotAnswered,
-          conversions,
-          conversoesFeitas: conversions,
-          reunioesEfetuadas: reunioes,
-          agendamentos: reunioes, // keep synced for legacy reads
-          reunioes,
-          comparecimentos: input.comparecimentos ?? reunioes,
+          conversions: conversoesFeitas,
+          conversoesFeitas,
+          reunioesEfetuadas,
+          agendamentos: reunioesAgendadas, // campo "reunioes agendadas"
+          reunioes: reunioesEfetuadas,     // legacy
+          comparecimentos: input.comparecimentos ?? reunioesEfetuadas,
           conversionRate: convRate,
           showUpRate: showUp,
           escrituras: input.escrituras,
@@ -226,45 +230,52 @@ export const dashboardsRouter = router({
       // Aggregate by commercial
       const byCommercial: Record<string, {
         calls: number; answered: number; conversoesFeitas: number;
-        reunioesEfetuadas: number;
+        reunioesAgendadas: number; reunioesEfetuadas: number;
         escrituras: number; angariacoes: number; decisionMakers: number;
       }> = {};
 
       // Aggregate by channel (acquisition channel)
       const byChannel: Record<string, {
-        calls: number; answered: number; conversoesFeitas: number; reunioesEfetuadas: number;
+        calls: number; answered: number; conversoesFeitas: number;
+        reunioesAgendadas: number; reunioesEfetuadas: number;
       }> = {};
 
-      let totalCalls = 0, totalAnswered = 0, totalConversoes = 0, totalReunioes = 0;
+      let totalCalls = 0, totalAnswered = 0, totalConversoes = 0;
+      let totalAgendadas = 0, totalEfetuadas = 0;
 
       for (const r of records) {
         const conv = r.conversoesFeitas || r.conversions || 0;
-        const reun = r.reunioesEfetuadas || r.agendamentos || r.reunioes || 0;
+        const agendadas = r.agendamentos || 0;  // reunioes agendadas
+        const efetuadas = r.reunioesEfetuadas || r.reunioes || 0;
+
         if (!byCommercial[r.commercial]) {
-          byCommercial[r.commercial] = { calls: 0, answered: 0, conversoesFeitas: 0, reunioesEfetuadas: 0, escrituras: 0, angariacoes: 0, decisionMakers: 0 };
+          byCommercial[r.commercial] = { calls: 0, answered: 0, conversoesFeitas: 0, reunioesAgendadas: 0, reunioesEfetuadas: 0, escrituras: 0, angariacoes: 0, decisionMakers: 0 };
         }
         const c = byCommercial[r.commercial];
         c.calls += r.callsMade;
         c.answered += r.callsAnswered;
         c.conversoesFeitas += conv;
-        c.reunioesEfetuadas += reun;
+        c.reunioesAgendadas += agendadas;
+        c.reunioesEfetuadas += efetuadas;
         c.escrituras += r.escrituras ?? 0;
         c.angariacoes += r.angariacoes ?? 0;
         c.decisionMakers += r.decisionMakers ?? 0;
 
         const channelKey = r.channel || "outros";
         if (!byChannel[channelKey]) {
-          byChannel[channelKey] = { calls: 0, answered: 0, conversoesFeitas: 0, reunioesEfetuadas: 0 };
+          byChannel[channelKey] = { calls: 0, answered: 0, conversoesFeitas: 0, reunioesAgendadas: 0, reunioesEfetuadas: 0 };
         }
         byChannel[channelKey].calls += r.callsMade;
         byChannel[channelKey].answered += r.callsAnswered;
         byChannel[channelKey].conversoesFeitas += conv;
-        byChannel[channelKey].reunioesEfetuadas += reun;
+        byChannel[channelKey].reunioesAgendadas += agendadas;
+        byChannel[channelKey].reunioesEfetuadas += efetuadas;
 
         totalCalls += r.callsMade;
         totalAnswered += r.callsAnswered;
         totalConversoes += conv;
-        totalReunioes += reun;
+        totalAgendadas += agendadas;
+        totalEfetuadas += efetuadas;
       }
 
       return {
@@ -274,24 +285,33 @@ export const dashboardsRouter = router({
         totals: {
           calls: totalCalls,
           answered: totalAnswered,
+          reunioesAgendadas: totalAgendadas,
+          reunioesEfetuadas: totalEfetuadas,
           conversoesFeitas: totalConversoes,
-          reunioesEfetuadas: totalReunioes,
+          // As 3 taxas distintas do pipeline
+          tcAgendamento: totalCalls > 0 ? (totalAgendadas / totalCalls) * 100 : 0,        // Contactos -> Agendadas
+          tcShowUp: totalAgendadas > 0 ? (totalEfetuadas / totalAgendadas) * 100 : 0,     // Agendadas -> Efetuadas
+          tcFecho: totalEfetuadas > 0 ? (totalConversoes / totalEfetuadas) * 100 : 0,     // Efetuadas -> Conversoes
+          // Taxa global (legacy)
           conversionRate: totalCalls > 0 ? (totalConversoes / totalCalls) * 100 : 0,
-          // Show-up rate here means: from meetings held, how many actually converted
-          conversionFromMeetings: totalReunioes > 0 ? (totalConversoes / totalReunioes) * 100 : 0,
         },
         byCommercial: Object.entries(byCommercial).map(([name, data]) => ({
           name,
           ...data,
+          tcAgendamento: data.calls > 0 ? (data.reunioesAgendadas / data.calls) * 100 : 0,
+          tcShowUp: data.reunioesAgendadas > 0 ? (data.reunioesEfetuadas / data.reunioesAgendadas) * 100 : 0,
+          tcFecho: data.reunioesEfetuadas > 0 ? (data.conversoesFeitas / data.reunioesEfetuadas) * 100 : 0,
           conversionRate: data.calls > 0 ? (data.conversoesFeitas / data.calls) * 100 : 0,
-          conversionFromMeetings: data.reunioesEfetuadas > 0 ? (data.conversoesFeitas / data.reunioesEfetuadas) * 100 : 0,
         })).sort((a, b) => b.calls - a.calls),
         byChannel: Object.entries(byChannel).map(([channel, data]) => ({
           channel,
           ...data,
           pctOfCalls: totalCalls > 0 ? (data.calls / totalCalls) * 100 : 0,
           pctOfConversoes: totalConversoes > 0 ? (data.conversoesFeitas / totalConversoes) * 100 : 0,
-          pctOfReunioes: totalReunioes > 0 ? (data.reunioesEfetuadas / totalReunioes) * 100 : 0,
+          pctOfReunioes: totalEfetuadas > 0 ? (data.reunioesEfetuadas / totalEfetuadas) * 100 : 0,
+          tcAgendamento: data.calls > 0 ? (data.reunioesAgendadas / data.calls) * 100 : 0,
+          tcShowUp: data.reunioesAgendadas > 0 ? (data.reunioesEfetuadas / data.reunioesAgendadas) * 100 : 0,
+          tcFecho: data.reunioesEfetuadas > 0 ? (data.conversoesFeitas / data.reunioesEfetuadas) * 100 : 0,
           conversionRate: data.calls > 0 ? (data.conversoesFeitas / data.calls) * 100 : 0,
         })).sort((a, b) => b.calls - a.calls),
         objectives: dashboard.objectives as Record<string, number> | null,

@@ -59,7 +59,7 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
     channel: channels[0]?.key ?? "cold-calling",
     date: new Date().toISOString().split("T")[0],
     callsMade: "", callsAnswered: "",
-    reunioesEfetuadas: "", conversoesFeitas: "",
+    reunioesAgendadas: "", reunioesEfetuadas: "", conversoesFeitas: "",
     notes: "",
   });
 
@@ -183,27 +183,66 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
 
       {/* ========== OVERVIEW TAB ========== */}
       {activeTab === "overview" && (<>
-        {/* KPI Cards - pipeline renomeado */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        {/* KPI Cards - totais do pipeline */}
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
           <div className="rounded-xl border bg-card p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Phone className="h-3.5 w-3.5" /> Contactos Feitos</div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Phone className="h-3.5 w-3.5" /> Contactos</div>
             <p className="text-2xl font-bold mt-1">{k?.totals.calls ?? 0}</p>
             <p className="text-[10px] text-muted-foreground">{k?.totals.answered ?? 0} respondidos</p>
           </div>
           <div className="rounded-xl border bg-card p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Handshake className="h-3.5 w-3.5" /> Reunioes Efetuadas</div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Calendar className="h-3.5 w-3.5" /> Reun. Agendadas</div>
+            <p className="text-2xl font-bold mt-1">{k?.totals.reunioesAgendadas ?? 0}</p>
+            <p className="text-[10px] text-muted-foreground">no pipeline</p>
+          </div>
+          <div className="rounded-xl border bg-card p-4">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Handshake className="h-3.5 w-3.5" /> Reun. Efetuadas</div>
             <p className="text-2xl font-bold mt-1">{k?.totals.reunioesEfetuadas ?? 0}</p>
-            <p className="text-[10px] text-muted-foreground">de {k?.totals.answered ?? 0} respondidos</p>
+            <p className="text-[10px] text-muted-foreground">aconteceram</p>
           </div>
           <div className="rounded-xl border bg-card p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5" /> Conversoes Feitas</div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5" /> Conversoes</div>
             <p className="text-2xl font-bold mt-1">{k?.totals.conversoesFeitas ?? 0}</p>
-            <p className="text-[10px] text-muted-foreground">TC global: {k?.totals.conversionRate?.toFixed(1) ?? 0}%</p>
+            <p className="text-[10px] text-muted-foreground">fechadas</p>
           </div>
           <div className="rounded-xl border bg-card p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Target className="h-3.5 w-3.5" /> Fecho / Reuniao</div>
-            <p className="text-2xl font-bold mt-1">{k?.totals.conversionFromMeetings?.toFixed(0) ?? 0}%</p>
-            <p className="text-[10px] text-muted-foreground">taxa de fecho pos-reuniao</p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Target className="h-3.5 w-3.5" /> TC Global</div>
+            <p className="text-2xl font-bold mt-1">{k?.totals.conversionRate?.toFixed(1) ?? 0}%</p>
+            <p className="text-[10px] text-muted-foreground">contactos -&gt; fecho</p>
+          </div>
+        </div>
+
+        {/* 3 Taxas do Pipeline */}
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+          <div className="rounded-xl border bg-card p-4 border-l-4" style={{ borderLeftColor: color }}>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-semibold" style={{ color }}>1 -&gt; 3</span>
+              Taxa de Agendamento
+            </div>
+            <p className="text-2xl font-bold mt-1" style={{ color }}>{k?.totals.tcAgendamento?.toFixed(1) ?? 0}%</p>
+            <p className="text-[10px] text-muted-foreground">
+              {k?.totals.reunioesAgendadas ?? 0} agendadas / {k?.totals.calls ?? 0} contactos
+            </p>
+          </div>
+          <div className="rounded-xl border bg-card p-4 border-l-4 border-l-purple-500">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="rounded-full bg-purple-100 text-purple-700 px-1.5 py-0.5 font-semibold">3 -&gt; 4</span>
+              Taxa de Show-up
+            </div>
+            <p className="text-2xl font-bold mt-1 text-purple-600">{k?.totals.tcShowUp?.toFixed(1) ?? 0}%</p>
+            <p className="text-[10px] text-muted-foreground">
+              {k?.totals.reunioesEfetuadas ?? 0} efetuadas / {k?.totals.reunioesAgendadas ?? 0} agendadas
+            </p>
+          </div>
+          <div className="rounded-xl border bg-card p-4 border-l-4 border-l-green-500">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="rounded-full bg-green-100 text-green-700 px-1.5 py-0.5 font-semibold">4 -&gt; 5</span>
+              Taxa de Fecho
+            </div>
+            <p className="text-2xl font-bold mt-1 text-green-600">{k?.totals.tcFecho?.toFixed(1) ?? 0}%</p>
+            <p className="text-[10px] text-muted-foreground">
+              {k?.totals.conversoesFeitas ?? 0} fechadas / {k?.totals.reunioesEfetuadas ?? 0} efetuadas
+            </p>
           </div>
         </div>
 
@@ -251,9 +290,13 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
               <table className="w-full text-sm">
                 <thead><tr className="border-b text-xs text-muted-foreground">
                   <th className="text-left p-3">#</th><th className="text-left p-3">Comercial</th>
-                  <th className="text-right p-3">Contactos</th><th className="text-right p-3">Reunioes</th>
-                  <th className="text-right p-3">Conversoes</th><th className="text-right p-3">TC%</th>
-                  <th className="text-right p-3">Fecho/Reun.</th>
+                  <th className="text-right p-3" title="Contactos feitos">Ctct.</th>
+                  <th className="text-right p-3" title="Reunioes agendadas">Agen.</th>
+                  <th className="text-right p-3" title="Reunioes efetuadas">Efet.</th>
+                  <th className="text-right p-3" title="Conversoes feitas">Conv.</th>
+                  <th className="text-right p-3" title="Taxa agendamento (Contactos -> Agendadas)">TC Agen.</th>
+                  <th className="text-right p-3" title="Taxa show-up (Agendadas -> Efetuadas)">Show-up</th>
+                  <th className="text-right p-3" title="Taxa de fecho (Efetuadas -> Conversoes)">TC Fecho</th>
                 </tr></thead>
                 <tbody className="divide-y">
                   {k.byCommercial.map((c, i) => (
@@ -261,10 +304,20 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                       <td className="p-3 font-bold" style={{ color: i === 0 ? color : undefined }}>{i + 1}º</td>
                       <td className="p-3 font-medium">{c.name}</td>
                       <td className="p-3 text-right">{c.calls}</td>
+                      <td className="p-3 text-right">{c.reunioesAgendadas}</td>
                       <td className="p-3 text-right">{c.reunioesEfetuadas}</td>
                       <td className="p-3 text-right font-medium">{c.conversoesFeitas}</td>
-                      <td className="p-3 text-right"><span className={cn("rounded px-1.5 py-0.5 text-xs font-medium", c.conversionRate > 10 ? "bg-green-100 text-green-700" : c.conversionRate > 3 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700")}>{c.conversionRate.toFixed(1)}%</span></td>
-                      <td className="p-3 text-right">{c.conversionFromMeetings.toFixed(0)}%</td>
+                      <td className="p-3 text-right text-xs">{c.tcAgendamento.toFixed(1)}%</td>
+                      <td className="p-3 text-right text-xs text-purple-600">{c.tcShowUp.toFixed(0)}%</td>
+                      <td className="p-3 text-right">
+                        <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium",
+                          c.tcFecho > 40 ? "bg-green-100 text-green-700" :
+                          c.tcFecho > 20 ? "bg-yellow-100 text-yellow-700" :
+                          "bg-red-100 text-red-700"
+                        )}>
+                          {c.tcFecho.toFixed(0)}%
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -717,6 +770,7 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 channel: eod.channel,
                 callsMade: parseInt(eod.callsMade) || 0,
                 callsAnswered: parseInt(eod.callsAnswered) || 0,
+                reunioesAgendadas: parseInt(eod.reunioesAgendadas) || 0,
                 reunioesEfetuadas: parseInt(eod.reunioesEfetuadas) || 0,
                 conversoesFeitas: parseInt(eod.conversoesFeitas) || 0,
                 notes: eod.notes || undefined,
@@ -755,15 +809,31 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 </p>
               </div>
 
-              <p className="text-xs font-semibold text-muted-foreground pt-1">Pipeline Comercial</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div><label className="mb-0.5 block text-[10px]">Contactos Feitos</label><input type="number" min="0" value={eod.callsMade} onChange={(e) => setEod({ ...eod, callsMade: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" /></div>
-                <div><label className="mb-0.5 block text-[10px]">Contactos Respondidos</label><input type="number" min="0" value={eod.callsAnswered} onChange={(e) => setEod({ ...eod, callsAnswered: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" /></div>
-                <div><label className="mb-0.5 block text-[10px]">Reunioes Efetuadas</label><input type="number" min="0" value={eod.reunioesEfetuadas} onChange={(e) => setEod({ ...eod, reunioesEfetuadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" /></div>
-                <div><label className="mb-0.5 block text-[10px]">Conversoes Feitas</label><input type="number" min="0" value={eod.conversoesFeitas} onChange={(e) => setEod({ ...eod, conversoesFeitas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" /></div>
+              <p className="text-xs font-semibold text-muted-foreground pt-1">Pipeline Comercial (5 etapas)</p>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                <div>
+                  <label className="mb-0.5 block text-[10px]">1. Contactos Feitos</label>
+                  <input type="number" min="0" value={eod.callsMade} onChange={(e) => setEod({ ...eod, callsMade: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[10px]">2. Respondidos</label>
+                  <input type="number" min="0" value={eod.callsAnswered} onChange={(e) => setEod({ ...eod, callsAnswered: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[10px]">3. Reun. Agendadas</label>
+                  <input type="number" min="0" value={eod.reunioesAgendadas} onChange={(e) => setEod({ ...eod, reunioesAgendadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[10px]">4. Reun. Efetuadas</label>
+                  <input type="number" min="0" value={eod.reunioesEfetuadas} onChange={(e) => setEod({ ...eod, reunioesEfetuadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[10px]">5. Conversoes</label>
+                  <input type="number" min="0" value={eod.conversoesFeitas} onChange={(e) => setEod({ ...eod, conversoesFeitas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                </div>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                <strong>Reunioes Efetuadas</strong> = reunioes que realmente aconteceram. <strong>Conversoes Feitas</strong> = quantos fecharam contrato.
+                <strong>Agendadas</strong>: reunioes marcadas no calendario. <strong>Efetuadas</strong>: as que realmente aconteceram. <strong>Conversoes</strong>: fecho de contrato.
               </p>
 
               <p className="text-xs font-semibold pt-1" style={{ color }}>Vertentes - {MARKET_LABELS[market]}</p>
