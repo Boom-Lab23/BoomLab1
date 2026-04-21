@@ -7,8 +7,9 @@
 # O BoomLab liga-se a rede "n8n_default" do Traefik e fica acessivel em:
 #   https://servico.boomlab.cloud
 #
-# Usar no VPS com:
-#   docker compose -f docker-compose.prod.yml up -d --build
+# Usar no VPS com (o --env-file faz compose ler variaveis do .env.production
+# para interpolacao ${VAR}, alem do env_file por servico):
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 
 services:
   # ============================================================
