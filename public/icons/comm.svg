@@ -1,8 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#0f1419"/>
-  <circle cx="256" cy="256" r="148" fill="#2D76FC"/>
-  <path d="M 180 195 L 180 295 Q 180 320 205 320 L 260 320 L 300 355 L 300 320 L 320 320 Q 345 320 345 295 L 345 195 Q 345 170 320 170 L 205 170 Q 180 170 180 195 Z" fill="#ffffff"/>
-  <circle cx="225" cy="245" r="10" fill="#2D76FC"/>
-  <circle cx="262" cy="245" r="10" fill="#2D76FC"/>
-  <circle cx="299" cy="245" r="10" fill="#2D76FC"/>
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="96" fill="#2D76FC"/>
+  <!-- Infinity symbol stylized in white on blue -->
+  <g transform="translate(256, 256)">
+    <!-- Outer glow circle (subtle) -->
+    <circle r="160" fill="#ffffff" opacity="0.08"/>
+    <!-- Infinity path -->
+    <path
+      d="M -115 0
+         C -115 -55, -70 -85, -35 -55
+         C -15 -35, 15 35, 35 55
+         C 70 85, 115 55, 115 0
+         C 115 -55, 70 -85, 35 -55
+         C 15 -35, -15 35, -35 55
+         C -70 85, -115 55, -115 0
+         Z"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="32"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <!-- Small accent dot centered -->
+    <circle cx="0" cy="0" r="7" fill="#0f1419"/>
+  </g>
 </svg>

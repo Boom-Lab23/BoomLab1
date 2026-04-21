@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Rocket, Mail, Lock, User, AlertCircle, CheckCircle2, Shield } from "lucide-react";
+import { Mail, Lock, User, AlertCircle, CheckCircle2, Shield } from "lucide-react";
+import { BoomLabLogo } from "@/components/logo";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -82,9 +83,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md space-y-6 rounded-2xl border border-white/10 p-6 md:p-8" style={{ background: "hsl(220, 6%, 12%)" }}>
         {/* Logo */}
         <div className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#2D76FC]">
-            <Rocket className="h-7 w-7 text-white" />
-          </div>
+          <BoomLabLogo size={56} className="mx-auto" />
           <h1 className="mt-4 text-2xl font-bold text-white">Criar Conta</h1>
           <p className="mt-1 text-sm text-gray-400">BoomLab Platform</p>
         </div>

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Rocket, Mail, Lock, AlertCircle, Smartphone } from "lucide-react";
+import { Mail, Lock, AlertCircle, Smartphone } from "lucide-react";
+import { BoomLabLogo } from "@/components/logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -46,9 +47,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6 rounded-2xl border border-white/10 p-6 md:p-8" style={{ background: "hsl(220, 6%, 12%)" }}>
         {/* Logo */}
         <div className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#2D76FC]">
-            <Rocket className="h-7 w-7 text-white" />
-          </div>
+          <BoomLabLogo size={56} className="mx-auto" />
           <h1 className="mt-4 text-2xl font-bold text-white">BoomLab</h1>
           <p className="mt-1 text-sm text-gray-400">
             {isComunicacao ? "Comunicação" : "Plataforma de Gestão de Serviço"}

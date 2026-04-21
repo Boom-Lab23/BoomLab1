@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import { useState } from "react";
+import { BoomLabLogo } from "@/components/logo";
 
 const mainNav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -77,12 +78,12 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* Logo + Close */}
       <div className="flex h-14 items-center justify-between px-5">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "hsl(var(--sidebar-active))" }}>
-            <Rocket className="h-4 w-4 text-white" />
-          </div>
+          <BoomLabLogo size={32} />
           <div>
             <span className="text-sm font-bold text-white tracking-wide">BoomLab</span>
-            <p className="text-[10px] leading-none" style={{ color: "hsl(var(--sidebar-fg))" }}>Platform</p>
+            <p className="text-[10px] leading-none" style={{ color: "hsl(var(--sidebar-fg))" }}>
+              {isGuest ? "Comunicação" : "Platform"}
+            </p>
           </div>
         </div>
         {/* Close button - mobile only */}
