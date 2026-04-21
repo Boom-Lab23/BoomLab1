@@ -73,7 +73,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header onMenuClick={() => setSidebarOpen(true)} />
-          <main className="flex-1 overflow-y-auto bg-background p-4 md:p-6 scrollbar-thin">{children}</main>
+          <main
+            className="flex-1 overflow-y-auto bg-background p-4 md:p-6 scrollbar-thin"
+            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          >{children}</main>
         </div>
       </div>
     );

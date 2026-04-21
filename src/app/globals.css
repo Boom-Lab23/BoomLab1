@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===========================
+   iOS Safe Area Support
+   Quando instalado como PWA no iPhone, o conteudo tem de respeitar
+   a notch em cima, home indicator em baixo e as "bochechas" dos lados.
+   =========================== */
+html, body {
+  /* Previne zoom acidental ao duplo-toque */
+  touch-action: manipulation;
+  /* Usa viewport-fit=cover no viewport (ja configurado em layout.tsx) */
+}
+
+/* Classe utility para uso em componentes que precisem safe-area manual */
+.safe-top     { padding-top:    env(safe-area-inset-top); }
+.safe-bottom  { padding-bottom: env(safe-area-inset-bottom); }
+.safe-left    { padding-left:   env(safe-area-inset-left); }
+.safe-right   { padding-right:  env(safe-area-inset-right); }
+.safe-x       { padding-left:   env(safe-area-inset-left);  padding-right: env(safe-area-inset-right); }
+.safe-y       { padding-top:    env(safe-area-inset-top);   padding-bottom: env(safe-area-inset-bottom); }
+
 @layer base {
   /* ========================================
      BoomLab Light Mode

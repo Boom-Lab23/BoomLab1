@@ -74,7 +74,16 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   }
 
   return (
-    <aside className="flex h-screen w-[260px] md:w-[240px] flex-col" style={{ background: "hsl(var(--sidebar-bg))" }}>
+    <aside
+      className="flex h-screen w-[260px] md:w-[240px] flex-col"
+      style={{
+        background: "hsl(var(--sidebar-bg))",
+        // Safe-area para iPhone com notch (sidebar que desliza da esquerda)
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+        paddingLeft: "env(safe-area-inset-left)",
+      }}
+    >
       {/* Logo + Close */}
       <div className="flex h-14 items-center justify-between px-5">
         <div className="flex items-center gap-2.5">
