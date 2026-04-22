@@ -69,6 +69,8 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const channelData = trpc.messaging.getChannel.useQuery({ channelId });
+  // Lista de TODOS os canais onde o utilizador e membro (para sidebar de navegacao tipo Slack)
+  const allChannels = trpc.messaging.channels.useQuery({}, { enabled: !isGuest });
   const subChannelData = trpc.messaging.getSubChannel.useQuery(
     { subChannelId: activeSubChannel! },
     { enabled: !!activeSubChannel }
@@ -201,7 +203,7 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
   return (
     <div className="flex h-[calc(100vh-7rem)]">
       {/* Sub-channel Sidebar - hidden on mobile */}
-      <div className="hidden md:flex w-56 shrink-0 border-r bg-muted/30 flex-col">
+      <div className="hidden md:flex w-60 shrink-0 border-r bg-muted/30 flex-col">
         <div className="border-b p-3">
           <Link href="/messaging" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-3 w-3" /> Todos os canais
@@ -219,8 +221,34 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
           </div>
         </div>
 
-        {/* Main channel link */}
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+          {/* Outros canais (navegacao rapida tipo Slack) */}
+          {!isGuest && allChannels.data && allChannels.data.length > 1 && (
+            <div className="mb-3">
+              <div className="mb-1 px-2">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Canais</p>
+              </div>
+              {allChannels.data.map((ch) => (
+                <Link
+                  key={ch.id}
+                  href={`/messaging/${ch.id}`}
+                  className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    ch.id === channelId
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {ch.isPrivate ? <Lock className="h-3.5 w-3.5 shrink-0" /> : <Hash className="h-3.5 w-3.5 shrink-0" />}
+                  <span className="truncate">{ch.name}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {/* Secao do canal atual */}
+          <div className="mb-1 px-2">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">Neste canal</p>
+          </div>
           <button
             onClick={() => setActiveSubChannel(null)}
             className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",

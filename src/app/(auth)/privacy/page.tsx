@@ -21,7 +21,7 @@ export default function PrivacyPolicyPage() {
         <div className="prose prose-sm max-w-none space-y-6 text-muted-foreground">
           <section>
             <h2 className="text-lg font-semibold text-foreground">1. Responsavel pelo Tratamento</h2>
-            <p>A BoomLab, com sede em Portugal, e a entidade responsavel pelo tratamento dos dados pessoais recolhidos atraves das plataformas BoomLab Platform (acessivel em servico.boomlab.agency e servico.boomlab.cloud) e BoomLab Comunicacao (acessivel em comunicacao.boomlab.agency e comunicacao.boomlab.cloud), incluindo as respetivas aplicacoes Android.</p>
+            <p>A BoomLab e a entidade responsavel pelo tratamento dos dados pessoais recolhidos atraves das plataformas BoomLab Platform (acessivel em servico.boomlab.agency e servico.boomlab.cloud) e BoomLab Comunicacao (acessivel em comunicacao.boomlab.agency e comunicacao.boomlab.cloud), incluindo a respetiva aplicacao Android publicada na Google Play Store.</p>
             <p>Para questoes relacionadas com protecao de dados, pode contactar-nos atraves de: <strong>geral@boomlab.agency</strong></p>
           </section>
 

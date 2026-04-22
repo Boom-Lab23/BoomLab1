@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft, Plus, X, Phone, TrendingUp, Users, Target, BarChart3, UserPlus, Trash2,
-  Network, CheckCircle2, Handshake, Filter, Check, AlertTriangle,
+  Network, CheckCircle2, Handshake, Filter, Check, AlertTriangle, Calendar,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,

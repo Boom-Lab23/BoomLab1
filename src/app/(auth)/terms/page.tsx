@@ -16,7 +16,7 @@ export default function TermsPage() {
           <h1 className="text-3xl font-bold">Termos e Condicoes</h1>
         </div>
 
-        <p className="text-sm text-muted-foreground mb-8">Ultima atualizacao: 16 de Abril de 2026</p>
+        <p className="text-sm text-muted-foreground mb-8">Ultima atualizacao: 22 de Abril de 2026</p>
 
         <div className="prose prose-sm max-w-none space-y-6 text-muted-foreground">
           <section>
@@ -94,8 +94,8 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">10. Lei Aplicavel</h2>
-            <p>Estes termos sao regidos pela lei portuguesa. Qualquer litigio sera submetido aos tribunais portugueses competentes.</p>
+            <h2 className="text-lg font-semibold text-foreground">10. Resolucao de Conflitos</h2>
+            <p>Em caso de litigio, as partes comprometem-se a procurar uma resolucao amigavel atraves de contacto directo. Se tal nao for possivel, qualquer litigio sera resolvido de acordo com a lei aplicavel ao local da sede da BoomLab a data do conflito.</p>
           </section>
 
           <section>
