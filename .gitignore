@@ -7,3 +7,30 @@ node_modules/
 next-env.d.ts
 prisma/*.db
 boom-platform/
+
+# Android / Capacitor
+android/app/build/
+android/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/captures/
+
+# Signing / Keystores — NUNCA commitar
+*.keystore
+*.jks
+android/app/keystore.properties
+android/gradle.properties.local
+
+# Generated Android assets (regenerados pelo script)
+android/app/src/main/res/mipmap-*/ic_launcher*.png
+android/app/src/main/res/drawable-*/splash.png
+
+# Capacitor builds (gerados por switch-variant)
+capacitor.config.ts
+
+# Backups locais
+backups/
+*.aab
+*.apk
+
