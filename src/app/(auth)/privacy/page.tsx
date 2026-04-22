@@ -16,12 +16,12 @@ export default function PrivacyPolicyPage() {
           <h1 className="text-3xl font-bold">Politica de Privacidade</h1>
         </div>
 
-        <p className="text-sm text-muted-foreground mb-8">Ultima atualizacao: 16 de Abril de 2026</p>
+        <p className="text-sm text-muted-foreground mb-8">Ultima atualizacao: 22 de Abril de 2026</p>
 
         <div className="prose prose-sm max-w-none space-y-6 text-muted-foreground">
           <section>
             <h2 className="text-lg font-semibold text-foreground">1. Responsavel pelo Tratamento</h2>
-            <p>A BoomLab, com sede em Portugal, e a entidade responsavel pelo tratamento dos dados pessoais recolhidos atraves da plataforma BoomLab Platform (acessivel em servico.boomlab.agency).</p>
+            <p>A BoomLab, com sede em Portugal, e a entidade responsavel pelo tratamento dos dados pessoais recolhidos atraves das plataformas BoomLab Platform (acessivel em servico.boomlab.agency e servico.boomlab.cloud) e BoomLab Comunicacao (acessivel em comunicacao.boomlab.agency e comunicacao.boomlab.cloud), incluindo as respetivas aplicacoes Android.</p>
             <p>Para questoes relacionadas com protecao de dados, pode contactar-nos atraves de: <strong>geral@boomlab.agency</strong></p>
           </section>
 
@@ -69,8 +69,8 @@ export default function PrivacyPolicyPage() {
               <li><strong>Anthropic (Claude AI):</strong> para analise de reunioes e chamadas. A Anthropic nao utiliza dados de API para treino de modelos.</li>
               <li><strong>Fireflies.ai:</strong> para transcricao automatica de reunioes.</li>
               <li><strong>Google:</strong> para sincronizacao de calendario e documentos.</li>
-              <li><strong>Vercel:</strong> para alojamento da plataforma.</li>
-              <li><strong>Neon:</strong> para armazenamento de dados (servidores na Uniao Europeia).</li>
+              <li><strong>Hostinger:</strong> para alojamento da plataforma (servidor na Uniao Europeia).</li>
+              <li><strong>Cloudflare:</strong> para proxy e seguranca de rede.</li>
             </ul>
           </section>
 
