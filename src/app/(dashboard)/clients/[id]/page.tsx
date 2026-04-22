@@ -146,7 +146,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             {/* Offers */}
             <div className="flex flex-wrap gap-1 border-t pt-3">
               {c.offer.map((o) => (
-                <span key={o} className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                <span key={o} className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
                   {o}
                 </span>
               ))}
@@ -311,7 +311,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                 </div>
                 <div className="flex items-center gap-3">
                   {rec.aiScore !== null && (
-                    <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                    <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 px-2 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300">
                       IA: {rec.aiScore}/100
                     </span>
                   )}

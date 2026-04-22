@@ -80,9 +80,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     : null;
 
   const priorityColors: Record<string, string> = {
-    alta: "bg-red-100 text-red-700",
-    media: "bg-yellow-100 text-yellow-700",
-    baixa: "bg-green-100 text-green-700",
+    alta: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300",
+    media: "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300",
+    baixa: "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300",
   };
 
   return (
@@ -99,7 +99,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
               {formatStatus(s.status)}
             </span>
             {s.aiScore !== null && s.aiScore !== undefined && (
-              <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+              <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 px-2.5 py-0.5 text-xs font-semibold text-purple-700 dark:text-purple-300">
                 IA: {s.aiScore}/100
               </span>
             )}
@@ -187,7 +187,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
               <p className="text-sm leading-relaxed text-muted-foreground">{analysis.feedback}</p>
               {/* Strengths */}
               <div>
-                <h3 className="mb-1 flex items-center gap-1 text-sm font-medium text-green-700">
+                <h3 className="mb-1 flex items-center gap-1 text-sm font-medium text-green-700 dark:text-green-300">
                   <TrendingUp className="h-4 w-4" /> Pontos Fortes
                 </h3>
                 <ul className="space-y-0.5">
@@ -198,7 +198,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
               </div>
               {/* Improvements */}
               <div>
-                <h3 className="mb-1 flex items-center gap-1 text-sm font-medium text-orange-700">
+                <h3 className="mb-1 flex items-center gap-1 text-sm font-medium text-orange-700 dark:text-orange-300">
                   <TrendingDown className="h-4 w-4" /> Areas de Melhoria
                 </h3>
                 <ul className="space-y-0.5">
@@ -235,9 +235,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             <Bot className="h-5 w-5 text-purple-600" />
             <h2 className="font-semibold">Resumo da Reuniao</h2>
             {s.firefliesId ? (
-              <span className="ml-auto rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Fireflies</span>
+              <span className="ml-auto rounded-full bg-green-100 dark:bg-green-900/40 px-2 py-0.5 text-xs text-green-700 dark:text-green-300">Fireflies</span>
             ) : (
-              <span className="ml-auto rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-700">Por sincronizar</span>
+              <span className="ml-auto rounded-full bg-orange-100 dark:bg-orange-900/40 px-2 py-0.5 text-xs text-orange-700 dark:text-orange-300">Por sincronizar</span>
             )}
           </div>
           <div className="p-4">
@@ -375,7 +375,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       <span className="text-sm">{rec.title}</span>
                     </div>
                     {rec.aiScore !== null && (
-                      <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                      <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 px-2 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300">
                         IA: {rec.aiScore}/100
                       </span>
                     )}

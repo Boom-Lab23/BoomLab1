@@ -244,7 +244,7 @@ export default function DashboardPage() {
                     className="flex items-center justify-between p-4 transition-colors hover:bg-muted/50"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50 dark:bg-purple-950/30">
                         <Brain className="h-5 w-5 text-purple-600" />
                       </div>
                       <div>
@@ -253,7 +253,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-sm font-semibold text-purple-700">
+                      <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 px-2.5 py-0.5 text-sm font-semibold text-purple-700 dark:text-purple-300">
                         {session.aiScore}/100
                       </span>
                       {session.evaluation && (
@@ -271,12 +271,12 @@ export default function DashboardPage() {
       )}
 
       {/* Alerts */}
-      <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+      <div className="rounded-xl border border-orange-200 bg-orange-50 dark:bg-orange-950/30 p-4">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-orange-600" />
-          <h3 className="font-semibold text-orange-800">Alertas</h3>
+          <h3 className="font-semibold text-orange-800 dark:text-orange-300">Alertas</h3>
         </div>
-        <ul className="mt-2 space-y-1 text-sm text-orange-700">
+        <ul className="mt-2 space-y-1 text-sm text-orange-700 dark:text-orange-300">
           {(pendingRecordings.data?.length ?? 0) > 0 && (
             <li>
               <Link href="/recordings" className="hover:underline">

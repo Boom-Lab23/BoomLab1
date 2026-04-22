@@ -206,7 +206,7 @@ export default function CalendarPage() {
 
       {/* Error */}
       {teamEvents.error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-700 dark:text-red-300">
           Erro: {teamEvents.error.message}
         </div>
       )}
@@ -289,7 +289,7 @@ export default function CalendarPage() {
               </div>
               {te.event.meetLink && (
                 <a href={te.event.meetLink} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1 rounded-lg bg-green-100 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-200 shrink-0">
+                  className="flex items-center gap-1 rounded-lg bg-green-100 dark:bg-green-900/40 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-300 hover:bg-green-200 shrink-0">
                   <Video className="h-3 w-3" />Meet
                 </a>
               )}

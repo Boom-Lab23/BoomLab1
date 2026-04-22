@@ -20,11 +20,11 @@ const LEAD_STATUS_LABELS: Record<string, string> = {
 };
 
 const LEAD_STATUS_COLORS: Record<string, string> = {
-  NOVA: "bg-blue-100 text-blue-700", CONTACTADA: "bg-indigo-100 text-indigo-700",
-  QUALIFICADA: "bg-purple-100 text-purple-700",
-  REUNIAO_AGENDADA: "bg-yellow-100 text-yellow-700", REUNIAO_EFETUADA: "bg-amber-100 text-amber-700",
-  PROPOSTA_ENVIADA: "bg-orange-100 text-orange-700", NEGOCIACAO: "bg-pink-100 text-pink-700",
-  FECHADA_GANHA: "bg-green-100 text-green-700", FECHADA_PERDIDA: "bg-red-100 text-red-700",
+  NOVA: "bg-blue-100 dark:bg-blue-900/40 text-blue-700", CONTACTADA: "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300",
+  QUALIFICADA: "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300",
+  REUNIAO_AGENDADA: "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300", REUNIAO_EFETUADA: "bg-amber-100 text-amber-700",
+  PROPOSTA_ENVIADA: "bg-orange-100 dark:bg-orange-900/40 text-orange-700", NEGOCIACAO: "bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300",
+  FECHADA_GANHA: "bg-green-100 dark:bg-green-900/40 text-green-700", FECHADA_PERDIDA: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300",
   EM_PAUSA: "bg-gray-100 text-gray-700",
 };
 
@@ -258,7 +258,7 @@ function LeadsTab({ clientId }: { clientId: string }) {
                 )}
               >
                 {name} <span className="opacity-75">({total})</span>
-                {won > 0 && <span className="rounded bg-green-100 text-green-700 px-1 text-[10px]">{won}G</span>}
+                {won > 0 && <span className="rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-1 text-[10px]">{won}G</span>}
               </button>
             );
           })
@@ -466,8 +466,8 @@ function LeadsTab({ clientId }: { clientId: string }) {
                 )}
               </div>
               {/* EMPRESA (obrigatoria) */}
-              <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-3">
-                <p className="mb-2 text-xs font-semibold text-blue-900">🏢 Empresa</p>
+              <div className="rounded-lg border border-blue-200 bg-blue-50/30 dark:bg-blue-950/20 p-3">
+                <p className="mb-2 text-xs font-semibold text-blue-900 dark:text-blue-200">🏢 Empresa</p>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="col-span-2">
                     <label className="mb-0.5 block text-[11px] font-medium">Nome Empresa *</label>
@@ -493,8 +493,8 @@ function LeadsTab({ clientId }: { clientId: string }) {
               </div>
 
               {/* DECISOR (opcional) */}
-              <div className="rounded-lg border border-purple-200 bg-purple-50/30 p-3">
-                <p className="mb-2 text-xs font-semibold text-purple-900">👤 Decisor (opcional)</p>
+              <div className="rounded-lg border border-purple-200 bg-purple-50/30 dark:bg-purple-950/20 p-3">
+                <p className="mb-2 text-xs font-semibold text-purple-900 dark:text-purple-200">👤 Decisor (opcional)</p>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="col-span-2">
                     <label className="mb-0.5 block text-[11px] font-medium">Nome do Decisor</label>
@@ -540,19 +540,19 @@ function LeadsTab({ clientId }: { clientId: string }) {
                 const ownerCommercial = parts[2];
                 const existingName = parts.slice(3).join(":");
                 return (
-                  <div className="rounded-lg border-2 border-red-400 bg-red-50 p-3">
+                  <div className="rounded-lg border-2 border-red-400 bg-red-50 dark:bg-red-950/30 p-3">
                     <div className="flex items-start gap-2">
                       <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-                      <div className="flex-1 text-sm text-red-900">
+                      <div className="flex-1 text-sm text-red-900 dark:text-red-200">
                         <p className="font-bold">Lead ja existe!</p>
                         <p className="mt-1 text-xs">
                           Ja existe uma lead registada com o mesmo <strong>{matchedOn}</strong>.
                         </p>
                         <div className="mt-2 rounded border border-red-300 bg-white p-2 text-xs">
                           <p>🏢 <strong>{existingName}</strong></p>
-                          <p className="text-red-700 mt-0.5">👤 Comercial: <strong>{ownerCommercial}</strong></p>
+                          <p className="text-red-700 dark:text-red-300 mt-0.5">👤 Comercial: <strong>{ownerCommercial}</strong></p>
                         </div>
-                        <p className="mt-2 text-[11px] text-red-800">
+                        <p className="mt-2 text-[11px] text-red-800 dark:text-red-300">
                           Coordena com {ownerCommercial} antes de avancar. Nao podes registar a mesma lead em 2 sitios.
                         </p>
                       </div>
@@ -562,7 +562,7 @@ function LeadsTab({ clientId }: { clientId: string }) {
               })()}
 
               {createLead.error && !createLead.error.message.startsWith("DUPLICADA:") && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+                <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 p-2 text-xs text-red-700 dark:text-red-300">
                   Erro: {createLead.error.message}
                 </div>
               )}
@@ -675,12 +675,12 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
       </div>
 
       {/* Info banner about how AI analysis works */}
-      <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-xs text-purple-900">
+      <div className="rounded-lg border border-purple-200 bg-purple-50 dark:bg-purple-950/30 p-3 text-xs text-purple-900 dark:text-purple-200">
         <div className="flex items-start gap-2">
           <Brain className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
             <p className="font-semibold">Analise automatica com IA</p>
-            <p className="text-purple-700 mt-0.5">
+            <p className="text-purple-700 dark:text-purple-300 mt-0.5">
               Carrega a transcricao ou liga o ficheiro audio. A IA classifica a chamada, pontua nas 8 dimensoes e gera feedback usando <strong>apenas</strong> os documentos da Base de Conhecimento relevantes para o mercado deste cliente
               {dashboard.data?.market && <> (<strong>{dashboard.data.market}</strong>)</>}.
             </p>
@@ -699,9 +699,9 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                 <span className="text-[10px] text-muted-foreground">/100 media</span>
               </div>
               <div className="mt-1 text-[10px] flex gap-1">
-                <span className="rounded bg-green-100 text-green-700 px-1 py-0.5">B: {s.bom}</span>
-                <span className="rounded bg-yellow-100 text-yellow-700 px-1 py-0.5">M: {s.medio}</span>
-                <span className="rounded bg-red-100 text-red-700 px-1 py-0.5">Mau: {s.mau}</span>
+                <span className="rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-1 py-0.5">B: {s.bom}</span>
+                <span className="rounded bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 px-1 py-0.5">M: {s.medio}</span>
+                <span className="rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-1 py-0.5">Mau: {s.mau}</span>
               </div>
             </div>
           ))}
@@ -754,9 +754,9 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                   <td className="p-2 text-xs">{a.callType}</td>
                   <td className="p-2">
                     <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium",
-                      a.classification.toLowerCase().startsWith("bom") ? "bg-green-100 text-green-700" :
-                      a.classification.toLowerCase().startsWith("med") ? "bg-yellow-100 text-yellow-700" :
-                      "bg-red-100 text-red-700")}>
+                      a.classification.toLowerCase().startsWith("bom") ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300" :
+                      a.classification.toLowerCase().startsWith("med") ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300" :
+                      "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300")}>
                       {a.classification}
                     </span>
                   </td>
@@ -765,7 +765,7 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                     <button
                       onClick={() => updateAnalysis.mutate({ id: a.id, data: { visibility: a.visibility === "COMMERCIAL_ONLY" ? "WHOLE_TEAM" : "COMMERCIAL_ONLY" } })}
                       className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                        a.visibility === "WHOLE_TEAM" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700")}
+                        a.visibility === "WHOLE_TEAM" ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" : "bg-gray-100 text-gray-700")}
                       title="Toggle visibilidade"
                     >
                       {a.visibility === "WHOLE_TEAM" ? <Eye className="h-2.5 w-2.5" /> : <EyeOff className="h-2.5 w-2.5" />}
@@ -901,7 +901,7 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
               <button onClick={() => setShowAnalyze(false)} className="rounded-lg p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
 
-            <div className="mb-3 rounded-lg border border-purple-200 bg-purple-50 p-2 text-xs text-purple-800">
+            <div className="mb-3 rounded-lg border border-purple-200 bg-purple-50 dark:bg-purple-950/30 p-2 text-xs text-purple-800 dark:text-purple-300">
               <p>A IA vai analisar a transcricao usando os documentos da Base de Conhecimento que se aplicam ao mercado <strong>{dashboard.data?.market ?? "deste cliente"}</strong>. Resultado automatico: classificacao, scores e feedback.</p>
             </div>
 
@@ -965,11 +965,11 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
               </div>
 
               {/* Audio file (MODO DEEP) */}
-              <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
-                <p className="text-xs font-semibold text-purple-900 mb-1">
+              <div className="rounded-lg border border-purple-200 bg-purple-50 dark:bg-purple-950/30 p-3">
+                <p className="text-xs font-semibold text-purple-900 dark:text-purple-200 mb-1">
                   🎙️ Modo Audio Profundo (AssemblyAI)
                 </p>
-                <p className="text-[11px] text-purple-800 mb-2">
+                <p className="text-[11px] text-purple-800 dark:text-purple-300 mb-2">
                   Carrega o audio/video e a IA transcreve + analisa tom, ritmo real (wpm), pausas, preenchimentos, talk-time, interrupcoes e sentimento.
                 </p>
                 <input
@@ -989,7 +989,7 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                   className="w-full rounded-lg border px-3 py-2 text-sm bg-white file:mr-3 file:rounded file:border-0 file:bg-purple-600 file:text-white file:text-xs file:px-3 file:py-1.5 file:cursor-pointer"
                 />
                 {analyzeForm.audioFileName && (
-                  <p className="mt-1 text-xs text-green-700">
+                  <p className="mt-1 text-xs text-green-700 dark:text-green-300">
                     ✓ {analyzeForm.audioFileName}
                     <button type="button" onClick={() => setAnalyzeForm({ ...analyzeForm, audioFileName: "", audioUrl: "" })} className="ml-2 text-red-600 hover:underline">remover</button>
                   </p>
@@ -1020,13 +1020,13 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
               </div>
 
               {(analyzeCall.error || analyzeCallDeep.error || uploadAudio.error) && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+                <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 p-2 text-xs text-red-700 dark:text-red-300">
                   Erro: {(analyzeCall.error ?? analyzeCallDeep.error ?? uploadAudio.error)?.message}
                 </div>
               )}
 
               {(uploadAudio.isPending || analyzeCallDeep.isPending) && (
-                <div className="rounded-lg border border-purple-200 bg-purple-50 p-2 text-xs text-purple-800">
+                <div className="rounded-lg border border-purple-200 bg-purple-50 dark:bg-purple-950/30 p-2 text-xs text-purple-800 dark:text-purple-300">
                   <Loader2 className="h-3 w-3 inline animate-spin" /> {uploadAudio.isPending ? "A enviar audio para AssemblyAI..." : "A transcrever + analisar (pode demorar 1-5 min consoante a duracao)..."}
                 </div>
               )}
@@ -1038,7 +1038,7 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                 <button
                   type="submit"
                   disabled={analyzeCall.isPending || analyzeForm.transcript.length < 100}
-                  className="flex items-center gap-2 rounded-lg border border-purple-600 bg-white px-4 py-2 text-sm font-medium text-purple-600 hover:bg-purple-50 disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-lg border border-purple-600 bg-white px-4 py-2 text-sm font-medium text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30 disabled:opacity-50"
                 >
                   {analyzeCall.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> A analisar...</> : <><Sparkles className="h-4 w-4" /> Analise rapida</>}
                 </button>

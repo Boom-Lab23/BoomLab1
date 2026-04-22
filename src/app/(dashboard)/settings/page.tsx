@@ -96,12 +96,12 @@ export default function SettingsPage() {
           </div>
           <form onSubmit={submitPassword} className="p-4 space-y-3">
             {pwError && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 p-2 text-xs text-red-700 dark:text-red-300">
                 <AlertCircle className="h-3 w-3" /> {pwError}
               </div>
             )}
             {pwSuccess && (
-              <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-2 text-xs text-green-700">
+              <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/30 p-2 text-xs text-green-700 dark:text-green-300">
                 <CheckCircle2 className="h-3 w-3" /> Password atualizada com sucesso.
               </div>
             )}
@@ -208,17 +208,17 @@ export default function SettingsPage() {
       {/* Quick Nav */}
       <div className="grid gap-3 md:grid-cols-3">
         <Link href="/admin/users" className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/50">
-          <div className="rounded-lg bg-blue-100 p-2.5"><Users className="h-5 w-5 text-blue-600" /></div>
+          <div className="rounded-lg bg-blue-100 dark:bg-blue-900/40 p-2.5"><Users className="h-5 w-5 text-blue-600" /></div>
           <div className="flex-1"><p className="font-semibold">Utilizadores</p><p className="text-xs text-muted-foreground">Criar e gerir contas</p></div>
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </Link>
         <Link href="/knowledge" className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/50">
-          <div className="rounded-lg bg-purple-100 p-2.5"><Brain className="h-5 w-5 text-purple-600" /></div>
+          <div className="rounded-lg bg-purple-100 dark:bg-purple-900/40 p-2.5"><Brain className="h-5 w-5 text-purple-600" /></div>
           <div className="flex-1"><p className="font-semibold">Base de Conhecimento IA</p><p className="text-xs text-muted-foreground">Scripts e documentos</p></div>
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </Link>
         <Link href="/settings/scripts" className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/50">
-          <div className="rounded-lg bg-orange-100 p-2.5"><Mic className="h-5 w-5 text-orange-600" /></div>
+          <div className="rounded-lg bg-orange-100 dark:bg-orange-900/40 p-2.5"><Mic className="h-5 w-5 text-orange-600" /></div>
           <div className="flex-1"><p className="font-semibold">Scripts de Avaliacao</p><p className="text-xs text-muted-foreground">Criterios para analise</p></div>
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </Link>
@@ -235,7 +235,7 @@ export default function SettingsPage() {
         <div className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/40">
                 <Calendar className="h-5 w-5 text-blue-600" />
               </div>
               <div>
@@ -244,7 +244,7 @@ export default function SettingsPage() {
               </div>
             </div>
             {googleConnected ? (
-              <span className="flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+              <span className="flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/40 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
                 <CheckCircle2 className="h-3 w-3" /> Conectado
               </span>
             ) : (
@@ -267,12 +267,12 @@ export default function SettingsPage() {
         </div>
         <form onSubmit={submitPassword} className="p-4 space-y-3 max-w-md">
           {pwError && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 p-2 text-xs text-red-700 dark:text-red-300">
               <AlertCircle className="h-3 w-3" /> {pwError}
             </div>
           )}
           {pwSuccess && (
-            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-2 text-xs text-green-700">
+            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/30 p-2 text-xs text-green-700 dark:text-green-300">
               <CheckCircle2 className="h-3 w-3" /> Password atualizada com sucesso.
             </div>
           )}
@@ -323,7 +323,7 @@ export default function SettingsPage() {
         <div className="border-b p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/40">
                 <Mic className="h-5 w-5 text-orange-600" />
               </div>
               <div>
@@ -331,7 +331,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground">Transcricao automatica de reunioes</p>
               </div>
             </div>
-            <span className="flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+            <span className="flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/40 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
               <CheckCircle2 className="h-3 w-3" /> Conectado
             </span>
           </div>
@@ -349,7 +349,7 @@ export default function SettingsPage() {
         <div className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/40">
                 <Brain className="h-5 w-5 text-purple-600" />
               </div>
               <div>
@@ -357,7 +357,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground">Analise automatica de reunioes e chamadas</p>
               </div>
             </div>
-            <span className="flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+            <span className="flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/40 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
               <CheckCircle2 className="h-3 w-3" /> Conectado
             </span>
           </div>

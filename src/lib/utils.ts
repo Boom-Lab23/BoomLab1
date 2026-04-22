@@ -44,10 +44,10 @@ export function formatStatus(status: string): string {
 
 export function getStatusColor(status: string): string {
   const s = status.toUpperCase();
-  if (s === "ATIVO" || s === "CONCLUIDA") return "bg-green-100 text-green-800";
-  if (s === "PRE_ARRANQUE" || s === "LEVANTAMENTO" || s === "MARCADA") return "bg-blue-100 text-blue-800";
-  if (s === "INATIVO" || s === "FALTOU" || s === "CANCELADA") return "bg-red-100 text-red-800";
-  if (s === "REAGENDADA" || s === "AGUARDAR_CONFIRMACAO") return "bg-orange-100 text-orange-800";
+  if (s === "ATIVO" || s === "CONCLUIDA") return "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300";
+  if (s === "PRE_ARRANQUE" || s === "LEVANTAMENTO" || s === "MARCADA") return "bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300";
+  if (s === "INATIVO" || s === "FALTOU" || s === "CANCELADA") return "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300";
+  if (s === "REAGENDADA" || s === "AGUARDAR_CONFIRMACAO") return "bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300";
   if (s === "PROJETO_FINALIZADO" || s === "COBRADO") return "bg-gray-100 text-gray-800";
   return "bg-gray-100 text-gray-600";
 }

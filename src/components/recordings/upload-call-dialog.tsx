@@ -156,12 +156,12 @@ export function UploadCallDialog({
           </div>
 
           {/* Info box */}
-          <div className="rounded-lg bg-purple-50 p-3">
-            <div className="flex items-center gap-2 text-sm font-medium text-purple-800">
+          <div className="rounded-lg bg-purple-50 dark:bg-purple-950/30 p-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-purple-800 dark:text-purple-300">
               <Mic className="h-4 w-4" />
               Analise IA Automatica
             </div>
-            <p className="mt-1 text-xs text-purple-600">
+            <p className="mt-1 text-xs text-purple-600 dark:text-purple-400">
               Assim que a transcricao estiver disponivel, a IA analisa automaticamente a chamada
               contra o script de vendas, dando score, pontos fortes, areas de melhoria e dicas de coaching.
             </p>

@@ -51,12 +51,12 @@ export default function SessionsPage() {
       <CreateSessionDialog open={showCreate} onClose={() => setShowCreate(false)} />
 
       {syncFireflies.data && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/30 p-3 text-sm text-green-800 dark:text-green-300">
           Sync concluido: <strong>{syncFireflies.data.fetched}</strong> reunioes analisadas &middot; <strong>{syncFireflies.data.matched}</strong> ligadas a sessoes existentes &middot; <strong>{syncFireflies.data.created}</strong> sessoes criadas automaticamente &middot; <strong>{syncFireflies.data.skipped}</strong> ja sincronizadas.
         </div>
       )}
       {syncFireflies.error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-700 dark:text-red-300">
           Erro ao sincronizar: {syncFireflies.error.message}
         </div>
       )}

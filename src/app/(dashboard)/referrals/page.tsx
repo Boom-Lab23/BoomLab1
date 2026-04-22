@@ -10,11 +10,11 @@ import {
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   PENDING: { label: "Pendente", color: "bg-gray-100 text-gray-700", icon: Clock },
-  CONTACTED: { label: "Contactado", color: "bg-blue-100 text-blue-700", icon: Phone },
-  MEETING_SCHEDULED: { label: "Reuniao Agendada", color: "bg-purple-100 text-purple-700", icon: Users },
-  PROPOSAL_SENT: { label: "Proposta Enviada", color: "bg-orange-100 text-orange-700", icon: Mail },
-  CONVERTED: { label: "Convertido", color: "bg-green-100 text-green-700", icon: CheckCircle2 },
-  LOST: { label: "Perdido", color: "bg-red-100 text-red-700", icon: XCircle },
+  CONTACTED: { label: "Contactado", color: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300", icon: Phone },
+  MEETING_SCHEDULED: { label: "Reuniao Agendada", color: "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300", icon: Users },
+  PROPOSAL_SENT: { label: "Proposta Enviada", color: "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300", icon: Mail },
+  CONVERTED: { label: "Convertido", color: "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300", icon: CheckCircle2 },
+  LOST: { label: "Perdido", color: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300", icon: XCircle },
 };
 
 const PIPELINE_ORDER = ["PENDING", "CONTACTED", "MEETING_SCHEDULED", "PROPOSAL_SENT", "CONVERTED", "LOST"];

@@ -19,11 +19,11 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  ADMIN: "bg-purple-100 text-purple-700",
-  CONSULTANT: "bg-blue-100 text-blue-700",
-  MANAGER: "bg-green-100 text-green-700",
-  GUEST_CLIENT: "bg-orange-100 text-orange-700",
-  GUEST_TEAM_MEMBER: "bg-yellow-100 text-yellow-700",
+  ADMIN: "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300",
+  CONSULTANT: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
+  MANAGER: "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300",
+  GUEST_CLIENT: "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300",
+  GUEST_TEAM_MEMBER: "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300",
 };
 
 const ROLE_ICONS: Record<string, React.ElementType> = {
@@ -151,7 +151,7 @@ export default function AdminUsersPage() {
           <h1 className="text-2xl font-bold">Gestao de Utilizadores</h1>
           <p className="text-muted-foreground">
             {internalUsers.length} equipa, {guestUsers.length} clientes, {inactiveUsers.length} inativos
-            {isManager && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">Gestor</span>}
+            {isManager && <span className="ml-2 rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-xs text-blue-700 dark:text-blue-300">Gestor</span>}
           </p>
         </div>
         <button
@@ -164,7 +164,7 @@ export default function AdminUsersPage() {
       </div>
 
       {isManager && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-3 text-sm text-blue-800 dark:text-blue-300">
           Como <strong>gestor</strong>, podes atribuir acessos (workspace + canal de mensagens) a clientes e equipas, reenviar credenciais e resetar passwords. Operacoes destrutivas (apagar contas, alterar roles) sao reservadas a administradores.
         </div>
       )}
@@ -173,7 +173,7 @@ export default function AdminUsersPage() {
       {resendNotice && (
         <div className={cn(
           "rounded-lg border p-3 text-sm",
-          resendNotice.success ? "border-green-200 bg-green-50 text-green-800" : "border-red-200 bg-red-50 text-red-700"
+          resendNotice.success ? "border-green-200 bg-green-50 dark:bg-green-950/30 text-green-800" : "border-red-200 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"
         )}>
           <div className="flex items-start gap-2">
             {resendNotice.success ? <CheckCircle2 className="h-4 w-4 mt-0.5" /> : <AlertCircle className="h-4 w-4 mt-0.5" />}
@@ -184,11 +184,11 @@ export default function AdminUsersPage() {
                   : `Falha a enviar email: ${resendNotice.error ?? "erro desconhecido"}`}
               </p>
               {resendNotice.newPassword && (
-                <div className="mt-2 rounded border border-green-300 bg-white p-2 text-xs text-green-900">
+                <div className="mt-2 rounded border border-green-300 bg-white p-2 text-xs text-green-900 dark:text-green-200">
                   <p className="font-semibold mb-1">Credenciais geradas (guarda por precaucao):</p>
                   <p>Email: <code className="font-mono bg-gray-100 px-1 rounded">{resendNotice.email}</code></p>
                   <p>Password: <code className="font-mono bg-gray-100 px-1 rounded select-all">{resendNotice.newPassword}</code></p>
-                  <p className="text-green-700 mt-1">O cliente pode usar estas credenciais mesmo que o email tenha falhado. Email normalizado automaticamente para lowercase.</p>
+                  <p className="text-green-700 dark:text-green-300 mt-1">O cliente pode usar estas credenciais mesmo que o email tenha falhado. Email normalizado automaticamente para lowercase.</p>
                 </div>
               )}
             </div>
@@ -295,16 +295,16 @@ export default function AdminUsersPage() {
 
             {/* Success result */}
             {createResult && (
-              <div className="mb-4 space-y-2 rounded-lg border border-green-200 bg-green-50 p-4 text-sm">
-                <div className="flex items-center gap-2 font-medium text-green-800">
+              <div className="mb-4 space-y-2 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/30 p-4 text-sm">
+                <div className="flex items-center gap-2 font-medium text-green-800 dark:text-green-300">
                   <CheckCircle2 className="h-4 w-4" />
                   Utilizador criado com sucesso!
                 </div>
                 {createResult.emailSent && (
-                  <p className="text-green-700">✉️ Email de boas-vindas enviado com as credenciais de acesso.</p>
+                  <p className="text-green-700 dark:text-green-300">✉️ Email de boas-vindas enviado com as credenciais de acesso.</p>
                 )}
                 {!createResult.emailSent && createResult.emailError && (
-                  <div className="flex items-start gap-2 text-red-700">
+                  <div className="flex items-start gap-2 text-red-700 dark:text-red-300">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>Email nao enviado: {createResult.emailError}</span>
                   </div>
@@ -419,8 +419,8 @@ export default function AdminUsersPage() {
 
               {/* Channel Selection - only for Guest roles */}
               {isGuestRole && (
-                <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50 p-4">
-                  <p className="text-sm font-medium text-orange-800">
+                <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/30 p-4">
+                  <p className="text-sm font-medium text-orange-800 dark:text-orange-300">
                     {form.role === "GUEST_CLIENT" ? "Canal do Cliente" : "Canal da Equipa do Cliente"}
                   </p>
                   <p className="text-xs text-orange-600">
@@ -428,7 +428,7 @@ export default function AdminUsersPage() {
                   </p>
 
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-orange-800">Canal *</label>
+                    <label className="mb-1 block text-sm font-medium text-orange-800 dark:text-orange-300">Canal *</label>
                     <select
                       required
                       value={form.assignedChannelId}
@@ -445,7 +445,7 @@ export default function AdminUsersPage() {
                   {/* Sub-channel selection */}
                   {selectedChannel && selectedChannel.subChannels.length > 0 && (
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-orange-800">Sub-canais com acesso</label>
+                      <label className="mb-1 block text-sm font-medium text-orange-800 dark:text-orange-300">Sub-canais com acesso</label>
                       <p className="mb-2 text-xs text-orange-600">Seleciona a que sub-canais este utilizador tem acesso:</p>
                       <div className="space-y-1.5">
                         {selectedChannel.subChannels.map((sub) => (
@@ -471,7 +471,7 @@ export default function AdminUsersPage() {
 
                   {/* Workspace access (completo: Dashboard + CRM Leads + Sales Analysis) */}
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-orange-800">Workspace (opcional)</label>
+                    <label className="mb-1 block text-sm font-medium text-orange-800 dark:text-orange-300">Workspace (opcional)</label>
                     <select
                       value={form.assignedWorkspaceClientId}
                       onChange={(e) => setForm({ ...form, assignedWorkspaceClientId: e.target.value })}
@@ -490,9 +490,9 @@ export default function AdminUsersPage() {
                   {/* Legacy dashboard-only access (oculto se workspace atribuido) */}
                   {!form.assignedWorkspaceClientId && (
                     <details className="text-xs">
-                      <summary className="cursor-pointer text-orange-700">Opcoes avancadas (legacy)</summary>
+                      <summary className="cursor-pointer text-orange-700 dark:text-orange-300">Opcoes avancadas (legacy)</summary>
                       <div className="mt-2">
-                        <label className="mb-1 block text-xs font-medium text-orange-800">Dashboard isolada (opcional)</label>
+                        <label className="mb-1 block text-xs font-medium text-orange-800 dark:text-orange-300">Dashboard isolada (opcional)</label>
                         <select
                           value={form.assignedDashboardId}
                           onChange={(e) => setForm({ ...form, assignedDashboardId: e.target.value })}
@@ -633,7 +633,7 @@ export default function AdminUsersPage() {
 function ConsentBadge({ accepted, label }: { accepted: boolean; label: string }) {
   return (
     <span className={cn("inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium",
-      accepted ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+      accepted ? "bg-green-100 dark:bg-green-900/40 text-green-700" : "bg-red-100 dark:bg-red-900/40 text-red-600"
     )}>
       {accepted ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />}
       {label}
@@ -688,7 +688,7 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
               </span>
             )}
             {user.welcomeEmailSentAt && (
-              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700" title={`Email enviado em ${new Date(user.welcomeEmailSentAt).toLocaleString("pt-PT")}`}>
+              <span className="rounded-full bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300" title={`Email enviado em ${new Date(user.welcomeEmailSentAt).toLocaleString("pt-PT")}`}>
                 ✉️ enviado
               </span>
             )}
@@ -719,7 +719,7 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
           <button
             onClick={onResendEmail}
             disabled={isBusy}
-            className="rounded border p-1.5 text-muted-foreground hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50"
+            className="rounded border p-1.5 text-muted-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 disabled:opacity-50"
             title="Reenviar email de acesso (gera nova password)"
           >
             <Send className="h-3.5 w-3.5" />
@@ -735,14 +735,14 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
           {isGuest && (
             <button
               onClick={onEditPerms}
-              className="rounded border p-1.5 text-muted-foreground hover:bg-purple-50 hover:text-purple-600"
+              className="rounded border p-1.5 text-muted-foreground hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:text-purple-600"
               title="Editar acessos (workspace + canal)"
             >
               <KeyRound className="h-3.5 w-3.5" />
             </button>
           )}
           <button onClick={onResetPw} className="rounded border p-1.5 text-muted-foreground hover:bg-muted" title="Reset password manual"><RotateCcw className="h-3.5 w-3.5" /></button>
-          <button onClick={onDeactivate} className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600" title="Desativar"><UserX className="h-3.5 w-3.5" /></button>
+          <button onClick={onDeactivate} className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600" title="Desativar"><UserX className="h-3.5 w-3.5" /></button>
         </div>
       </div>
       {/* Consents row */}

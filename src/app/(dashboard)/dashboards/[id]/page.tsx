@@ -226,7 +226,7 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <div className="rounded-xl border bg-card p-4 border-l-4 border-l-purple-500">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="rounded-full bg-purple-100 text-purple-700 px-1.5 py-0.5 font-semibold">3 -&gt; 4</span>
+              <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 font-semibold">3 -&gt; 4</span>
               Taxa de Show-up
             </div>
             <p className="text-2xl font-bold mt-1 text-purple-600">{k?.totals.tcShowUp?.toFixed(1) ?? 0}%</p>
@@ -236,7 +236,7 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <div className="rounded-xl border bg-card p-4 border-l-4 border-l-green-500">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="rounded-full bg-green-100 text-green-700 px-1.5 py-0.5 font-semibold">4 -&gt; 5</span>
+              <span className="rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-1.5 py-0.5 font-semibold">4 -&gt; 5</span>
               Taxa de Fecho
             </div>
             <p className="text-2xl font-bold mt-1 text-green-600">{k?.totals.tcFecho?.toFixed(1) ?? 0}%</p>
@@ -311,9 +311,9 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                       <td className="p-3 text-right text-xs text-purple-600">{c.tcShowUp.toFixed(0)}%</td>
                       <td className="p-3 text-right">
                         <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium",
-                          c.tcFecho > 40 ? "bg-green-100 text-green-700" :
-                          c.tcFecho > 20 ? "bg-yellow-100 text-yellow-700" :
-                          "bg-red-100 text-red-700"
+                          c.tcFecho > 40 ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300" :
+                          c.tcFecho > 20 ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300" :
+                          "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"
                         )}>
                           {c.tcFecho.toFixed(0)}%
                         </span>
@@ -444,15 +444,15 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
         </div>
 
         {/* Channel reference guide */}
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <p className="text-sm text-blue-900 font-medium mb-2">Canais especificos do mercado {MARKET_LABELS[market]}:</p>
+        <div className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-4">
+          <p className="text-sm text-blue-900 dark:text-blue-200 font-medium mb-2">Canais especificos do mercado {MARKET_LABELS[market]}:</p>
           <div className="grid gap-2 md:grid-cols-2">
             {channels.map((ch) => (
-              <div key={ch.key} className="flex items-start gap-2 text-xs text-blue-800">
+              <div key={ch.key} className="flex items-start gap-2 text-xs text-blue-800 dark:text-blue-300">
                 <span className="mt-0.5 inline-block h-2 w-2 rounded-full shrink-0" style={{ background: ch.color }} />
                 <div>
                   <span className="font-semibold">{ch.label}</span>
-                  {ch.description && <span className="text-blue-700"> - {ch.description}</span>}
+                  {ch.description && <span className="text-blue-700 dark:text-blue-300"> - {ch.description}</span>}
                 </div>
               </div>
             ))}
@@ -630,7 +630,7 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                           }
                         }}
                         disabled={deleteRecord.isPending}
-                        className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 transition-opacity disabled:opacity-50"
+                        className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 transition-opacity disabled:opacity-50"
                         title="Apagar registo"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -705,7 +705,7 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                       </div>
                       <button
                         onClick={() => updateDashboard.mutate({ id, commercials: db.commercials.filter(n => n !== name) })}
-                        className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                        className="rounded p-1 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

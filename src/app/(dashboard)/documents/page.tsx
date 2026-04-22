@@ -79,8 +79,8 @@ export default function DocumentsPage() {
       {/* ===== DRIVES DE CLIENTES TAB ===== */}
       {activeTab === "drives" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
-            <p className="text-sm text-blue-800">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-3">
+            <p className="text-sm text-blue-800 dark:text-blue-300">
               <FolderOpen className="inline h-4 w-4 mr-1" />
               Pastas de clientes na Google Drive. Cada cliente tem a sua pasta com todos os documentos do projeto.
             </p>
@@ -190,7 +190,7 @@ export default function DocumentsPage() {
                   <button onClick={() => setShowMove(doc.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="Mover">
                     <ArrowRight className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={() => deleteDoc.mutate(doc.id)} className="rounded p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600" title="Remover">
+                  <button onClick={() => deleteDoc.mutate(doc.id)} className="rounded p-1.5 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600" title="Remover">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>

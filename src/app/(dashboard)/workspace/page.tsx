@@ -62,12 +62,12 @@ export default function WorkspacePage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+      <div className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-4 text-sm text-blue-900 dark:text-blue-200">
         <div className="flex items-start gap-2">
           <FolderKanban className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
             <p className="font-semibold">3 folhas por cliente</p>
-            <p className="text-xs text-blue-800 mt-0.5">
+            <p className="text-xs text-blue-800 dark:text-blue-300 mt-0.5">
               <strong>Dashboard Comercial</strong> (KPIs por mercado) &middot; <strong>CRM Leads</strong> (pipeline + duplicados) &middot; <strong>Analise de Vendas</strong> (analise de chamadas por comercial).
             </p>
           </div>

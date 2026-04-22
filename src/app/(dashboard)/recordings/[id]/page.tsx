@@ -76,7 +76,7 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
                   href={rec.fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100"
+                  className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100 shadow-sm"
                 >
                   Abrir / Download
                 </a>
@@ -192,7 +192,7 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
               <div className="text-center">
                 <Mic className="mx-auto h-12 w-12 text-muted-foreground/30" />
                 <p className="mt-2 text-sm text-muted-foreground">Transcricao nao disponivel</p>
-                <button className="mt-3 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
+                <button className="mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
                   Transcrever
                 </button>
               </div>

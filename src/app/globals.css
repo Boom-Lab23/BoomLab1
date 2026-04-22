@@ -105,6 +105,9 @@ html, body {
   .animate-slide-in-right {
     animation: slideInRight 0.2s ease-out;
   }
+  .animate-slide-in-left {
+    animation: slideInLeft 0.2s ease-out;
+  }
   .animate-scale-in {
     animation: scaleIn 0.15s ease-out;
   }
@@ -122,6 +125,11 @@ html, body {
 
 @keyframes slideInRight {
   from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0.3; transform: translateX(-100%); }
   to { opacity: 1; transform: translateX(0); }
 }
 

@@ -8,18 +8,18 @@ import {
 } from "lucide-react";
 
 const CATEGORIES = [
-  { id: "scripts-vendas", title: "Scripts de Vendas", desc: "Cold calls, reunioes, follow-ups", icon: "📞", color: "bg-yellow-50 border-yellow-200" },
-  { id: "frameworks-reuniao", title: "Frameworks de Reuniao", desc: "Estruturas e modelos para reunioes", icon: "📋", color: "bg-blue-50 border-blue-200" },
-  { id: "criterios-avaliacao", title: "Criterios de Avaliacao", desc: "Metricas para avaliar performance", icon: "📊", color: "bg-green-50 border-green-200" },
-  { id: "materiais-formacao", title: "Materiais de Formacao", desc: "Formacao para equipa comercial", icon: "📚", color: "bg-purple-50 border-purple-200" },
-  { id: "esquemas-sops", title: "Esquemas e SOPs", desc: "Processos, fluxos e procedimentos operacionais", icon: "🗺️", color: "bg-pink-50 border-pink-200" },
+  { id: "scripts-vendas", title: "Scripts de Vendas", desc: "Cold calls, reunioes, follow-ups", icon: "📞", color: "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200" },
+  { id: "frameworks-reuniao", title: "Frameworks de Reuniao", desc: "Estruturas e modelos para reunioes", icon: "📋", color: "bg-blue-50 dark:bg-blue-950/30 border-blue-200" },
+  { id: "criterios-avaliacao", title: "Criterios de Avaliacao", desc: "Metricas para avaliar performance", icon: "📊", color: "bg-green-50 dark:bg-green-950/30 border-green-200" },
+  { id: "materiais-formacao", title: "Materiais de Formacao", desc: "Formacao para equipa comercial", icon: "📚", color: "bg-purple-50 dark:bg-purple-950/30 border-purple-200" },
+  { id: "esquemas-sops", title: "Esquemas e SOPs", desc: "Processos, fluxos e procedimentos operacionais", icon: "🗺️", color: "bg-pink-50 dark:bg-pink-950/30 border-pink-200" },
 ];
 
 const MARKET_BADGES: Record<string, { label: string; color: string }> = {
   ALL: { label: "Todos os mercados", color: "bg-gray-100 text-gray-700" },
-  CREDITO: { label: "Credito", color: "bg-blue-100 text-blue-700" },
-  SEGUROS: { label: "Seguros", color: "bg-green-100 text-green-700" },
-  IMOBILIARIO: { label: "Imobiliario", color: "bg-orange-100 text-orange-700" },
+  CREDITO: { label: "Credito", color: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" },
+  SEGUROS: { label: "Seguros", color: "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300" },
+  IMOBILIARIO: { label: "Imobiliario", color: "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300" },
 };
 
 export default function KnowledgePage() {
@@ -87,12 +87,12 @@ export default function KnowledgePage() {
         </button>
       </div>
 
-      <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
+      <div className="rounded-xl border border-purple-200 bg-purple-50 dark:bg-purple-950/30 p-4">
         <div className="flex items-center gap-2">
           <Brain className="h-5 w-5 text-purple-600" />
-          <h3 className="font-semibold text-purple-800">Como funciona</h3>
+          <h3 className="font-semibold text-purple-800 dark:text-purple-300">Como funciona</h3>
         </div>
-        <p className="mt-1 text-sm text-purple-700">
+        <p className="mt-1 text-sm text-purple-700 dark:text-purple-300">
           Quando adicionas um documento, a IA deteta automaticamente a que mercado(s) ele se aplica (Credito, Seguros, Imobiliario ou todos).
           Quando analisas uma chamada no Workspace de um cliente, a IA usa <strong>apenas</strong> os documentos relevantes para o mercado desse cliente.
         </p>
@@ -106,7 +106,7 @@ export default function KnowledgePage() {
         <button
           onClick={() => setSelectedCategory("")}
           className={cn("rounded-xl border p-3 text-left transition-colors",
-            !selectedCategory ? "border-purple-500 bg-purple-50" : "bg-card hover:bg-muted/50"
+            !selectedCategory ? "border-purple-500 bg-purple-50 dark:bg-purple-950/30" : "bg-card hover:bg-muted/50"
           )}
         >
           <span className="text-2xl">📚</span>
@@ -118,7 +118,7 @@ export default function KnowledgePage() {
             key={cat.id}
             onClick={() => setSelectedCategory(selectedCategory === cat.id ? "" : cat.id)}
             className={cn("rounded-xl border p-3 text-left transition-colors",
-              selectedCategory === cat.id ? "border-purple-500 bg-purple-50" : cn(cat.color)
+              selectedCategory === cat.id ? "border-purple-500 bg-purple-50 dark:bg-purple-950/30" : cn(cat.color)
             )}
           >
             <span className="text-2xl">{cat.icon}</span>
@@ -228,7 +228,7 @@ export default function KnowledgePage() {
                   <button
                     onClick={() => redetect.mutate({ id: doc.id })}
                     disabled={redetect.isPending}
-                    className="rounded border p-1.5 text-muted-foreground hover:bg-purple-50 hover:text-purple-600 disabled:opacity-50"
+                    className="rounded border p-1.5 text-muted-foreground hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:text-purple-600 disabled:opacity-50"
                     title="Re-detetar mercados com IA"
                   >
                     <RefreshCw className={cn("h-3.5 w-3.5", redetect.isPending && "animate-spin")} />
@@ -242,7 +242,7 @@ export default function KnowledgePage() {
                   </button>
                   <button
                     onClick={() => { if (confirm(`Apagar &quot;${doc.name}&quot;?`)) deleteDoc.mutate(doc.id); }}
-                    className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                    className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600"
                     title="Apagar"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   ArrowLeft, Send, Hash, Pin, Users, Building2, Bot, Paperclip,
   Plus, Lock, Settings2, Shield, ChevronDown, ChevronRight,
-  UserPlus, UserMinus, X, Check,
+  UserPlus, UserMinus, X, Check, Menu,
 } from "lucide-react";
 
 type MemberWithPerms = {
@@ -27,10 +27,10 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  OWNER: "bg-purple-100 text-purple-700",
-  ADMIN: "bg-blue-100 text-blue-700",
+  OWNER: "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300",
+  ADMIN: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
   MEMBER: "bg-gray-100 text-gray-700",
-  GUEST: "bg-orange-100 text-orange-700",
+  GUEST: "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300",
 };
 
 const PERMISSION_LABELS: Record<string, string> = {
@@ -63,6 +63,7 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
   const [showMembers, setShowMembers] = useState(false);
   const [showPermissions, setShowPermissions] = useState<string | null>(null);
   const [showCreateSub, setShowCreateSub] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [newSubName, setNewSubName] = useState("");
   const [newSubPrivate, setNewSubPrivate] = useState(false);
   const [newSubMembers, setNewSubMembers] = useState<string[]>([]);
@@ -202,8 +203,24 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
 
   return (
     <div className="flex h-[calc(100vh-7rem)]">
-      {/* Sub-channel Sidebar - hidden on mobile */}
-      <div className="hidden md:flex w-60 shrink-0 border-r bg-muted/30 flex-col">
+      {/* Mobile drawer overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden animate-fade-in"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sub-channel Sidebar - drawer on mobile, always visible on desktop */}
+      <div
+        className={cn(
+          "w-60 shrink-0 border-r bg-muted/30 flex-col",
+          "md:flex md:relative",
+          mobileSidebarOpen
+            ? "fixed inset-y-0 left-0 z-50 flex animate-slide-in-left"
+            : "hidden md:flex"
+        )}
+      >
         <div className="border-b p-3">
           <Link href="/messaging" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-3 w-3" /> Todos os canais
@@ -232,6 +249,7 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
                 <Link
                   key={ch.id}
                   href={`/messaging/${ch.id}`}
+                  onClick={() => setMobileSidebarOpen(false)}
                   className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
                     ch.id === channelId
                       ? "bg-primary/10 text-primary font-medium"
@@ -319,8 +337,16 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
       <div className="flex flex-1 flex-col min-w-0">
         {/* Channel Header */}
         <div className="flex items-center gap-3 border-b bg-card px-4 py-2.5">
+          {/* Mobile hamburger - opens sidebar drawer */}
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="md:hidden -ml-1 rounded-lg p-1.5 hover:bg-muted"
+            aria-label="Abrir menu de canais"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <Hash className="h-4 w-4 text-muted-foreground" />
-          <p className="font-semibold">{currentName}</p>
+          <p className="font-semibold truncate">{currentName}</p>
           {channel.isPrivate && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
         </div>
 
@@ -334,7 +360,7 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
             </div>
           )}
           {messages.map((msg) => (
-            <div key={msg.id} className={cn("group flex gap-3 rounded-lg px-2 py-1 hover:bg-muted/50", msg.isSystem && "bg-blue-50/50")}>
+            <div key={msg.id} className={cn("group flex gap-3 rounded-lg px-2 py-1 hover:bg-muted/50", msg.isSystem && "bg-blue-50/50 dark:bg-blue-950/20")}>
               {msg.author.image ? (
                 <img src={msg.author.image} alt="" className="h-8 w-8 rounded-full mt-0.5" />
               ) : (
@@ -517,7 +543,7 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
                     deleteChannel.mutate({ channelId });
                   }
                 }}
-                className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-100"
+                className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-100 dark:hover:bg-red-900/40"
                 disabled={deleteChannel.isPending}
               >
                 {deleteChannel.isPending ? "A apagar..." : "Apagar canal"}
@@ -633,7 +659,7 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
               {/* Remove member */}
               <button
                 onClick={() => { removeMember.mutate({ channelId, userId: selectedMember.userId }); setShowPermissions(null); }}
-                className="flex w-full items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                className="flex w-full items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
               >
                 <UserMinus className="h-3.5 w-3.5" /> Remover do canal
               </button>
