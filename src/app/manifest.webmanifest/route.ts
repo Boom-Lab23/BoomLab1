@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const hdrs = await headers();
   const host = (hdrs.get("host") || "").toLowerCase();
+  // Aceita comunicacao.boomlab.cloud OU comunicacao.boomlab.agency
   const isComunicacao = host.includes("comunicacao");
 
   const manifest = isComunicacao

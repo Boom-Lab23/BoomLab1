@@ -61,11 +61,11 @@ services:
       # ===== Traefik config =====
       - "traefik.enable=true"
       - "traefik.docker.network=n8n_default"
-      # Router principal: aceita AMBOS os dominios (servico + comunicacao)
+      # Router principal: aceita todos os dominios (servico + comunicacao, .cloud + .agency)
       # A app detecta via hostname e aplica branding diferente:
-      #   servico.boomlab.cloud     -> BoomLab Platform (equipa)
-      #   comunicacao.boomlab.cloud -> BoomLab Comunicacao (clientes)
-      - "traefik.http.routers.boomlab.rule=Host(`servico.boomlab.cloud`) || Host(`comunicacao.boomlab.cloud`)"
+      #   servico.boomlab.cloud      / servico.boomlab.agency      -> BoomLab Platform (equipa)
+      #   comunicacao.boomlab.cloud  / comunicacao.boomlab.agency  -> BoomLab Comunicacao (clientes)
+      - "traefik.http.routers.boomlab.rule=Host(`servico.boomlab.cloud`) || Host(`comunicacao.boomlab.cloud`) || Host(`servico.boomlab.agency`) || Host(`comunicacao.boomlab.agency`)"
       - "traefik.http.routers.boomlab.tls=true"
       - "traefik.http.routers.boomlab.entrypoints=web,websecure"
       - "traefik.http.routers.boomlab.tls.certresolver=mytlschallenge"
