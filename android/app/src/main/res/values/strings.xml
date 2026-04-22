@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BoomLab Comunicação</string>
+    <string name="title_activity_main">BoomLab</string>
+    <string name="package_name">agency.boomlab.comunicacao</string>
+    <string name="custom_url_scheme">agency.boomlab.comunicacao</string>
+</resources>
