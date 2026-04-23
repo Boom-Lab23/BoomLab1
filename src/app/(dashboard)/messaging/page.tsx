@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
   MessageSquare, Users, Plus, Search, Building2,
-  Lock, ChevronRight, X, Rocket, Bell,
+  Lock, ChevronRight, X, Rocket, Bell, Pencil, Trash2, Check,
 } from "lucide-react";
 import { useMessagingNotifications } from "@/hooks/use-messaging-notifications";
 
@@ -24,6 +24,8 @@ export default function MessagingPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newChannel, setNewChannel] = useState({ name: "", description: "", clientId: "", type: "CLIENT" as string });
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
 
   const channels = trpc.messaging.channels.useQuery({});
   const clients = trpc.clients.list.useQuery({}, { enabled: !isGuest });
@@ -36,6 +38,37 @@ export default function MessagingPage() {
       setNewChannel({ name: "", description: "", clientId: "", type: "CLIENT" });
     },
   });
+
+  const updateChannel = trpc.messaging.updateChannel.useMutation({
+    onSuccess: () => {
+      utils.messaging.channels.invalidate();
+      setEditingChannelId(null);
+      setEditingName("");
+    },
+  });
+
+  const deleteChannel = trpc.messaging.deleteChannel.useMutation({
+    onSuccess: () => utils.messaging.channels.invalidate(),
+  });
+
+  function startRename(channelId: string, currentName: string) {
+    setEditingChannelId(channelId);
+    setEditingName(currentName);
+  }
+
+  function saveRename() {
+    if (!editingChannelId || !editingName.trim()) {
+      setEditingChannelId(null);
+      return;
+    }
+    updateChannel.mutate({ channelId: editingChannelId, name: editingName.trim() });
+  }
+
+  function handleDeleteChannel(channelId: string, channelName: string) {
+    if (confirm(`Apagar o canal "${channelName}" permanentemente?\n\nTodas as mensagens e sub-canais serao perdidos. Esta accao nao pode ser anulada.`)) {
+      deleteChannel.mutate({ channelId });
+    }
+  }
 
   const allChannelsRaw = channels.data ?? [];
   // Guests only see their assigned channel - NEVER see BoomLab internal channels
@@ -118,20 +151,75 @@ export default function MessagingPage() {
           )}
           {boomLabChannels.map((channel) => {
             const lastMsg = channel.messages[0];
+            const isEditing = editingChannelId === channel.id;
             return (
-              <Link key={channel.id} href={`/messaging/${channel.id}`} className="flex items-center gap-3 p-3 px-4 transition-colors hover:bg-muted/50">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2D76FC] text-white text-sm font-semibold">B</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{channel.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {lastMsg ? `${lastMsg.author.name}: ${lastMsg.content.slice(0, 50)}` : "Sem mensagens"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
-                  <Users className="h-3 w-3" />{channel._count.members}
-                  <ChevronRight className="h-4 w-4" />
-                </div>
-              </Link>
+              <div key={channel.id} className="group relative">
+                {isEditing ? (
+                  <div className="flex items-center gap-2 p-3 px-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2D76FC] text-white text-sm font-semibold shrink-0">B</div>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); saveRename(); }
+                        if (e.key === "Escape") setEditingChannelId(null);
+                      }}
+                      className="flex-1 rounded-lg border px-3 py-1.5 text-sm bg-card"
+                      placeholder="Novo nome do canal"
+                    />
+                    <button
+                      onClick={saveRename}
+                      disabled={updateChannel.isPending || !editingName.trim()}
+                      className="rounded-lg bg-primary p-1.5 text-white hover:bg-primary/90 disabled:opacity-50"
+                      title="Guardar"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditingChannelId(null)}
+                      className="rounded-lg border p-1.5 hover:bg-muted"
+                      title="Cancelar"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <Link href={`/messaging/${channel.id}`} className="flex items-center gap-3 p-3 px-4 transition-colors hover:bg-muted/50">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2D76FC] text-white text-sm font-semibold">B</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{channel.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {lastMsg ? `${lastMsg.author.name}: ${lastMsg.content.slice(0, 50)}` : "Sem mensagens"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+                      <Users className="h-3 w-3" />{channel._count.members}
+                      <ChevronRight className="h-4 w-4" />
+                    </div>
+                  </Link>
+                )}
+                {!isEditing && !isGuest && (
+                  <div className="absolute right-12 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-card/90 backdrop-blur rounded-lg border px-1 py-0.5">
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); startRename(channel.id, channel.name); }}
+                      className="rounded p-1 text-muted-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600"
+                      title="Editar nome"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteChannel(channel.id, channel.name); }}
+                      disabled={deleteChannel.isPending}
+                      className="rounded p-1 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 disabled:opacity-50"
+                      title="Apagar canal"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -160,30 +248,87 @@ export default function MessagingPage() {
           {filteredClients.map((channel) => {
             const lastMsg = channel.messages[0];
             const unread = unreadByChannel[channel.id] ?? 0;
+            const isEditing = editingChannelId === channel.id;
             return (
-              <Link key={channel.id} href={`/messaging/${channel.id}`} className="flex items-center gap-3 p-3 px-4 transition-colors hover:bg-muted/50">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2D76FC]/10 text-[#2D76FC] text-sm font-semibold">
-                  {channel.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className={cn("text-sm truncate", unread > 0 ? "font-bold" : "font-medium")}>{channel.name}</p>
-                    {channel.isPrivate && <Lock className="h-3 w-3 text-muted-foreground" />}
+              <div key={channel.id} className="group relative">
+                {isEditing ? (
+                  <div className="flex items-center gap-2 p-3 px-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2D76FC]/10 text-[#2D76FC] text-sm font-semibold shrink-0">
+                      {channel.name.charAt(0).toUpperCase()}
+                    </div>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); saveRename(); }
+                        if (e.key === "Escape") setEditingChannelId(null);
+                      }}
+                      className="flex-1 rounded-lg border px-3 py-1.5 text-sm bg-card"
+                      placeholder="Novo nome do canal"
+                    />
+                    <button
+                      onClick={saveRename}
+                      disabled={updateChannel.isPending || !editingName.trim()}
+                      className="rounded-lg bg-primary p-1.5 text-white hover:bg-primary/90 disabled:opacity-50"
+                      title="Guardar"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditingChannelId(null)}
+                      className="rounded-lg border p-1.5 hover:bg-muted"
+                      title="Cancelar"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
-                  <p className={cn("text-xs truncate", unread > 0 ? "text-foreground/80 font-medium" : "text-muted-foreground")}>
-                    {lastMsg ? `${lastMsg.author.name}: ${lastMsg.content.slice(0, 50)}` : channel.description ?? "Sem mensagens"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
-                  {unread > 0 && (
-                    <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white min-w-[20px] text-center">
-                      {unread > 99 ? "99+" : unread}
-                    </span>
-                  )}
-                  <Users className="h-3 w-3" />{channel._count.members}
-                  <ChevronRight className="h-4 w-4" />
-                </div>
-              </Link>
+                ) : (
+                  <Link href={`/messaging/${channel.id}`} className="flex items-center gap-3 p-3 px-4 transition-colors hover:bg-muted/50">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2D76FC]/10 text-[#2D76FC] text-sm font-semibold">
+                      {channel.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className={cn("text-sm truncate", unread > 0 ? "font-bold" : "font-medium")}>{channel.name}</p>
+                        {channel.isPrivate && <Lock className="h-3 w-3 text-muted-foreground" />}
+                      </div>
+                      <p className={cn("text-xs truncate", unread > 0 ? "text-foreground/80 font-medium" : "text-muted-foreground")}>
+                        {lastMsg ? `${lastMsg.author.name}: ${lastMsg.content.slice(0, 50)}` : channel.description ?? "Sem mensagens"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+                      {unread > 0 && (
+                        <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white min-w-[20px] text-center">
+                          {unread > 99 ? "99+" : unread}
+                        </span>
+                      )}
+                      <Users className="h-3 w-3" />{channel._count.members}
+                      <ChevronRight className="h-4 w-4" />
+                    </div>
+                  </Link>
+                )}
+                {!isEditing && !isGuest && (
+                  <div className="absolute right-12 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-card/90 backdrop-blur rounded-lg border px-1 py-0.5">
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); startRename(channel.id, channel.name); }}
+                      className="rounded p-1 text-muted-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600"
+                      title="Editar nome"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteChannel(channel.id, channel.name); }}
+                      disabled={deleteChannel.isPending}
+                      className="rounded p-1 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 disabled:opacity-50"
+                      title="Apagar canal"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
