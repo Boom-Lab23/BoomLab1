@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Calendar, FileText, Rocket, Settings, Brain,
   BarChart3, UserCheck, Handshake, Megaphone, Phone, Linkedin,
   CalendarCheck, CalendarDays, MessageSquare, Moon, Sun, ChevronDown,
-  ShieldCheck, X, Layers, UserPlus,
+  ShieldCheck, X, Layers, UserPlus, ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
@@ -23,6 +23,7 @@ const mainNav = [
   { href: "/workspace", label: "Workspace", icon: BarChart3 },
   { href: "/knowledge", label: "Base Conhec. IA", icon: Brain },
   { href: "/messaging", label: "Mensagens", icon: MessageSquare },
+  { href: "/tracker", label: "Tracker", icon: ListChecks },
   { href: "/documents", label: "Documentos", icon: FileText },
   { href: "/referrals", label: "Referencias", icon: UserPlus },
   { href: "/boom-club", label: "Boom Club", icon: Rocket },
@@ -56,7 +57,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   // - Outras rotas escondidas
   // Assim o cliente ve os items mesmo que a sessao ainda nao tenha atualizado
   // o campo assignedWorkspaceClientId apos o admin atribuir.
-  const guestAllowed = new Set(["/workspace", "/messaging", "/settings"]);
+  const guestAllowed = new Set(["/workspace", "/messaging", "/tracker", "/settings"]);
   const adminOnly = new Set(["/admin/users"]);
   const isAdminOrManager = role === "ADMIN" || role === "MANAGER";
 

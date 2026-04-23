@@ -66,12 +66,14 @@ export const dashboardsRouter = router({
       callsMade: z.number().default(0),
       callsAnswered: z.number().default(0),
       callsNotAnswered: z.number().default(0),
-      // Pipeline comercial (5 etapas para credito: contactos -> agendadas -> efetuadas -> docs pedidas -> docs recolhidas -> fecho)
+      // Pipeline comercial
+      sals: z.number().default(0),                   // Sales Accepted Leads (viaveis 1o contacto) - todos canais excepto cold calls
+      sqls: z.number().default(0),                   // Sales Qualified Leads (aprovadas pelo banco)
       reunioesAgendadas: z.number().default(0),      // Reunioes marcadas (pipeline)
       reunioesEfetuadas: z.number().default(0),      // Reunioes que aconteceram
       documentacoesPedidas: z.number().default(0),   // Documentacoes pedidas apos reuniao
       documentacoesRecolhidas: z.number().default(0),// Documentacoes recolhidas efectivamente
-      conversoesFeitas: z.number().default(0),       // Contratos fechados
+      conversoesFeitas: z.number().default(0),       // Contratos fechados (= escrituras em credito, parcerias estabelecidas em cold calls)
       // Legacy (kept for compat)
       conversions: z.number().optional(),
       agendamentos: z.number().optional(),
@@ -85,6 +87,8 @@ export const dashboardsRouter = router({
       creditoPessoalV: z.number().optional(),
       creditoConsumoN: z.number().optional(),
       creditoConsumoV: z.number().optional(),
+      creditoTransferenciaN: z.number().optional(),
+      creditoTransferenciaV: z.number().optional(),
       cartoesN: z.number().optional(),
       cartoesV: z.number().optional(),
       segurosCrossN: z.number().optional(),
@@ -150,6 +154,8 @@ export const dashboardsRouter = router({
           conversions: conversoesFeitas,
           conversoesFeitas,
           reunioesEfetuadas,
+          sals: input.sals,
+          sqls: input.sqls,
           documentacoesPedidas: input.documentacoesPedidas,
           documentacoesRecolhidas: input.documentacoesRecolhidas,
           agendamentos: reunioesAgendadas, // campo "reunioes agendadas"
@@ -164,6 +170,8 @@ export const dashboardsRouter = router({
           creditoPessoalV: input.creditoPessoalV,
           creditoConsumoN: input.creditoConsumoN,
           creditoConsumoV: input.creditoConsumoV,
+          creditoTransferenciaN: input.creditoTransferenciaN,
+          creditoTransferenciaV: input.creditoTransferenciaV,
           cartoesN: input.cartoesN,
           cartoesV: input.cartoesV,
           segurosCrossN: input.segurosCrossN,
@@ -205,6 +213,8 @@ export const dashboardsRouter = router({
       data: z.object({
         callsMade: z.number().optional(),
         callsAnswered: z.number().optional(),
+        sals: z.number().optional(),
+        sqls: z.number().optional(),
         reunioesAgendadas: z.number().optional(),
         reunioesEfetuadas: z.number().optional(),
         documentacoesPedidas: z.number().optional(),
@@ -213,6 +223,19 @@ export const dashboardsRouter = router({
         channel: z.string().optional(),
         commercial: z.string().optional(),
         notes: z.string().nullable().optional(),
+        // Vertentes credito
+        creditoHabitacaoN: z.number().optional(),
+        creditoHabitacaoV: z.number().optional(),
+        creditoPessoalN: z.number().optional(),
+        creditoPessoalV: z.number().optional(),
+        creditoConsumoN: z.number().optional(),
+        creditoConsumoV: z.number().optional(),
+        creditoTransferenciaN: z.number().optional(),
+        creditoTransferenciaV: z.number().optional(),
+        cartoesN: z.number().optional(),
+        cartoesV: z.number().optional(),
+        segurosCrossN: z.number().optional(),
+        segurosCrossV: z.number().optional(),
       }),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -290,6 +313,10 @@ export const dashboardsRouter = router({
       let totalCalls = 0, totalAnswered = 0, totalConversoes = 0;
       let totalAgendadas = 0, totalEfetuadas = 0;
       let totalDocsPedidas = 0, totalDocsRecolhidas = 0;
+      let totalSals = 0, totalSqls = 0;
+      // Volumes de credito (valor escriturado)
+      let totalCreditoHab = 0, totalCreditoPes = 0, totalCreditoCon = 0;
+      let totalCreditoTransf = 0, totalCartoes = 0, totalSegurosCross = 0;
 
       for (const r of records) {
         const conv = r.conversoesFeitas || r.conversions || 0;
@@ -328,6 +355,15 @@ export const dashboardsRouter = router({
         totalEfetuadas += efetuadas;
         totalDocsPedidas += docsPedidas;
         totalDocsRecolhidas += docsRecolhidas;
+        const rExt = r as unknown as Record<string, number | null | undefined>;
+        totalSals += rExt.sals ?? 0;
+        totalSqls += rExt.sqls ?? 0;
+        totalCreditoHab += r.creditoHabitacaoV ?? 0;
+        totalCreditoPes += r.creditoPessoalV ?? 0;
+        totalCreditoCon += r.creditoConsumoV ?? 0;
+        totalCreditoTransf += rExt.creditoTransferenciaV ?? 0;
+        totalCartoes += r.cartoesV ?? 0;
+        totalSegurosCross += r.segurosCrossV ?? 0;
       }
 
       return {
@@ -337,11 +373,21 @@ export const dashboardsRouter = router({
         totals: {
           calls: totalCalls,
           answered: totalAnswered,
+          sals: totalSals,
+          sqls: totalSqls,
           reunioesAgendadas: totalAgendadas,
           reunioesEfetuadas: totalEfetuadas,
           documentacoesPedidas: totalDocsPedidas,
           documentacoesRecolhidas: totalDocsRecolhidas,
           conversoesFeitas: totalConversoes,
+          // Volume escriturado (credito)
+          valorCreditoHab: totalCreditoHab,
+          valorCreditoPes: totalCreditoPes,
+          valorCreditoCon: totalCreditoCon,
+          valorCreditoTransf: totalCreditoTransf,
+          valorCartoes: totalCartoes,
+          valorSegurosCross: totalSegurosCross,
+          valorEscriturado: totalCreditoHab + totalCreditoPes + totalCreditoCon + totalCreditoTransf + totalCartoes,
           // Taxas do pipeline (5 etapas para credito)
           tcAgendamento: totalCalls > 0 ? (totalAgendadas / totalCalls) * 100 : 0,              // 1 -> Agendadas
           tcShowUp: totalAgendadas > 0 ? (totalEfetuadas / totalAgendadas) * 100 : 0,           // Agendadas -> Efetuadas

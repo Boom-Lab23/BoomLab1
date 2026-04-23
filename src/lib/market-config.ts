@@ -24,23 +24,26 @@ export interface VertenteConfig {
 // ACQUISITION CHANNELS per market
 // =============================================================
 
+// NOTA: LinkedIn Outreach e Website/SEO foram REMOVIDOS a pedido do utilizador.
+// Cold Calling e para empresas/parceiros (B2B). Outros canais sao B2C com leads particulares.
+// - Cold Calling usa terminologia 'Parceria Estabelecida' em vez de 'Escritura'
+// - Cold Calling NAO tem pipeline de documentacao (e B2B, nao gera credito direto)
+// - Cold Calling NAO tem SALs/SQLs (os 'contactos respondidos' ja servem)
+
 export const MARKET_CHANNELS: Record<MarketKey, ChannelConfig[]> = {
   CREDITO: [
-    { key: "cold-calling", label: "Cold Calling", color: "#2D76FC", description: "Chamadas frias para leads nao qualificadas" },
-    { key: "linkedin", label: "LinkedIn Outreach", color: "#0a66c2", description: "Prospecao e mensagens via LinkedIn" },
-    { key: "anuncios", label: "Anuncios (Meta/Google)", color: "#ea580c", description: "Leads geradas por campanhas pagas" },
-    { key: "parcerias", label: "Parcerias", color: "#16a34a", description: "Contabilistas, imobiliarias, advogados" },
+    { key: "cold-calling", label: "Cold Calling (Parceiros)", color: "#2D76FC", description: "Chamadas a potenciais parceiros (B2B)" },
+    { key: "anuncios", label: "Leads dos Anuncios", color: "#ea580c", description: "Leads geradas por campanhas Meta/Google" },
+    { key: "parcerias", label: "Leads de Parcerias", color: "#16a34a", description: "Contabilistas, imobiliarias, advogados" },
     { key: "referencias", label: "Referencias de Clientes", color: "#8b5cf6", description: "Indicacoes de clientes atuais" },
     { key: "presenciais", label: "Leads Presenciais", color: "#ec4899", description: "Networking, feiras, eventos" },
-    { key: "website", label: "Website / SEO", color: "#0891b2", description: "Leads organicas via site" },
     { key: "outros", label: "Outros", color: "#6b7280" },
   ],
   SEGUROS: [
-    { key: "cold-calling", label: "Cold Calling", color: "#2D76FC", description: "Chamadas frias" },
-    { key: "linkedin", label: "LinkedIn Outreach", color: "#0a66c2", description: "Prospecao B2B" },
-    { key: "anuncios", label: "Anuncios (Meta/Google)", color: "#ea580c", description: "Leads pagas" },
+    { key: "cold-calling", label: "Cold Calling (Parceiros)", color: "#2D76FC", description: "Chamadas a potenciais parceiros" },
+    { key: "anuncios", label: "Leads dos Anuncios", color: "#ea580c", description: "Leads pagas Meta/Google" },
     { key: "companhia", label: "Leads da Companhia", color: "#dc2626", description: "Leads atribuidas pela companhia (Fidelidade, Allianz, Generali...)" },
-    { key: "parcerias", label: "Parcerias", color: "#16a34a", description: "Bancos, contabilistas, imobiliarias" },
+    { key: "parcerias", label: "Leads de Parcerias", color: "#16a34a", description: "Bancos, contabilistas, imobiliarias" },
     { key: "presenciais", label: "Leads Presenciais", color: "#ec4899", description: "Feiras, eventos, networking" },
     { key: "cross-sell", label: "Cross-sell / Clientes", color: "#8b5cf6", description: "Venda cruzada a clientes existentes" },
     { key: "referencias", label: "Referencias", color: "#d97706", description: "Indicacoes de clientes" },
@@ -48,16 +51,29 @@ export const MARKET_CHANNELS: Record<MarketKey, ChannelConfig[]> = {
   ],
   IMOBILIARIO: [
     { key: "angariacao-direta", label: "Angariacao Direta", color: "#16a34a", description: "Prospecao porta-a-porta, zonas" },
-    { key: "cold-calling", label: "Cold Calling", color: "#2D76FC", description: "Chamadas a proprietarios" },
-    { key: "linkedin", label: "LinkedIn Outreach", color: "#0a66c2" },
-    { key: "anuncios", label: "Anuncios (Idealista/Imovirtual)", color: "#ea580c", description: "Portais + Meta/Google Ads" },
+    { key: "cold-calling", label: "Cold Calling (Parceiros)", color: "#2D76FC", description: "Chamadas a parceiros (B2B)" },
+    { key: "anuncios", label: "Leads dos Anuncios", color: "#ea580c", description: "Portais + Meta/Google Ads" },
     { key: "placas", label: "Placas Vende-se", color: "#f59e0b", description: "Leads de placas fisicas" },
-    { key: "parcerias", label: "Parcerias", color: "#10b981", description: "Bancos, notarios, advogados" },
+    { key: "parcerias", label: "Leads de Parcerias", color: "#10b981", description: "Bancos, notarios, advogados" },
     { key: "presenciais", label: "Open House / Eventos", color: "#ec4899", description: "Visitas e eventos presenciais" },
     { key: "referencias", label: "Referencias", color: "#8b5cf6", description: "Indicacoes de clientes" },
     { key: "outros", label: "Outros", color: "#6b7280" },
   ],
 };
+
+// Cold Calling tem pipeline diferente (B2B - parcerias, nao vendas directas)
+export function isColdCallingChannel(channelKey: string): boolean {
+  return channelKey === "cold-calling";
+}
+
+// Label da ultima etapa do pipeline depende do canal
+// - Cold calling: "Parceria Estabelecida"
+// - Qualquer outro: "Escritura" (credito) / "Venda" ja tratado por contexto
+export function getConversionLabel(channelKey: string, market: MarketKey): string {
+  if (isColdCallingChannel(channelKey)) return "Parceria Estabelecida";
+  if (market === "CREDITO") return "Escritura";
+  return "Conversao";
+}
 
 // =============================================================
 // VERTENTES (product lines) per market
@@ -67,7 +83,8 @@ export const MARKET_VERTENTES: Record<MarketKey, VertenteConfig[]> = {
   CREDITO: [
     { key: "creditoHabitacaoN", vKey: "creditoHabitacaoV", label: "Credito Habitacao", short: "Hab." },
     { key: "creditoPessoalN", vKey: "creditoPessoalV", label: "Credito Pessoal", short: "Pes." },
-    { key: "creditoConsumoN", vKey: "creditoConsumoV", label: "Credito Consumo", short: "Con." },
+    { key: "creditoConsumoN", vKey: "creditoConsumoV", label: "Credito ao Consumo", short: "Cons." },
+    { key: "creditoTransferenciaN", vKey: "creditoTransferenciaV", label: "Transferencia de Credito", short: "Transf." },
     { key: "cartoesN", vKey: "cartoesV", label: "Cartoes Credito", short: "Cart." },
     { key: "segurosCrossN", vKey: "segurosCrossV", label: "Seguros (Cross-sell)", short: "Seg." },
   ],

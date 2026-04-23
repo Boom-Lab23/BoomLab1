@@ -47,6 +47,7 @@ model User {
   subChannelMembers  SubChannelMember[]
   messages           Message[]
   scheduledMessages  ScheduledMessage[] @relation("ScheduledMessageAuthor")
+  trackerTasks       TrackerTask[]     @relation("TrackerTaskOwner")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 }
@@ -545,6 +546,9 @@ model DashboardRecord {
   // Pipeline credito: etapa entre reuniao e fecho (documentacao)
   documentacoesPedidas     Int    @default(0)  // Nº documentacoes pedidas apos reuniao
   documentacoesRecolhidas  Int    @default(0)  // Nº documentacoes efectivamente recolhidas
+  // Lead qualification (SALs / SQLs) - em todos os canais excepto cold calls
+  sals                     Int    @default(0)  // Sales Accepted Leads (viaveis em 1o contacto)
+  sqls                     Int    @default(0)  // Sales Qualified Leads (aprovadas pelo banco, prontas a avancar)
   conversionRate  Float?
   // Credito vertentes
   escrituras         Int?
@@ -554,6 +558,8 @@ model DashboardRecord {
   creditoPessoalV    Float?            // Valor credito pessoal
   creditoConsumoN    Int?              // Nº creditos consumo
   creditoConsumoV    Float?            // Valor credito consumo
+  creditoTransferenciaN Int?           // Nº transferencias de credito
+  creditoTransferenciaV Float?         // Valor transferencias de credito
   cartoesN           Int?              // Nº cartoes credito
   cartoesV           Float?            // Valor cartoes
   segurosCrossN      Int?              // Nº seguros (cross-sell)
@@ -625,6 +631,28 @@ model Channel {
   isPrivate   Boolean       @default(false)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+}
+
+// Accountability Tracker - tarefas diarias registadas pelo utilizador
+// Separado dos registos do dashboard (esses sao agregados de metricas). Este e um
+// gestor de tarefas pessoais estilo mini-CRM.
+model TrackerTask {
+  id          String    @id @default(cuid())
+  userId      String                              // Dono da tarefa
+  user        User      @relation("TrackerTaskOwner", fields: [userId], references: [id], onDelete: Cascade)
+  clientId    String?                             // Ligacao opcional a cliente/workspace
+  title       String
+  description String?   @db.Text
+  category    String    @default("OUTROS")        // PROSPECAO | FOLLOW_UP | REUNIAO | ADMIN | OUTROS
+  priority    String    @default("MEDIA")         // BAIXA | MEDIA | ALTA | URGENTE
+  status      String    @default("POR_FAZER")     // POR_FAZER | EM_CURSO | FEITO | CANCELADO
+  deadline    DateTime?
+  completedAt DateTime?
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, status, deadline])
 }
 
 // Mensagens programadas (enviadas num momento futuro; opcionalmente recorrentes)

@@ -16,6 +16,7 @@ import { dashboardsRouter } from "./dashboards";
 import { leadsRouter } from "./leads";
 import { salesAnalysisRouter } from "./salesAnalysis";
 import { scheduledMessagesRouter } from "./scheduled-messages";
+import { trackerRouter } from "./tracker";
 
 export const appRouter = router({
   clients: clientsRouter,
@@ -35,6 +36,7 @@ export const appRouter = router({
   leads: leadsRouter,
   salesAnalysis: salesAnalysisRouter,
   scheduledMessages: scheduledMessagesRouter,
+  tracker: trackerRouter,
 });
 
 export type AppRouter = typeof appRouter;

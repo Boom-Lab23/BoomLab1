@@ -25,8 +25,11 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   const userRole = (authSession?.user as Record<string, unknown>)?.role as string | undefined;
   const isGuest = userRole === "GUEST_CLIENT" || userRole === "GUEST_TEAM_MEMBER";
   const assignedWorkspaceClientId = (authSession?.user as Record<string, unknown>)?.assignedWorkspaceClientId as string | undefined;
-  // Only ADMIN / CONSULTANT / MANAGER can delete. Guests (equipas comerciais do cliente) nao.
-  const canDeleteRecords = userRole === "ADMIN" || userRole === "CONSULTANT" || userRole === "MANAGER";
+  // Permissoes:
+  // - Editar registos: CLIENTE (GUEST_CLIENT) + ADMIN. Equipa do cliente (GUEST_TEAM_MEMBER) NAO edita.
+  // - Apagar registos: DESACTIVADO (nao ha delete)
+  const canEditRecords = userRole === "ADMIN" || userRole === "GUEST_CLIENT" || userRole === "CONSULTANT" || userRole === "MANAGER";
+  const canDeleteRecords = false;
 
   const [period, setPeriod] = useState<"week" | "month" | "trimester" | "year">("month");
   const [activeTab, setActiveTab] = useState<"overview" | "channels" | "growth" | "vertentes">("overview");
@@ -59,11 +62,21 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
     channel: channels[0]?.key ?? "cold-calling",
     date: new Date().toISOString().split("T")[0],
     callsMade: "", callsAnswered: "",
+    sals: "", sqls: "",
     reunioesAgendadas: "", reunioesEfetuadas: "",
     documentacoesPedidas: "", documentacoesRecolhidas: "",
     conversoesFeitas: "",
     notes: "",
   });
+  // Dropdown dinamico de creditos (multiplos por registo)
+  type CreditLine = { key: string; n: string; v: string };
+  const [creditLines, setCreditLines] = useState<CreditLine[]>([]);
+
+  // Helper: cold calls tem pipeline especial (sem docs, conversao = parceria)
+  const isColdCallEod = eod.channel === "cold-calling";
+  const showDocsInEod = market === "CREDITO" && !isColdCallEod;
+  const showSalsSqlsInEod = !isColdCallEod;
+  const conversionLabel = isColdCallEod ? "Parceria Estabelecida" : (market === "CREDITO" ? "Escritura" : "Conversao");
 
   const addRecord = trpc.dashboards.addRecord.useMutation({
     onSuccess: () => {
@@ -79,19 +92,11 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
     onSuccess: () => utils.dashboards.getById.invalidate(),
   });
 
-  const deleteRecord = trpc.dashboards.deleteRecord.useMutation({
-    onSuccess: () => {
-      utils.dashboards.getById.invalidate();
-      utils.dashboards.kpis.invalidate();
-      utils.dashboards.growthKpis.invalidate();
-      utils.dashboards.chartData.invalidate();
-    },
-  });
-
   // Edicao de registos existentes
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     callsMade: "", callsAnswered: "",
+    sals: "", sqls: "",
     reunioesAgendadas: "", reunioesEfetuadas: "",
     documentacoesPedidas: "", documentacoesRecolhidas: "",
     conversoesFeitas: "",
@@ -107,7 +112,8 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
     },
   });
 
-  const deleteRecords = trpc.dashboards.deleteRecords.useMutation({
+  // Bulk delete removido - apenas edit via mutation updateRecord
+  const _deleteRecords = trpc.dashboards.deleteRecords.useMutation({
     onSuccess: (res) => {
       utils.dashboards.getById.invalidate();
       utils.dashboards.kpis.invalidate();
@@ -204,6 +210,39 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
 
       {/* ========== OVERVIEW TAB ========== */}
       {activeTab === "overview" && (<>
+        {/* Destaque: Valor Escriturado (so para CREDITO) */}
+        {market === "CREDITO" && (
+          <div className="relative overflow-hidden rounded-2xl border-2 p-6 shadow-lg" style={{ borderColor: color, background: `linear-gradient(135deg, ${color}12, ${color}03)` }}>
+            <div className="absolute top-0 right-0 opacity-10">
+              <TrendingUp className="h-32 w-32" style={{ color }} />
+            </div>
+            <div className="relative">
+              <p className="text-sm font-medium uppercase tracking-wide" style={{ color }}>Valor Escriturado</p>
+              <p className="mt-1 text-4xl md:text-5xl font-bold" style={{ color }}>
+                €{Number((k as unknown as Record<string, number>)?.totals?.valorEscriturado ?? 0).toLocaleString("pt-PT", { maximumFractionDigits: 0 })}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {k?.totals.conversoesFeitas ?? 0} escrituras realizadas · periodo: {period === "week" ? "semana" : period === "month" ? "mes" : period === "trimester" ? "trimestre" : "ano"}
+              </p>
+              {/* Breakdown por tipo */}
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                {[
+                  { label: "Habitacao", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoHab ?? 0 },
+                  { label: "Pessoal", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoPes ?? 0 },
+                  { label: "Consumo", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoCon ?? 0 },
+                  { label: "Transferencia", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoTransf ?? 0 },
+                  { label: "Cartoes", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCartoes ?? 0 },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-lg bg-card/80 backdrop-blur border px-3 py-2">
+                    <p className="text-[10px] text-muted-foreground uppercase">{item.label}</p>
+                    <p className="font-bold">€{Number(item.val).toLocaleString("pt-PT", { maximumFractionDigits: 0 })}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* KPI Cards - totais do pipeline */}
         <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
           <div className="rounded-xl border bg-card p-4">
@@ -222,9 +261,11 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
             <p className="text-[10px] text-muted-foreground">aconteceram</p>
           </div>
           <div className="rounded-xl border bg-card p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5" /> Conversoes</div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <CheckCircle2 className="h-3.5 w-3.5" /> {market === "CREDITO" ? "Escrituras" : "Conversoes"}
+            </div>
             <p className="text-2xl font-bold mt-1">{k?.totals.conversoesFeitas ?? 0}</p>
-            <p className="text-[10px] text-muted-foreground">fechadas</p>
+            <p className="text-[10px] text-muted-foreground">{market === "CREDITO" ? "escrituradas" : "fechadas"}</p>
           </div>
           <div className="rounded-xl border bg-card p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground"><Target className="h-3.5 w-3.5" /> TC Global</div>
@@ -678,9 +719,9 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
             <thead><tr className="border-b text-muted-foreground">
               <th className="text-left p-2">Data</th><th className="text-left p-2">Comercial</th>
               <th className="text-left p-2">Canal</th><th className="text-right p-2">Contactos</th>
-              <th className="text-right p-2">Reun.</th><th className="text-right p-2">Conv.</th>
+              <th className="text-right p-2">Reun.</th><th className="text-right p-2">{market === "CREDITO" ? "Escrit." : "Conv."}</th>
               <th className="text-right p-2">TC%</th>
-              {canDeleteRecords && <th className="text-right p-2 w-10"></th>}
+              {canEditRecords && <th className="text-right p-2 w-10"></th>}
             </tr></thead>
             <tbody className="divide-y">
               {db.records.slice(0, 20).map((r) => (
@@ -697,47 +738,35 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                   <td className="p-2 text-right">{r.reunioesEfetuadas ?? r.agendamentos ?? 0}</td>
                   <td className="p-2 text-right">{r.conversoesFeitas ?? r.conversions ?? 0}</td>
                   <td className="p-2 text-right">{r.conversionRate?.toFixed(1)}%</td>
-                  {canDeleteRecords && (
+                  {canEditRecords && (
                     <td className="p-2 text-right">
-                      <div className="flex justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => {
-                            setEditingRecordId(r.id);
-                            const rec = r as unknown as Record<string, number | null | undefined>;
-                            setEditForm({
-                              callsMade: String(r.callsMade ?? ""),
-                              callsAnswered: String(r.callsAnswered ?? ""),
-                              reunioesAgendadas: String(r.agendamentos ?? ""),
-                              reunioesEfetuadas: String(r.reunioesEfetuadas ?? r.reunioes ?? ""),
-                              documentacoesPedidas: String(rec.documentacoesPedidas ?? ""),
-                              documentacoesRecolhidas: String(rec.documentacoesRecolhidas ?? ""),
-                              conversoesFeitas: String(r.conversoesFeitas ?? r.conversions ?? ""),
-                              notes: r.notes ?? "",
-                            });
-                          }}
-                          className="rounded p-1 text-muted-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600"
-                          title="Editar registo"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Apagar registo de ${r.commercial} de ${new Date(r.date).toLocaleDateString("pt-PT")}?`)) {
-                              deleteRecord.mutate(r.id);
-                            }
-                          }}
-                          disabled={deleteRecord.isPending}
-                          className="rounded p-1 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 disabled:opacity-50"
-                          title="Apagar registo"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => {
+                          setEditingRecordId(r.id);
+                          const rec = r as unknown as Record<string, number | null | undefined>;
+                          setEditForm({
+                            callsMade: String(r.callsMade ?? ""),
+                            callsAnswered: String(r.callsAnswered ?? ""),
+                            sals: String(rec.sals ?? ""),
+                            sqls: String(rec.sqls ?? ""),
+                            reunioesAgendadas: String(r.agendamentos ?? ""),
+                            reunioesEfetuadas: String(r.reunioesEfetuadas ?? r.reunioes ?? ""),
+                            documentacoesPedidas: String(rec.documentacoesPedidas ?? ""),
+                            documentacoesRecolhidas: String(rec.documentacoesRecolhidas ?? ""),
+                            conversoesFeitas: String(r.conversoesFeitas ?? r.conversions ?? ""),
+                            notes: r.notes ?? "",
+                          });
+                        }}
+                        className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 transition-opacity"
+                        title="Editar registo"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
                     </td>
                   )}
                 </tr>
               ))}
-              {db.records.length === 0 && <tr><td colSpan={canDeleteRecords ? 8 : 7} className="p-6 text-center text-muted-foreground">Sem registos. Usa o botao &quot;Registo&quot; para adicionar.</td></tr>}
+              {db.records.length === 0 && <tr><td colSpan={canEditRecords ? 8 : 7} className="p-6 text-center text-muted-foreground">Sem registos. Usa o botao &quot;Registo&quot; para adicionar.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -868,18 +897,42 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 channel: eod.channel,
                 callsMade: parseInt(eod.callsMade) || 0,
                 callsAnswered: parseInt(eod.callsAnswered) || 0,
+                sals: showSalsSqlsInEod ? (parseInt(eod.sals) || 0) : 0,
+                sqls: showSalsSqlsInEod ? (parseInt(eod.sqls) || 0) : 0,
                 reunioesAgendadas: parseInt(eod.reunioesAgendadas) || 0,
                 reunioesEfetuadas: parseInt(eod.reunioesEfetuadas) || 0,
-                documentacoesPedidas: parseInt(eod.documentacoesPedidas) || 0,
-                documentacoesRecolhidas: parseInt(eod.documentacoesRecolhidas) || 0,
+                documentacoesPedidas: showDocsInEod ? (parseInt(eod.documentacoesPedidas) || 0) : 0,
+                documentacoesRecolhidas: showDocsInEod ? (parseInt(eod.documentacoesRecolhidas) || 0) : 0,
                 conversoesFeitas: parseInt(eod.conversoesFeitas) || 0,
                 notes: eod.notes || undefined,
               };
-              for (const v of vertentes) {
-                if (eod[v.key]) data[v.key] = parseInt(eod[v.key]) || 0;
-                if (eod[v.vKey]) data[v.vKey] = parseFloat(eod[v.vKey]) || 0;
+              // Vertentes: em credito usa o dropdown dinamico; noutros mercados usa os campos antigos
+              if (market === "CREDITO") {
+                // Agrega multiplas linhas de credito por tipo
+                const aggregated: Record<string, { n: number; v: number }> = {};
+                for (const line of creditLines) {
+                  if (!line.key) continue;
+                  if (!aggregated[line.key]) aggregated[line.key] = { n: 0, v: 0 };
+                  aggregated[line.key].n += parseInt(line.n) || 0;
+                  aggregated[line.key].v += parseFloat(line.v) || 0;
+                }
+                for (const vertente of vertentes) {
+                  if (aggregated[vertente.key]) {
+                    data[vertente.key] = aggregated[vertente.key].n;
+                    data[vertente.vKey] = aggregated[vertente.key].v;
+                  }
+                }
+              } else {
+                for (const v of vertentes) {
+                  if (eod[v.key]) data[v.key] = parseInt(eod[v.key]) || 0;
+                  if (eod[v.vKey]) data[v.vKey] = parseFloat(eod[v.vKey]) || 0;
+                }
               }
-              addRecord.mutate(data as Parameters<typeof addRecord.mutate>[0]);
+              addRecord.mutate(data as Parameters<typeof addRecord.mutate>[0], {
+                onSuccess: () => {
+                  setCreditLines([]);
+                },
+              });
             }} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -909,58 +962,149 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 </p>
               </div>
 
-              <p className="text-xs font-semibold text-muted-foreground pt-1">
-                Pipeline Comercial ({market === "CREDITO" ? "7 etapas" : "5 etapas"})
-              </p>
-              <div className={cn("grid gap-2", market === "CREDITO" ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-5")}>
-                <div>
-                  <label className="mb-0.5 block text-[10px]">1. Contactos Feitos</label>
-                  <input type="number" min="0" value={eod.callsMade} onChange={(e) => setEod({ ...eod, callsMade: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                </div>
-                <div>
-                  <label className="mb-0.5 block text-[10px]">2. Respondidos</label>
-                  <input type="number" min="0" value={eod.callsAnswered} onChange={(e) => setEod({ ...eod, callsAnswered: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                </div>
-                <div>
-                  <label className="mb-0.5 block text-[10px]">3. Reun. Agendadas</label>
-                  <input type="number" min="0" value={eod.reunioesAgendadas} onChange={(e) => setEod({ ...eod, reunioesAgendadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                </div>
-                <div>
-                  <label className="mb-0.5 block text-[10px]">4. Reun. Efetuadas</label>
-                  <input type="number" min="0" value={eod.reunioesEfetuadas} onChange={(e) => setEod({ ...eod, reunioesEfetuadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                </div>
-                {market === "CREDITO" && (
+              {(() => {
+                // Calcula etapas dinamicamente
+                const steps: { label: string; key: keyof typeof eod; hint?: string }[] = [
+                  { label: "Contactos Feitos", key: "callsMade" },
+                  { label: "Respondidos", key: "callsAnswered" },
+                ];
+                if (showSalsSqlsInEod) {
+                  steps.push({ label: "SALs", key: "sals", hint: "leads viaveis ao 1o contacto" });
+                  steps.push({ label: "SQLs", key: "sqls", hint: "qualificadas (banco aprovou)" });
+                }
+                steps.push({ label: "Reun. Agendadas", key: "reunioesAgendadas" });
+                steps.push({ label: "Reun. Efetuadas", key: "reunioesEfetuadas" });
+                if (showDocsInEod) {
+                  steps.push({ label: "Docs Pedidas", key: "documentacoesPedidas" });
+                  steps.push({ label: "Docs Recolhidas", key: "documentacoesRecolhidas" });
+                }
+                steps.push({ label: conversionLabel, key: "conversoesFeitas" });
+                return (
                   <>
-                    <div>
-                      <label className="mb-0.5 block text-[10px]">5. Docs Pedidas</label>
-                      <input type="number" min="0" value={eod.documentacoesPedidas} onChange={(e) => setEod({ ...eod, documentacoesPedidas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                    <p className="text-xs font-semibold text-muted-foreground pt-1">
+                      Pipeline Comercial ({steps.length} etapas) · canal: <span style={{ color }}>{channels.find(c => c.key === eod.channel)?.label}</span>
+                    </p>
+                    <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+                      {steps.map((step, i) => (
+                        <div key={step.key}>
+                          <label className="mb-0.5 block text-[10px]">{i + 1}. {step.label}</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={eod[step.key] ?? ""}
+                            onChange={(e) => setEod({ ...eod, [step.key]: e.target.value })}
+                            className="w-full rounded border px-2 py-1.5 text-sm bg-card"
+                          />
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <label className="mb-0.5 block text-[10px]">6. Docs Recolhidas</label>
-                      <input type="number" min="0" value={eod.documentacoesRecolhidas} onChange={(e) => setEod({ ...eod, documentacoesRecolhidas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                    </div>
+                    {isColdCallEod && (
+                      <p className="text-[10px] text-blue-600 dark:text-blue-400">
+                        <strong>Cold Calling B2B</strong>: foco em estabelecer parcerias (sem etapas de documentacao, sem SALs/SQLs).
+                      </p>
+                    )}
+                    {!isColdCallEod && (
+                      <p className="text-[10px] text-muted-foreground">
+                        <strong>SALs</strong>: leads viaveis no 1o contacto. <strong>SQLs</strong>: leads qualificadas (banco aprovou).
+                        {showDocsInEod && <> <strong>Docs</strong>: pipeline de recolha de documentacao.</>}
+                      </p>
+                    )}
                   </>
-                )}
-                <div>
-                  <label className="mb-0.5 block text-[10px]">{market === "CREDITO" ? "7." : "5."} Conversoes</label>
-                  <input type="number" min="0" value={eod.conversoesFeitas} onChange={(e) => setEod({ ...eod, conversoesFeitas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                </div>
-              </div>
-              <p className="text-[10px] text-muted-foreground">
-                <strong>Agendadas</strong>: reunioes marcadas. <strong>Efetuadas</strong>: aconteceram.
-                {market === "CREDITO" && <> <strong>Docs Pedidas</strong>: pedidos enviados ao cliente. <strong>Docs Recolhidas</strong>: recebidas de volta.</>}
-                {" "}<strong>Conversoes</strong>: fecho de contrato.
-              </p>
+                );
+              })()}
 
-              <p className="text-xs font-semibold pt-1" style={{ color }}>Vertentes - {MARKET_LABELS[market]}</p>
-              <div className="grid grid-cols-2 gap-2">
-                {vertentes.map((v) => (
-                  <div key={v.key} className="grid grid-cols-2 gap-1">
-                    <div><label className="mb-0.5 block text-[10px]">Nº {v.short}</label><input type="number" value={eod[v.key] ?? ""} onChange={(e) => setEod({ ...eod, [v.key]: e.target.value })} className="w-full rounded border px-2 py-1 text-sm bg-card" /></div>
-                    <div><label className="mb-0.5 block text-[10px]">Valor {v.short}</label><input type="number" step="0.01" value={eod[v.vKey] ?? ""} onChange={(e) => setEod({ ...eod, [v.vKey]: e.target.value })} className="w-full rounded border px-2 py-1 text-sm bg-card" /></div>
+              {market === "CREDITO" ? (
+                <>
+                  <div className="flex items-center justify-between pt-1">
+                    <p className="text-xs font-semibold" style={{ color }}>Creditos do dia</p>
+                    <button
+                      type="button"
+                      onClick={() => setCreditLines([...creditLines, { key: vertentes[0]?.key ?? "creditoHabitacaoN", n: "1", v: "" }])}
+                      className="flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium hover:bg-muted"
+                      style={{ borderColor: color, color }}
+                    >
+                      <Plus className="h-3 w-3" /> Adicionar credito
+                    </button>
                   </div>
-                ))}
-              </div>
+                  {creditLines.length === 0 ? (
+                    <p className="rounded-lg border border-dashed py-3 text-center text-xs text-muted-foreground">
+                      Ainda sem creditos. Clica em &quot;Adicionar credito&quot; para registar.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {creditLines.map((line, idx) => (
+                        <div key={idx} className="grid grid-cols-[1fr_80px_120px_auto] gap-2 items-end">
+                          <div>
+                            <label className="mb-0.5 block text-[10px]">Tipo</label>
+                            <select
+                              value={line.key}
+                              onChange={(e) => {
+                                const copy = [...creditLines];
+                                copy[idx] = { ...copy[idx], key: e.target.value };
+                                setCreditLines(copy);
+                              }}
+                              className="w-full rounded border px-2 py-1.5 text-sm bg-card"
+                            >
+                              {vertentes.map((v) => (
+                                <option key={v.key} value={v.key}>{v.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="mb-0.5 block text-[10px]">Nº</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={line.n}
+                              onChange={(e) => {
+                                const copy = [...creditLines];
+                                copy[idx] = { ...copy[idx], n: e.target.value };
+                                setCreditLines(copy);
+                              }}
+                              className="w-full rounded border px-2 py-1.5 text-sm bg-card"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-0.5 block text-[10px]">Valor (€)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={line.v}
+                              onChange={(e) => {
+                                const copy = [...creditLines];
+                                copy[idx] = { ...copy[idx], v: e.target.value };
+                                setCreditLines(copy);
+                              }}
+                              className="w-full rounded border px-2 py-1.5 text-sm bg-card"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setCreditLines(creditLines.filter((_, i) => i !== idx))}
+                            className="rounded p-1.5 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600"
+                            title="Remover"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-xs font-semibold pt-1" style={{ color }}>Vertentes - {MARKET_LABELS[market]}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {vertentes.map((v) => (
+                      <div key={v.key} className="grid grid-cols-2 gap-1">
+                        <div><label className="mb-0.5 block text-[10px]">Nº {v.short}</label><input type="number" value={eod[v.key] ?? ""} onChange={(e) => setEod({ ...eod, [v.key]: e.target.value })} className="w-full rounded border px-2 py-1 text-sm bg-card" /></div>
+                        <div><label className="mb-0.5 block text-[10px]">Valor {v.short}</label><input type="number" step="0.01" value={eod[v.vKey] ?? ""} onChange={(e) => setEod({ ...eod, [v.vKey]: e.target.value })} className="w-full rounded border px-2 py-1 text-sm bg-card" /></div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
 
               <div><label className="mb-0.5 block text-[10px]">Notas</label><input type="text" value={eod.notes} onChange={(e) => setEod({ ...eod, notes: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" /></div>
               <div className="flex justify-end gap-3 border-t pt-3">
@@ -986,15 +1130,22 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!editingRecordId) return;
+                // Determina canal do registo para saber se inclui docs/sals
+                const editedRec = db.records.find((r) => r.id === editingRecordId);
+                const editIsColdCall = editedRec?.channel === "cold-calling";
+                const editShowDocs = market === "CREDITO" && !editIsColdCall;
+                const editShowSals = !editIsColdCall;
                 updateRecord.mutate({
                   id: editingRecordId,
                   data: {
                     callsMade: parseInt(editForm.callsMade) || 0,
                     callsAnswered: parseInt(editForm.callsAnswered) || 0,
+                    sals: editShowSals ? (parseInt(editForm.sals) || 0) : 0,
+                    sqls: editShowSals ? (parseInt(editForm.sqls) || 0) : 0,
                     reunioesAgendadas: parseInt(editForm.reunioesAgendadas) || 0,
                     reunioesEfetuadas: parseInt(editForm.reunioesEfetuadas) || 0,
-                    documentacoesPedidas: parseInt(editForm.documentacoesPedidas) || 0,
-                    documentacoesRecolhidas: parseInt(editForm.documentacoesRecolhidas) || 0,
+                    documentacoesPedidas: editShowDocs ? (parseInt(editForm.documentacoesPedidas) || 0) : 0,
+                    documentacoesRecolhidas: editShowDocs ? (parseInt(editForm.documentacoesRecolhidas) || 0) : 0,
                     conversoesFeitas: parseInt(editForm.conversoesFeitas) || 0,
                     notes: editForm.notes || null,
                   },
@@ -1002,49 +1153,54 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
               }}
               className="space-y-3"
             >
-              <p className="text-xs font-semibold text-muted-foreground">
-                Pipeline Comercial ({market === "CREDITO" ? "7 etapas" : "5 etapas"})
-              </p>
-              <div className={cn("grid gap-2", market === "CREDITO" ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-5")}>
-                <div>
-                  <label className="mb-0.5 block text-[10px]">1. Contactos</label>
-                  <input type="number" min="0" value={editForm.callsMade} onChange={(e) => setEditForm({ ...editForm, callsMade: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                </div>
-                <div>
-                  <label className="mb-0.5 block text-[10px]">2. Respondidos</label>
-                  <input type="number" min="0" value={editForm.callsAnswered} onChange={(e) => setEditForm({ ...editForm, callsAnswered: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                </div>
-                <div>
-                  <label className="mb-0.5 block text-[10px]">3. Agendadas</label>
-                  <input type="number" min="0" value={editForm.reunioesAgendadas} onChange={(e) => setEditForm({ ...editForm, reunioesAgendadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                </div>
-                <div>
-                  <label className="mb-0.5 block text-[10px]">4. Efetuadas</label>
-                  <input type="number" min="0" value={editForm.reunioesEfetuadas} onChange={(e) => setEditForm({ ...editForm, reunioesEfetuadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                </div>
-                {market === "CREDITO" && (
+              {(() => {
+                const editedRec = db.records.find((r) => r.id === editingRecordId);
+                const editIsColdCall = editedRec?.channel === "cold-calling";
+                const editShowDocs = market === "CREDITO" && !editIsColdCall;
+                const editShowSals = !editIsColdCall;
+                const editConversionLabel = editIsColdCall ? "Parc. Estab." : (market === "CREDITO" ? "Escrituras" : "Conversoes");
+                const steps: { label: string; key: keyof typeof editForm }[] = [
+                  { label: "Contactos", key: "callsMade" },
+                  { label: "Respondidos", key: "callsAnswered" },
+                ];
+                if (editShowSals) {
+                  steps.push({ label: "SALs", key: "sals" });
+                  steps.push({ label: "SQLs", key: "sqls" });
+                }
+                steps.push({ label: "Agendadas", key: "reunioesAgendadas" });
+                steps.push({ label: "Efetuadas", key: "reunioesEfetuadas" });
+                if (editShowDocs) {
+                  steps.push({ label: "Docs Pedidas", key: "documentacoesPedidas" });
+                  steps.push({ label: "Docs Recolhidas", key: "documentacoesRecolhidas" });
+                }
+                steps.push({ label: editConversionLabel, key: "conversoesFeitas" });
+                return (
                   <>
-                    <div>
-                      <label className="mb-0.5 block text-[10px]">5. Docs Pedidas</label>
-                      <input type="number" min="0" value={editForm.documentacoesPedidas} onChange={(e) => setEditForm({ ...editForm, documentacoesPedidas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card border-orange-300 dark:border-orange-800" />
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      Pipeline ({steps.length} etapas) · canal: <span style={{ color }}>{getChannelLabel(market, editedRec?.channel ?? "")}</span>
+                    </p>
+                    <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+                      {steps.map((step, i) => (
+                        <div key={step.key}>
+                          <label className="mb-0.5 block text-[10px]">{i + 1}. {step.label}</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={editForm[step.key] ?? ""}
+                            onChange={(e) => setEditForm({ ...editForm, [step.key]: e.target.value })}
+                            className="w-full rounded border px-2 py-1.5 text-sm bg-card"
+                          />
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <label className="mb-0.5 block text-[10px]">6. Docs Recolhidas</label>
-                      <input type="number" min="0" value={editForm.documentacoesRecolhidas} onChange={(e) => setEditForm({ ...editForm, documentacoesRecolhidas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card border-yellow-300 dark:border-yellow-800" />
-                    </div>
+                    {editIsColdCall && (
+                      <p className="text-[10px] text-blue-600 dark:text-blue-400">
+                        Cold Calling B2B - sem documentacao nem SALs/SQLs (os campos so se aplicam a canais de leads particulares).
+                      </p>
+                    )}
                   </>
-                )}
-                <div>
-                  <label className="mb-0.5 block text-[10px]">{market === "CREDITO" ? "7." : "5."} Conversoes</label>
-                  <input type="number" min="0" value={editForm.conversoesFeitas} onChange={(e) => setEditForm({ ...editForm, conversoesFeitas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                </div>
-              </div>
-
-              {market === "CREDITO" && (
-                <p className="text-[10px] text-orange-600 dark:text-orange-400">
-                  <strong>Dica:</strong> Preenche os campos de Docs Pedidas e Recolhidas para este registo aparecer correctamente no pipeline de 5 etapas.
-                </p>
-              )}
+                );
+              })()}
 
               <div>
                 <label className="mb-0.5 block text-[10px]">Notas</label>
