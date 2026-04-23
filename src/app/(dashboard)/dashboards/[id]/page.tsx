@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft, Plus, X, Phone, TrendingUp, Users, Target, BarChart3, UserPlus, Trash2,
-  Network, CheckCircle2, Handshake, Filter, Check, AlertTriangle, Calendar,
+  Network, CheckCircle2, Handshake, Filter, Check, AlertTriangle, Calendar, Pencil,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -59,7 +59,9 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
     channel: channels[0]?.key ?? "cold-calling",
     date: new Date().toISOString().split("T")[0],
     callsMade: "", callsAnswered: "",
-    reunioesAgendadas: "", reunioesEfetuadas: "", conversoesFeitas: "",
+    reunioesAgendadas: "", reunioesEfetuadas: "",
+    documentacoesPedidas: "", documentacoesRecolhidas: "",
+    conversoesFeitas: "",
     notes: "",
   });
 
@@ -83,6 +85,25 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
       utils.dashboards.kpis.invalidate();
       utils.dashboards.growthKpis.invalidate();
       utils.dashboards.chartData.invalidate();
+    },
+  });
+
+  // Edicao de registos existentes
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    callsMade: "", callsAnswered: "",
+    reunioesAgendadas: "", reunioesEfetuadas: "",
+    documentacoesPedidas: "", documentacoesRecolhidas: "",
+    conversoesFeitas: "",
+    notes: "",
+  });
+  const updateRecord = trpc.dashboards.updateRecord.useMutation({
+    onSuccess: () => {
+      utils.dashboards.getById.invalidate();
+      utils.dashboards.kpis.invalidate();
+      utils.dashboards.growthKpis.invalidate();
+      utils.dashboards.chartData.invalidate();
+      setEditingRecordId(null);
     },
   });
 
@@ -678,18 +699,40 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                   <td className="p-2 text-right">{r.conversionRate?.toFixed(1)}%</td>
                   {canDeleteRecords && (
                     <td className="p-2 text-right">
-                      <button
-                        onClick={() => {
-                          if (confirm(`Apagar registo de ${r.commercial} de ${new Date(r.date).toLocaleDateString("pt-PT")}?`)) {
-                            deleteRecord.mutate(r.id);
-                          }
-                        }}
-                        disabled={deleteRecord.isPending}
-                        className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 transition-opacity disabled:opacity-50"
-                        title="Apagar registo"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => {
+                            setEditingRecordId(r.id);
+                            const rec = r as unknown as Record<string, number | null | undefined>;
+                            setEditForm({
+                              callsMade: String(r.callsMade ?? ""),
+                              callsAnswered: String(r.callsAnswered ?? ""),
+                              reunioesAgendadas: String(r.agendamentos ?? ""),
+                              reunioesEfetuadas: String(r.reunioesEfetuadas ?? r.reunioes ?? ""),
+                              documentacoesPedidas: String(rec.documentacoesPedidas ?? ""),
+                              documentacoesRecolhidas: String(rec.documentacoesRecolhidas ?? ""),
+                              conversoesFeitas: String(r.conversoesFeitas ?? r.conversions ?? ""),
+                              notes: r.notes ?? "",
+                            });
+                          }}
+                          className="rounded p-1 text-muted-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600"
+                          title="Editar registo"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Apagar registo de ${r.commercial} de ${new Date(r.date).toLocaleDateString("pt-PT")}?`)) {
+                              deleteRecord.mutate(r.id);
+                            }
+                          }}
+                          disabled={deleteRecord.isPending}
+                          className="rounded p-1 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 disabled:opacity-50"
+                          title="Apagar registo"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -827,6 +870,8 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 callsAnswered: parseInt(eod.callsAnswered) || 0,
                 reunioesAgendadas: parseInt(eod.reunioesAgendadas) || 0,
                 reunioesEfetuadas: parseInt(eod.reunioesEfetuadas) || 0,
+                documentacoesPedidas: parseInt(eod.documentacoesPedidas) || 0,
+                documentacoesRecolhidas: parseInt(eod.documentacoesRecolhidas) || 0,
                 conversoesFeitas: parseInt(eod.conversoesFeitas) || 0,
                 notes: eod.notes || undefined,
               };
@@ -864,8 +909,10 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 </p>
               </div>
 
-              <p className="text-xs font-semibold text-muted-foreground pt-1">Pipeline Comercial (5 etapas)</p>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <p className="text-xs font-semibold text-muted-foreground pt-1">
+                Pipeline Comercial ({market === "CREDITO" ? "7 etapas" : "5 etapas"})
+              </p>
+              <div className={cn("grid gap-2", market === "CREDITO" ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-5")}>
                 <div>
                   <label className="mb-0.5 block text-[10px]">1. Contactos Feitos</label>
                   <input type="number" min="0" value={eod.callsMade} onChange={(e) => setEod({ ...eod, callsMade: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
@@ -882,13 +929,27 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                   <label className="mb-0.5 block text-[10px]">4. Reun. Efetuadas</label>
                   <input type="number" min="0" value={eod.reunioesEfetuadas} onChange={(e) => setEod({ ...eod, reunioesEfetuadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
                 </div>
+                {market === "CREDITO" && (
+                  <>
+                    <div>
+                      <label className="mb-0.5 block text-[10px]">5. Docs Pedidas</label>
+                      <input type="number" min="0" value={eod.documentacoesPedidas} onChange={(e) => setEod({ ...eod, documentacoesPedidas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                    </div>
+                    <div>
+                      <label className="mb-0.5 block text-[10px]">6. Docs Recolhidas</label>
+                      <input type="number" min="0" value={eod.documentacoesRecolhidas} onChange={(e) => setEod({ ...eod, documentacoesRecolhidas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                    </div>
+                  </>
+                )}
                 <div>
-                  <label className="mb-0.5 block text-[10px]">5. Conversoes</label>
+                  <label className="mb-0.5 block text-[10px]">{market === "CREDITO" ? "7." : "5."} Conversoes</label>
                   <input type="number" min="0" value={eod.conversoesFeitas} onChange={(e) => setEod({ ...eod, conversoesFeitas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                <strong>Agendadas</strong>: reunioes marcadas no calendario. <strong>Efetuadas</strong>: as que realmente aconteceram. <strong>Conversoes</strong>: fecho de contrato.
+                <strong>Agendadas</strong>: reunioes marcadas. <strong>Efetuadas</strong>: aconteceram.
+                {market === "CREDITO" && <> <strong>Docs Pedidas</strong>: pedidos enviados ao cliente. <strong>Docs Recolhidas</strong>: recebidas de volta.</>}
+                {" "}<strong>Conversoes</strong>: fecho de contrato.
               </p>
 
               <p className="text-xs font-semibold pt-1" style={{ color }}>Vertentes - {MARKET_LABELS[market]}</p>
@@ -905,6 +966,100 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
               <div className="flex justify-end gap-3 border-t pt-3">
                 <button type="button" onClick={() => setShowEOD(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
                 <button type="submit" disabled={addRecord.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">{addRecord.isPending ? "..." : "Registar"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============ EDIT RECORD DIALOG ============ */}
+      {editingRecordId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-6 animate-scale-in">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Editar Registo</h2>
+              <button onClick={() => setEditingRecordId(null)} className="rounded-lg p-1 hover:bg-muted">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!editingRecordId) return;
+                updateRecord.mutate({
+                  id: editingRecordId,
+                  data: {
+                    callsMade: parseInt(editForm.callsMade) || 0,
+                    callsAnswered: parseInt(editForm.callsAnswered) || 0,
+                    reunioesAgendadas: parseInt(editForm.reunioesAgendadas) || 0,
+                    reunioesEfetuadas: parseInt(editForm.reunioesEfetuadas) || 0,
+                    documentacoesPedidas: parseInt(editForm.documentacoesPedidas) || 0,
+                    documentacoesRecolhidas: parseInt(editForm.documentacoesRecolhidas) || 0,
+                    conversoesFeitas: parseInt(editForm.conversoesFeitas) || 0,
+                    notes: editForm.notes || null,
+                  },
+                });
+              }}
+              className="space-y-3"
+            >
+              <p className="text-xs font-semibold text-muted-foreground">
+                Pipeline Comercial ({market === "CREDITO" ? "7 etapas" : "5 etapas"})
+              </p>
+              <div className={cn("grid gap-2", market === "CREDITO" ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-5")}>
+                <div>
+                  <label className="mb-0.5 block text-[10px]">1. Contactos</label>
+                  <input type="number" min="0" value={editForm.callsMade} onChange={(e) => setEditForm({ ...editForm, callsMade: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[10px]">2. Respondidos</label>
+                  <input type="number" min="0" value={editForm.callsAnswered} onChange={(e) => setEditForm({ ...editForm, callsAnswered: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[10px]">3. Agendadas</label>
+                  <input type="number" min="0" value={editForm.reunioesAgendadas} onChange={(e) => setEditForm({ ...editForm, reunioesAgendadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[10px]">4. Efetuadas</label>
+                  <input type="number" min="0" value={editForm.reunioesEfetuadas} onChange={(e) => setEditForm({ ...editForm, reunioesEfetuadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                </div>
+                {market === "CREDITO" && (
+                  <>
+                    <div>
+                      <label className="mb-0.5 block text-[10px]">5. Docs Pedidas</label>
+                      <input type="number" min="0" value={editForm.documentacoesPedidas} onChange={(e) => setEditForm({ ...editForm, documentacoesPedidas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card border-orange-300 dark:border-orange-800" />
+                    </div>
+                    <div>
+                      <label className="mb-0.5 block text-[10px]">6. Docs Recolhidas</label>
+                      <input type="number" min="0" value={editForm.documentacoesRecolhidas} onChange={(e) => setEditForm({ ...editForm, documentacoesRecolhidas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card border-yellow-300 dark:border-yellow-800" />
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label className="mb-0.5 block text-[10px]">{market === "CREDITO" ? "7." : "5."} Conversoes</label>
+                  <input type="number" min="0" value={editForm.conversoesFeitas} onChange={(e) => setEditForm({ ...editForm, conversoesFeitas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                </div>
+              </div>
+
+              {market === "CREDITO" && (
+                <p className="text-[10px] text-orange-600 dark:text-orange-400">
+                  <strong>Dica:</strong> Preenche os campos de Docs Pedidas e Recolhidas para este registo aparecer correctamente no pipeline de 5 etapas.
+                </p>
+              )}
+
+              <div>
+                <label className="mb-0.5 block text-[10px]">Notas</label>
+                <input type="text" value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+              </div>
+
+              {updateRecord.error && (
+                <p className="text-xs text-red-600 dark:text-red-400">Erro: {updateRecord.error.message}</p>
+              )}
+
+              <div className="flex justify-end gap-3 border-t pt-3">
+                <button type="button" onClick={() => setEditingRecordId(null)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
+                <button type="submit" disabled={updateRecord.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
+                  {updateRecord.isPending ? "A guardar..." : "Guardar"}
+                </button>
               </div>
             </form>
           </div>

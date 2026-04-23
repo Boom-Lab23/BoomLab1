@@ -198,6 +198,49 @@ export const dashboardsRouter = router({
       });
     }),
 
+  // Update an existing record (partial) - usado para preencher novos campos em records antigos
+  updateRecord: publicProcedure
+    .input(z.object({
+      id: z.string(),
+      data: z.object({
+        callsMade: z.number().optional(),
+        callsAnswered: z.number().optional(),
+        reunioesAgendadas: z.number().optional(),
+        reunioesEfetuadas: z.number().optional(),
+        documentacoesPedidas: z.number().optional(),
+        documentacoesRecolhidas: z.number().optional(),
+        conversoesFeitas: z.number().optional(),
+        channel: z.string().optional(),
+        commercial: z.string().optional(),
+        notes: z.string().nullable().optional(),
+      }),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Normaliza campos "legacy": quando atualizam reunioesAgendadas, tambem atualizam agendamentos
+      const data: Record<string, unknown> = { ...input.data };
+      if (input.data.reunioesAgendadas !== undefined) {
+        data.agendamentos = input.data.reunioesAgendadas;
+      }
+      if (input.data.reunioesEfetuadas !== undefined) {
+        data.reunioes = input.data.reunioesEfetuadas;
+      }
+      if (input.data.conversoesFeitas !== undefined) {
+        data.conversions = input.data.conversoesFeitas;
+      }
+      return ctx.prisma.dashboardRecord.update({
+        where: { id: input.id },
+        data,
+      });
+    }),
+
+  deleteRecord: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.dashboardRecord.delete({
+        where: { id: input.id },
+      });
+    }),
+
   // Get KPIs for a dashboard (aggregated) - with per-channel breakdown
   kpis: publicProcedure
     .input(z.object({
