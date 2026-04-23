@@ -185,6 +185,9 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
   try {
     const result = await prisma.$transaction(async (tx) => {
       // 1. Cliente
+      // Nota: pillars sao atribuidos via mapping GhlPipelineMapping.defaultPillars mas
+      // o modelo Client nao tem o campo - para futuro usamos via ClientPillar join table
+      void pillars; // usado mais tarde quando implementarmos ClientPillar
       const client = existingClient
         ? existingClient
         : await tx.client.create({
@@ -196,7 +199,6 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
               coreBusiness: contact.companyName,
               status: "PRE_ARRANQUE",
               offer: [offer],
-              pillars: pillars,
               projectStart: new Date(),
               billing: payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? null,
             } as Record<string, unknown>,
