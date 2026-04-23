@@ -13,6 +13,30 @@ html, body {
   /* Usa viewport-fit=cover no viewport (ja configurado em layout.tsx) */
 }
 
+/* Informa o browser que a pagina suporta light+dark nativamente.
+   Sem isto, os <select> (dropdowns nativos), inputs date/time e scrollbars
+   ficam com cores do OS (white-on-white em dark mode). */
+html.light { color-scheme: light; }
+html.dark { color-scheme: dark; }
+
+/* Force dark-friendly colors em selects e options em dark mode.
+   Alguns browsers (Chrome) ignoram color-scheme se nao houver regra explicita. */
+.dark select,
+.dark select option,
+.dark input[type="date"],
+.dark input[type="datetime-local"],
+.dark input[type="time"],
+.dark input[type="month"],
+.dark input[type="week"] {
+  color-scheme: dark;
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
+}
+.dark select option {
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
+}
+
 /* Classe utility para uso em componentes que precisem safe-area manual */
 .safe-top     { padding-top:    env(safe-area-inset-top); }
 .safe-bottom  { padding-bottom: env(safe-area-inset-bottom); }
