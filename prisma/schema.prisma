@@ -656,6 +656,42 @@ model TrackerTask {
 }
 
 // Mensagens programadas (enviadas num momento futuro; opcionalmente recorrentes)
+// Mapeia pipelines do GoHighLevel para ofertas BoomLab
+// Usado pelo webhook /api/webhooks/ghl para saber que tipo de cliente criar
+model GhlPipelineMapping {
+  id              String   @id @default(cuid())
+  ghlPipelineId   String   @unique             // Pipeline ID no GHL
+  ghlPipelineName String                       // Nome legivel para debug
+  offer           String                       // "Consultoria" | "IA" | "Mentoria" | "BoomClub"
+  defaultPillars  String[]                     // Pilares a atribuir ao cliente criado
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Regista cada evento recebido do GHL para idempotencia + auditoria
+// Nao voltamos a processar eventos ja processados (em caso de retry do GHL)
+model GhlEvent {
+  id            String   @id @default(cuid())
+  ghlEventId    String?  @unique               // Event ID do webhook (quando GHL fornece)
+  ghlDealId     String                         // Opportunity / Deal ID
+  ghlContactId  String?                        // Contact ID (cliente no GHL)
+  ghlPipelineId String?
+  ghlStageId    String?
+  stageName     String?
+  status        String                         // "processed" | "pending" | "failed" | "skipped"
+  error         String?                        // Mensagem de erro se status=failed
+  payload       Json                           // Payload completo para debug
+  createdClientId String?                      // ID do Client BoomLab criado
+  createdUserId   String?                      // ID do User criado
+  createdChannelId String?                     // ID do Channel criado
+  createdAt     DateTime @default(now())
+  processedAt   DateTime?
+
+  @@index([ghlDealId])
+  @@index([status, createdAt])
+}
+
 model ScheduledMessage {
   id                   String    @id @default(cuid())
   channelId            String
