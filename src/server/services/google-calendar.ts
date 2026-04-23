@@ -138,6 +138,140 @@ export async function syncCalendarToSessions(userId: string): Promise<{
   return { synced: events.length, created, matched };
 }
 
+// Cria um evento no Google Calendar para uma sessao
+// Devolve o eventId criado (para guardar em Session.calendarEventId)
+export async function createCalendarEvent(
+  userId: string,
+  session: {
+    title: string;
+    date: Date;
+    description?: string | null;
+    durationMinutes?: number;
+    attendees?: string[];
+  }
+): Promise<{ eventId: string; htmlLink: string | null; meetLink: string | null }> {
+  const calendar = await getCalendarClient(userId);
+
+  const durationMin = session.durationMinutes ?? 60;
+  const start = new Date(session.date);
+  const end = new Date(start.getTime() + durationMin * 60_000);
+
+  const attendeesList = (session.attendees ?? [])
+    .filter((e) => e && e.includes("@"))
+    .map((email) => ({ email }));
+
+  const res = await calendar.events.insert({
+    calendarId: "primary",
+    conferenceDataVersion: 1, // necessario para criar Meet link
+    sendUpdates: attendeesList.length > 0 ? "all" : "none",
+    requestBody: {
+      summary: session.title,
+      description: session.description ?? undefined,
+      start: { dateTime: start.toISOString(), timeZone: "Europe/Lisbon" },
+      end: { dateTime: end.toISOString(), timeZone: "Europe/Lisbon" },
+      attendees: attendeesList.length > 0 ? attendeesList : undefined,
+      conferenceData: {
+        createRequest: {
+          requestId: `boomlab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          conferenceSolutionKey: { type: "hangoutsMeet" },
+        },
+      },
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: "email", minutes: 24 * 60 },
+          { method: "popup", minutes: 15 },
+        ],
+      },
+    },
+  });
+
+  return {
+    eventId: res.data.id ?? "",
+    htmlLink: res.data.htmlLink ?? null,
+    meetLink: res.data.hangoutLink ?? res.data.conferenceData?.entryPoints?.[0]?.uri ?? null,
+  };
+}
+
+// Pusha todas as sessoes MARCADAS que ainda nao tem calendarEventId
+export async function pushPendingSessionsToCalendar(
+  userId: string,
+  options?: {
+    onlyFuture?: boolean;
+    modules?: string[];
+    includeClientEmail?: boolean;
+    onlyForOffboarding?: boolean;
+  }
+): Promise<{
+  pushed: number;
+  skipped: number;
+  failed: number;
+  errors: Array<{ sessionId: string; error: string }>;
+}> {
+  const where: Record<string, unknown> = {
+    calendarEventId: null,
+    status: "MARCADA",
+  };
+  if (options?.onlyFuture !== false) {
+    where.date = { gte: new Date() };
+  }
+  if (options?.modules) {
+    where.module = { in: options.modules };
+  }
+
+  const sessions = await prisma.session.findMany({
+    where,
+    include: { client: true },
+    orderBy: { date: "asc" },
+  });
+
+  let pushed = 0, skipped = 0, failed = 0;
+  const errors: Array<{ sessionId: string; error: string }> = [];
+
+  for (const s of sessions) {
+    if (!s.date) { skipped++; continue; }
+
+    // Decide se convida cliente
+    const clientEmail = s.client?.email;
+    const wantInvite = options?.includeClientEmail && clientEmail;
+    const isOffboarding = s.module === "off-boarding";
+    const shouldInvite = options?.onlyForOffboarding
+      ? (isOffboarding && wantInvite)
+      : wantInvite;
+
+    try {
+      const evt = await createCalendarEvent(userId, {
+        title: s.title,
+        date: s.date,
+        description: [
+          s.client?.name ? `Cliente: ${s.client.name}` : null,
+          s.module ? `Tipo: ${s.module}` : null,
+          s.client?.projectEnd ? `Fim do contrato: ${s.client.projectEnd.toISOString().slice(0, 10)}` : null,
+          `\nCriado automaticamente pela BoomLab Platform.`,
+        ].filter(Boolean).join("\n"),
+        durationMinutes: 60,
+        attendees: shouldInvite && clientEmail ? [clientEmail] : [],
+      });
+
+      await prisma.session.update({
+        where: { id: s.id },
+        data: {
+          calendarEventId: evt.eventId,
+          meetLink: evt.meetLink ?? undefined,
+        },
+      });
+      pushed++;
+      // Small delay para nao bater rate limit do Google (10 QPS por user)
+      await new Promise((r) => setTimeout(r, 120));
+    } catch (err) {
+      failed++;
+      errors.push({ sessionId: s.id, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return { pushed, skipped, failed, errors };
+}
+
 // Get today's events for the dashboard
 export async function getTodaysEvents(userId: string): Promise<CalendarEvent[]> {
   const today = new Date();
