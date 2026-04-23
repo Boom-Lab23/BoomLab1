@@ -683,11 +683,12 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
               {ROLE_LABELS[user.role] ?? user.role}
             </span>
             {user.mustChangePassword && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700" title="Utilizador ainda nao alterou a password">
+              <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300" title="Utilizador ainda nao alterou a password">
                 1o login pendente
               </span>
             )}
-            {user.welcomeEmailSentAt && (
+            {/* Badge 'email enviado' so aparece enquanto o 1o login esta pendente. Depois do primeiro login, desaparece. */}
+            {user.welcomeEmailSentAt && user.mustChangePassword && (
               <span className="rounded-full bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300" title={`Email enviado em ${new Date(user.welcomeEmailSentAt).toLocaleString("pt-PT")}`}>
                 ✉️ enviado
               </span>

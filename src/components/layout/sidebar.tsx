@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { BoomLabLogo } from "@/components/logo";
+import { useMessagingNotifications } from "@/hooks/use-messaging-notifications";
 
 const mainNav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -23,7 +24,6 @@ const mainNav = [
   { href: "/knowledge", label: "Base Conhec. IA", icon: Brain },
   { href: "/messaging", label: "Mensagens", icon: MessageSquare },
   { href: "/documents", label: "Documentos", icon: FileText },
-  { href: "/timelines", label: "Timelines", icon: Layers },
   { href: "/referrals", label: "Referencias", icon: UserPlus },
   { href: "/boom-club", label: "Boom Club", icon: Rocket },
   { href: "/admin/users", label: "Admin", icon: ShieldCheck },
@@ -42,6 +42,7 @@ const pillarNav = [
 export function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
+  const { totalUnread } = useMessagingNotifications();
   const [pillarsOpen, setPillarsOpen] = useState(true);
   const { data: session } = useSession();
   const role = (session?.user as Record<string, unknown>)?.role as string | undefined;
@@ -127,7 +128,12 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                 onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
               >
                 <item.icon className="h-[18px] w-[18px] shrink-0" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/messaging" && totalUnread > 0 && (
+                  <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white min-w-[18px] text-center">
+                    {totalUnread > 99 ? "99+" : totalUnread}
+                  </span>
+                )}
               </Link>
             );
           })}

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   ArrowLeft, Send, Hash, Pin, Users, Building2, Bot, Paperclip,
   Plus, Lock, Settings2, Shield, ChevronDown, ChevronRight,
-  UserPlus, UserMinus, X, Check, Menu,
+  UserPlus, UserMinus, X, Check, Menu, Clock, Trash2,
 } from "lucide-react";
 
 type MemberWithPerms = {
@@ -64,6 +64,23 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
   const [showPermissions, setShowPermissions] = useState<string | null>(null);
   const [showCreateSub, setShowCreateSub] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  // Scheduled messages state
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [showScheduledList, setShowScheduledList] = useState(false);
+  const defaultSchedDate = (() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() + 60); // 1h no futuro por defeito
+    d.setSeconds(0, 0);
+    return d.toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
+  })();
+  const [schedForm, setSchedForm] = useState({
+    content: "",
+    scheduledFor: defaultSchedDate,
+    recurrence: "none" as "none" | "daily" | "weekly" | "monthly",
+    recurrenceDayOfWeek: 1, // Segunda por defeito
+    recurrenceDayOfMonth: 1,
+    recurrenceTime: "09:00",
+  });
   const [newSubName, setNewSubName] = useState("");
   const [newSubPrivate, setNewSubPrivate] = useState(false);
   const [newSubMembers, setNewSubMembers] = useState<string[]>([]);
@@ -72,6 +89,35 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
   const channelData = trpc.messaging.getChannel.useQuery({ channelId });
   // Lista de TODOS os canais onde o utilizador e membro (para sidebar de navegacao tipo Slack)
   const allChannels = trpc.messaging.channels.useQuery({}, { enabled: !isGuest });
+
+  // Marcar canal como lido quando se abre / a cada 10s enquanto se esta no canal
+  const currentUserId = (authSession?.user as Record<string, unknown>)?.id as string | undefined;
+  const markAsRead = trpc.messaging.markChannelAsRead.useMutation();
+
+  // Scheduled messages
+  const scheduledList = trpc.scheduledMessages.list.useQuery(
+    { channelId, onlyActive: true },
+    { enabled: !!channelId }
+  );
+  const createScheduled = trpc.scheduledMessages.create.useMutation({
+    onSuccess: () => {
+      scheduledList.refetch();
+      setShowSchedule(false);
+      setSchedForm({ ...schedForm, content: "" });
+    },
+  });
+  const cancelScheduled = trpc.scheduledMessages.cancel.useMutation({
+    onSuccess: () => scheduledList.refetch(),
+  });
+  useEffect(() => {
+    if (!currentUserId || !channelId) return;
+    markAsRead.mutate({ channelId, userId: currentUserId });
+    const interval = setInterval(() => {
+      markAsRead.mutate({ channelId, userId: currentUserId });
+    }, 10_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelId, currentUserId]);
   const subChannelData = trpc.messaging.getSubChannel.useQuery(
     { subChannelId: activeSubChannel! },
     { enabled: !!activeSubChannel }
@@ -463,12 +509,198 @@ export default function ChannelPage({ params }: { params: Promise<{ channelId: s
               placeholder={`Mensagem para #${currentName}...`}
               className="flex-1 resize-none bg-transparent text-sm outline-none" rows={1}
             />
+            <button
+              type="button"
+              onClick={() => {
+                setSchedForm({ ...schedForm, content: message || "" });
+                setShowSchedule(true);
+              }}
+              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title="Programar envio"
+            >
+              <Clock className="h-4 w-4" />
+            </button>
             <button onClick={handleSend} disabled={(!message.trim() && pendingFiles.length === 0) || sendMessage.isPending}
               className="rounded-lg bg-primary p-1.5 text-white hover:bg-primary/90 disabled:opacity-50">
               <Send className="h-4 w-4" />
             </button>
           </div>
+
+          {/* Scheduled messages list toggle */}
+          {(scheduledList.data?.length ?? 0) > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowScheduledList(!showScheduledList)}
+              className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Clock className="h-3 w-3" />
+              {scheduledList.data!.length} mensagem(s) programada(s)
+              <ChevronDown className={cn("h-3 w-3 transition-transform", showScheduledList && "rotate-180")} />
+            </button>
+          )}
+          {showScheduledList && (
+            <div className="mt-2 space-y-1 rounded-lg border bg-muted/30 p-2">
+              {scheduledList.data?.map((sm) => (
+                <div key={sm.id} className="flex items-start gap-2 text-xs rounded-md p-2 hover:bg-muted">
+                  <Clock className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate">{sm.content}</p>
+                    <p className="text-muted-foreground">
+                      {new Date(sm.scheduledFor).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" })}
+                      {sm.recurrence && ` · ${sm.recurrence === "daily" ? "diaria" : sm.recurrence === "weekly" ? "semanal" : "mensal"}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (confirm("Cancelar esta mensagem programada?")) cancelScheduled.mutate({ id: sm.id });
+                    }}
+                    className="rounded p-1 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600"
+                    title="Cancelar"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* ============ SCHEDULE MESSAGE DIALOG ============ */}
+        {showSchedule && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+            <div className="w-full max-w-md rounded-2xl bg-card p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-bold">Programar mensagem</h2>
+                </div>
+                <button onClick={() => setShowSchedule(false)} className="rounded-lg p-1 hover:bg-muted">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const authorId = channel.members[0]?.userId;
+                  if (!authorId || !schedForm.content.trim()) return;
+                  createScheduled.mutate({
+                    channelId,
+                    authorId,
+                    content: schedForm.content,
+                    scheduledFor: new Date(schedForm.scheduledFor),
+                    recurrence: schedForm.recurrence === "none" ? undefined : schedForm.recurrence,
+                    recurrenceDayOfWeek: schedForm.recurrence === "weekly" ? schedForm.recurrenceDayOfWeek : undefined,
+                    recurrenceDayOfMonth: schedForm.recurrence === "monthly" ? schedForm.recurrenceDayOfMonth : undefined,
+                    recurrenceTime: schedForm.recurrence !== "none" ? schedForm.recurrenceTime : undefined,
+                  });
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Mensagem</label>
+                  <textarea
+                    required
+                    value={schedForm.content}
+                    onChange={(e) => setSchedForm({ ...schedForm, content: e.target.value })}
+                    rows={4}
+                    className="w-full rounded-lg border px-3 py-2 text-sm bg-card resize-none"
+                    placeholder="Escreve a mensagem..."
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Enviar em</label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={schedForm.scheduledFor}
+                    onChange={(e) => setSchedForm({ ...schedForm, scheduledFor: e.target.value })}
+                    className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Recorrencia</label>
+                  <select
+                    value={schedForm.recurrence}
+                    onChange={(e) => setSchedForm({ ...schedForm, recurrence: e.target.value as "none" | "daily" | "weekly" | "monthly" })}
+                    className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                  >
+                    <option value="none">Uma vez (sem recorrencia)</option>
+                    <option value="daily">Todos os dias</option>
+                    <option value="weekly">Todas as semanas</option>
+                    <option value="monthly">Todos os meses</option>
+                  </select>
+                </div>
+
+                {schedForm.recurrence !== "none" && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">Hora do envio</label>
+                    <input
+                      type="time"
+                      required
+                      value={schedForm.recurrenceTime}
+                      onChange={(e) => setSchedForm({ ...schedForm, recurrenceTime: e.target.value })}
+                      className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                    />
+                  </div>
+                )}
+
+                {schedForm.recurrence === "weekly" && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">Dia da semana</label>
+                    <select
+                      value={schedForm.recurrenceDayOfWeek}
+                      onChange={(e) => setSchedForm({ ...schedForm, recurrenceDayOfWeek: Number(e.target.value) })}
+                      className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                    >
+                      <option value={1}>Segunda</option>
+                      <option value={2}>Terca</option>
+                      <option value={3}>Quarta</option>
+                      <option value={4}>Quinta</option>
+                      <option value={5}>Sexta</option>
+                      <option value={6}>Sabado</option>
+                      <option value={0}>Domingo</option>
+                    </select>
+                  </div>
+                )}
+
+                {schedForm.recurrence === "monthly" && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">Dia do mes (1-31)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={31}
+                      required
+                      value={schedForm.recurrenceDayOfMonth}
+                      onChange={(e) => setSchedForm({ ...schedForm, recurrenceDayOfMonth: Number(e.target.value) })}
+                      className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                    />
+                    <p className="mt-1 text-[11px] text-muted-foreground">Se o mes nao tiver esse dia (ex: 31 em Fev), usa o ultimo dia disponivel.</p>
+                  </div>
+                )}
+
+                {createScheduled.error && (
+                  <p className="text-sm text-red-600 dark:text-red-400">{createScheduled.error.message}</p>
+                )}
+
+                <div className="flex justify-end gap-3 border-t pt-4">
+                  <button type="button" onClick={() => setShowSchedule(false)} className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted">
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={createScheduled.isPending || !schedForm.content.trim()}
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {createScheduled.isPending ? "A programar..." : "Programar"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Channel Settings Dialog */}

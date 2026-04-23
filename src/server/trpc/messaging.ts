@@ -614,4 +614,62 @@ export const messagingRouter = router({
 
       return { created };
     }),
+
+  // =====================
+  // UNREAD / NOTIFICATIONS
+  // =====================
+
+  unreadCounts: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      // Get all channel memberships for this user with lastReadAt
+      const memberships = await ctx.prisma.channelMember.findMany({
+        where: { userId: input.userId },
+        select: { channelId: true, lastReadAt: true, mutedUntil: true },
+      });
+
+      const result: Record<string, { count: number; lastMessageAt: Date | null; muted: boolean }> = {};
+
+      for (const m of memberships) {
+        // Count messages after lastReadAt (excluding own messages)
+        const count = await ctx.prisma.message.count({
+          where: {
+            channelId: m.channelId,
+            subChannelId: null,
+            parentId: null,
+            createdAt: { gt: m.lastReadAt },
+            authorId: { not: input.userId },
+          },
+        });
+        const latest = await ctx.prisma.message.findFirst({
+          where: { channelId: m.channelId, subChannelId: null },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        });
+        const muted = !!(m.mutedUntil && m.mutedUntil > new Date());
+        result[m.channelId] = { count, lastMessageAt: latest?.createdAt ?? null, muted };
+      }
+
+      return result;
+    }),
+
+  markChannelAsRead: publicProcedure
+    .input(z.object({ channelId: z.string(), userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.prisma.channelMember.updateMany({
+        where: { channelId: input.channelId, userId: input.userId },
+        data: { lastReadAt: new Date() },
+      });
+      return { success: true };
+    }),
+
+  toggleChannelMute: publicProcedure
+    .input(z.object({ channelId: z.string(), userId: z.string(), muteUntil: z.date().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.prisma.channelMember.updateMany({
+        where: { channelId: input.channelId, userId: input.userId },
+        data: { mutedUntil: input.muteUntil },
+      });
+      return { success: true };
+    }),
 });

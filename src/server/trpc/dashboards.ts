@@ -66,10 +66,12 @@ export const dashboardsRouter = router({
       callsMade: z.number().default(0),
       callsAnswered: z.number().default(0),
       callsNotAnswered: z.number().default(0),
-      // Pipeline comercial (3 etapas distintas)
-      reunioesAgendadas: z.number().default(0),  // Reunioes marcadas (pipeline)
-      reunioesEfetuadas: z.number().default(0),  // Reunioes que aconteceram
-      conversoesFeitas: z.number().default(0),   // Contratos fechados
+      // Pipeline comercial (5 etapas para credito: contactos -> agendadas -> efetuadas -> docs pedidas -> docs recolhidas -> fecho)
+      reunioesAgendadas: z.number().default(0),      // Reunioes marcadas (pipeline)
+      reunioesEfetuadas: z.number().default(0),      // Reunioes que aconteceram
+      documentacoesPedidas: z.number().default(0),   // Documentacoes pedidas apos reuniao
+      documentacoesRecolhidas: z.number().default(0),// Documentacoes recolhidas efectivamente
+      conversoesFeitas: z.number().default(0),       // Contratos fechados
       // Legacy (kept for compat)
       conversions: z.number().optional(),
       agendamentos: z.number().optional(),
@@ -148,6 +150,8 @@ export const dashboardsRouter = router({
           conversions: conversoesFeitas,
           conversoesFeitas,
           reunioesEfetuadas,
+          documentacoesPedidas: input.documentacoesPedidas,
+          documentacoesRecolhidas: input.documentacoesRecolhidas,
           agendamentos: reunioesAgendadas, // campo "reunioes agendadas"
           reunioes: reunioesEfetuadas,     // legacy
           comparecimentos: input.comparecimentos ?? reunioesEfetuadas,
@@ -242,11 +246,14 @@ export const dashboardsRouter = router({
 
       let totalCalls = 0, totalAnswered = 0, totalConversoes = 0;
       let totalAgendadas = 0, totalEfetuadas = 0;
+      let totalDocsPedidas = 0, totalDocsRecolhidas = 0;
 
       for (const r of records) {
         const conv = r.conversoesFeitas || r.conversions || 0;
         const agendadas = r.agendamentos || 0;  // reunioes agendadas
         const efetuadas = r.reunioesEfetuadas || r.reunioes || 0;
+        const docsPedidas = (r as { documentacoesPedidas?: number }).documentacoesPedidas ?? 0;
+        const docsRecolhidas = (r as { documentacoesRecolhidas?: number }).documentacoesRecolhidas ?? 0;
 
         if (!byCommercial[r.commercial]) {
           byCommercial[r.commercial] = { calls: 0, answered: 0, conversoesFeitas: 0, reunioesAgendadas: 0, reunioesEfetuadas: 0, escrituras: 0, angariacoes: 0, decisionMakers: 0 };
@@ -276,6 +283,8 @@ export const dashboardsRouter = router({
         totalConversoes += conv;
         totalAgendadas += agendadas;
         totalEfetuadas += efetuadas;
+        totalDocsPedidas += docsPedidas;
+        totalDocsRecolhidas += docsRecolhidas;
       }
 
       return {
@@ -287,11 +296,16 @@ export const dashboardsRouter = router({
           answered: totalAnswered,
           reunioesAgendadas: totalAgendadas,
           reunioesEfetuadas: totalEfetuadas,
+          documentacoesPedidas: totalDocsPedidas,
+          documentacoesRecolhidas: totalDocsRecolhidas,
           conversoesFeitas: totalConversoes,
-          // As 3 taxas distintas do pipeline
-          tcAgendamento: totalCalls > 0 ? (totalAgendadas / totalCalls) * 100 : 0,        // Contactos -> Agendadas
-          tcShowUp: totalAgendadas > 0 ? (totalEfetuadas / totalAgendadas) * 100 : 0,     // Agendadas -> Efetuadas
-          tcFecho: totalEfetuadas > 0 ? (totalConversoes / totalEfetuadas) * 100 : 0,     // Efetuadas -> Conversoes
+          // Taxas do pipeline (5 etapas para credito)
+          tcAgendamento: totalCalls > 0 ? (totalAgendadas / totalCalls) * 100 : 0,              // 1 -> Agendadas
+          tcShowUp: totalAgendadas > 0 ? (totalEfetuadas / totalAgendadas) * 100 : 0,           // Agendadas -> Efetuadas
+          tcPedidoDocs: totalEfetuadas > 0 ? (totalDocsPedidas / totalEfetuadas) * 100 : 0,     // Efetuadas -> Docs pedidas
+          tcRecolhaDocs: totalDocsPedidas > 0 ? (totalDocsRecolhidas / totalDocsPedidas) * 100 : 0, // Docs pedidas -> recolhidas
+          tcFechoDocs: totalDocsRecolhidas > 0 ? (totalConversoes / totalDocsRecolhidas) * 100 : 0, // Docs recolhidas -> fecho
+          tcFecho: totalEfetuadas > 0 ? (totalConversoes / totalEfetuadas) * 100 : 0,           // Efetuadas -> Conversoes (legacy/global)
           // Taxa global (legacy)
           conversionRate: totalCalls > 0 ? (totalConversoes / totalCalls) * 100 : 0,
         },

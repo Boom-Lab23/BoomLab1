@@ -7,8 +7,9 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
   MessageSquare, Users, Plus, Search, Building2,
-  Lock, ChevronRight, X, Rocket,
+  Lock, ChevronRight, X, Rocket, Bell,
 } from "lucide-react";
+import { useMessagingNotifications } from "@/hooks/use-messaging-notifications";
 
 export default function MessagingPage() {
   const { data: session } = useSession();
@@ -17,9 +18,12 @@ export default function MessagingPage() {
   const isGuest = role === "GUEST_CLIENT" || role === "GUEST_TEAM_MEMBER";
   const assignedChannelId = (session?.user as Record<string, unknown>)?.assignedChannelId as string | undefined;
 
+  const { permission, requestPermission, unreadByChannel } = useMessagingNotifications();
+
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [newChannel, setNewChannel] = useState({ name: "", description: "", clientId: "", type: "CLIENT" as string });
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const channels = trpc.messaging.channels.useQuery({});
   const clients = trpc.clients.list.useQuery({}, { enabled: !isGuest });
@@ -62,6 +66,31 @@ export default function MessagingPage() {
           </button>
         )}
       </div>
+
+      {/* Notification permission banner */}
+      {permission === "default" && !bannerDismissed && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30 p-3">
+          <Bell className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-200">Activar notificacoes do browser</p>
+            <p className="text-xs text-blue-700 dark:text-blue-300">Recebe aviso quando chega uma mensagem nova mesmo com outra aba aberta.</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => requestPermission()}
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+            >
+              Activar
+            </button>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              className="rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+            >
+              Mais tarde
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
@@ -130,6 +159,7 @@ export default function MessagingPage() {
           )}
           {filteredClients.map((channel) => {
             const lastMsg = channel.messages[0];
+            const unread = unreadByChannel[channel.id] ?? 0;
             return (
               <Link key={channel.id} href={`/messaging/${channel.id}`} className="flex items-center gap-3 p-3 px-4 transition-colors hover:bg-muted/50">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2D76FC]/10 text-[#2D76FC] text-sm font-semibold">
@@ -137,14 +167,19 @@ export default function MessagingPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium truncate">{channel.name}</p>
+                    <p className={cn("text-sm truncate", unread > 0 ? "font-bold" : "font-medium")}>{channel.name}</p>
                     {channel.isPrivate && <Lock className="h-3 w-3 text-muted-foreground" />}
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">
+                  <p className={cn("text-xs truncate", unread > 0 ? "text-foreground/80 font-medium" : "text-muted-foreground")}>
                     {lastMsg ? `${lastMsg.author.name}: ${lastMsg.content.slice(0, 50)}` : channel.description ?? "Sem mensagens"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+                  {unread > 0 && (
+                    <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white min-w-[20px] text-center">
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
                   <Users className="h-3 w-3" />{channel._count.members}
                   <ChevronRight className="h-4 w-4" />
                 </div>

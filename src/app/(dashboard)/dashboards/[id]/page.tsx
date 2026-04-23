@@ -212,39 +212,94 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
 
-        {/* 3 Taxas do Pipeline */}
-        <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
-          <div className="rounded-xl border bg-card p-4 border-l-4" style={{ borderLeftColor: color }}>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-semibold" style={{ color }}>1 -&gt; 3</span>
-              Taxa de Agendamento
+        {/* Taxas do Pipeline - Credito tem 5 etapas, outros mercados 3 */}
+        {market === "CREDITO" ? (
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+            <div className="rounded-xl border bg-card p-4 border-l-4" style={{ borderLeftColor: color }}>
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-semibold" style={{ color }}>1</span>
+                Agendamento
+              </div>
+              <p className="text-xl font-bold mt-1" style={{ color }}>{k?.totals.tcAgendamento?.toFixed(1) ?? 0}%</p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {k?.totals.reunioesAgendadas ?? 0} / {k?.totals.calls ?? 0}
+              </p>
             </div>
-            <p className="text-2xl font-bold mt-1" style={{ color }}>{k?.totals.tcAgendamento?.toFixed(1) ?? 0}%</p>
-            <p className="text-[10px] text-muted-foreground">
-              {k?.totals.reunioesAgendadas ?? 0} agendadas / {k?.totals.calls ?? 0} contactos
-            </p>
-          </div>
-          <div className="rounded-xl border bg-card p-4 border-l-4 border-l-purple-500">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 font-semibold">3 -&gt; 4</span>
-              Taxa de Show-up
+            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-purple-500">
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 font-semibold">2</span>
+                Show-up
+              </div>
+              <p className="text-xl font-bold mt-1 text-purple-600 dark:text-purple-400">{k?.totals.tcShowUp?.toFixed(1) ?? 0}%</p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {k?.totals.reunioesEfetuadas ?? 0} / {k?.totals.reunioesAgendadas ?? 0}
+              </p>
             </div>
-            <p className="text-2xl font-bold mt-1 text-purple-600">{k?.totals.tcShowUp?.toFixed(1) ?? 0}%</p>
-            <p className="text-[10px] text-muted-foreground">
-              {k?.totals.reunioesEfetuadas ?? 0} efetuadas / {k?.totals.reunioesAgendadas ?? 0} agendadas
-            </p>
-          </div>
-          <div className="rounded-xl border bg-card p-4 border-l-4 border-l-green-500">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-1.5 py-0.5 font-semibold">4 -&gt; 5</span>
-              Taxa de Fecho
+            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-orange-500">
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 font-semibold">3</span>
+                Pedido Docs
+              </div>
+              <p className="text-xl font-bold mt-1 text-orange-600 dark:text-orange-400">{k?.totals.tcPedidoDocs?.toFixed(1) ?? 0}%</p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {k?.totals.documentacoesPedidas ?? 0} / {k?.totals.reunioesEfetuadas ?? 0}
+              </p>
             </div>
-            <p className="text-2xl font-bold mt-1 text-green-600">{k?.totals.tcFecho?.toFixed(1) ?? 0}%</p>
-            <p className="text-[10px] text-muted-foreground">
-              {k?.totals.conversoesFeitas ?? 0} fechadas / {k?.totals.reunioesEfetuadas ?? 0} efetuadas
-            </p>
+            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-yellow-500">
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 px-1.5 py-0.5 font-semibold">4</span>
+                Recolha Docs
+              </div>
+              <p className="text-xl font-bold mt-1 text-yellow-600 dark:text-yellow-400">{k?.totals.tcRecolhaDocs?.toFixed(1) ?? 0}%</p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {k?.totals.documentacoesRecolhidas ?? 0} / {k?.totals.documentacoesPedidas ?? 0}
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-green-500 col-span-2 md:col-span-1">
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-1.5 py-0.5 font-semibold">5</span>
+                Fecho
+              </div>
+              <p className="text-xl font-bold mt-1 text-green-600 dark:text-green-400">{k?.totals.tcFechoDocs?.toFixed(1) ?? 0}%</p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {k?.totals.conversoesFeitas ?? 0} / {k?.totals.documentacoesRecolhidas ?? 0}
+              </p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+            <div className="rounded-xl border bg-card p-4 border-l-4" style={{ borderLeftColor: color }}>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-semibold" style={{ color }}>1 -&gt; 3</span>
+                Taxa de Agendamento
+              </div>
+              <p className="text-2xl font-bold mt-1" style={{ color }}>{k?.totals.tcAgendamento?.toFixed(1) ?? 0}%</p>
+              <p className="text-[10px] text-muted-foreground">
+                {k?.totals.reunioesAgendadas ?? 0} agendadas / {k?.totals.calls ?? 0} contactos
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-purple-500">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 font-semibold">3 -&gt; 4</span>
+                Taxa de Show-up
+              </div>
+              <p className="text-2xl font-bold mt-1 text-purple-600 dark:text-purple-400">{k?.totals.tcShowUp?.toFixed(1) ?? 0}%</p>
+              <p className="text-[10px] text-muted-foreground">
+                {k?.totals.reunioesEfetuadas ?? 0} efetuadas / {k?.totals.reunioesAgendadas ?? 0} agendadas
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-green-500">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-1.5 py-0.5 font-semibold">4 -&gt; 5</span>
+                Taxa de Fecho
+              </div>
+              <p className="text-2xl font-bold mt-1 text-green-600 dark:text-green-400">{k?.totals.tcFecho?.toFixed(1) ?? 0}%</p>
+              <p className="text-[10px] text-muted-foreground">
+                {k?.totals.conversoesFeitas ?? 0} fechadas / {k?.totals.reunioesEfetuadas ?? 0} efetuadas
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Charts */}
         {chartData.data && chartData.data.length > 1 && (

@@ -99,15 +99,20 @@ export const sessionsRouter = router({
   }),
 
   upcoming: publicProcedure.query(async ({ ctx }) => {
-    const now = new Date();
+    // Inicio do dia actual (inclui sessoes de hoje, mesmo que ja esteja a decorrer)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
     return ctx.prisma.session.findMany({
       where: {
-        date: { gte: now },
-        status: { in: ["MARCADA", "AGUARDAR_CONFIRMACAO"] },
+        OR: [
+          { date: { gte: startOfToday }, status: { in: ["MARCADA", "AGUARDAR_CONFIRMACAO", "POR_AGENDAR", "REAGENDADA"] } },
+          // Sessoes sem data mas ainda por agendar (mostra nas proximas)
+          { date: null, status: { in: ["POR_AGENDAR", "AGUARDAR_CONFIRMACAO"] } },
+        ],
       },
       include: { client: true, assignedTo: true },
-      orderBy: { date: "asc" },
-      take: 10,
+      orderBy: [{ date: "asc" }, { createdAt: "desc" }],
+      take: 20,
     });
   }),
 

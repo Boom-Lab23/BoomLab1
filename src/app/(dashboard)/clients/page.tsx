@@ -38,6 +38,19 @@ function getUrgencyColor(days: number | null): string {
   return "text-green-600 bg-green-50 dark:bg-green-950/30";
 }
 
+const STATUS_OPTIONS = [
+  { value: "FECHADO", label: "Fechado" },
+  { value: "COBRADO", label: "Cobrado" },
+  { value: "PRE_ARRANQUE", label: "Pre-arranque" },
+  { value: "LEVANTAMENTO", label: "Levantamento" },
+  { value: "APRESENTACAO_TIMELINE", label: "Apres. Timeline" },
+  { value: "ATIVO", label: "Ativo" },
+  { value: "INATIVO", label: "Inativo" },
+  { value: "PROJETO_FINALIZADO", label: "Finalizado" },
+];
+
+const OFFER_OPTIONS = ["Consultoria", "IA", "Mentoria", "BoomClub", "Ads", "Cold Calls", "LinkedIn"];
+
 export default function ClientsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -47,13 +60,36 @@ export default function ClientsPage() {
     search: search || undefined,
     status: status || undefined,
   });
+  const utils = trpc.useUtils();
+  const updateClient = trpc.clients.update.useMutation({
+    onSuccess: () => utils.clients.list.invalidate(),
+  });
 
-  // Sort by project end date (closest first)
+  // Ordem desejada pelo utilizador:
+  // 1. Clientes activos/pre-arranque com contrato a terminar brevemente (menos dias -> mais dias)
+  // 2. Clientes sem data de fim
+  // 3. Clientes cujo contrato ja expirou (mais recente primeiro)
+  const now = Date.now();
   const sortedClients = [...(clients.data ?? [])].sort((a, b) => {
-    if (!a.projectEnd && !b.projectEnd) return 0;
-    if (!a.projectEnd) return 1;
-    if (!b.projectEnd) return -1;
-    return new Date(a.projectEnd).getTime() - new Date(b.projectEnd).getTime();
+    const aExpires = a.projectEnd ? new Date(a.projectEnd).getTime() : null;
+    const bExpires = b.projectEnd ? new Date(b.projectEnd).getTime() : null;
+    const aExpired = aExpires !== null && aExpires < now;
+    const bExpired = bExpires !== null && bExpires < now;
+
+    // Expirados vao para o fim
+    if (aExpired && !bExpired) return 1;
+    if (!aExpired && bExpired) return -1;
+
+    // Ambos expirados: mais recente primeiro
+    if (aExpired && bExpired) return (bExpires ?? 0) - (aExpires ?? 0);
+
+    // Sem data de fim: entre os activos, vai para o fim (antes dos expirados)
+    if (aExpires === null && bExpires !== null) return 1;
+    if (aExpires !== null && bExpires === null) return -1;
+    if (aExpires === null && bExpires === null) return 0;
+
+    // Activos com data: mais proximos primeiro
+    return (aExpires ?? 0) - (bExpires ?? 0);
   });
 
   return (
@@ -141,27 +177,77 @@ export default function ClientsPage() {
                   </div>
                 </div>
 
-                {/* Status */}
-                <div>
-                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", getStatusColor(client.status))}>
-                    {formatStatus(client.status)}
-                  </span>
+                {/* Status - editavel */}
+                <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                  <select
+                    value={client.status}
+                    onChange={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      updateClient.mutate({ id: client.id, data: { status: e.target.value } });
+                    }}
+                    className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium border-0 cursor-pointer", getStatusColor(client.status))}
+                  >
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* Risk */}
-                <div>
-                  {client.risk && (
-                    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", RISK_COLORS[client.risk])}>
-                      {client.risk === "BAIXO" ? "Baixo" : client.risk === "MEDIO" ? "Medio" : "Alto"}
-                    </span>
-                  )}
+                {/* Risk - editavel */}
+                <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                  <select
+                    value={client.risk ?? ""}
+                    onChange={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      updateClient.mutate({ id: client.id, data: { risk: e.target.value || null } });
+                    }}
+                    className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium border-0 cursor-pointer",
+                      client.risk ? RISK_COLORS[client.risk] : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    <option value="">—</option>
+                    <option value="BAIXO">Baixo</option>
+                    <option value="MEDIO">Medio</option>
+                    <option value="ALTO">Alto</option>
+                  </select>
                 </div>
 
-                {/* Offer */}
-                <div className="hidden md:flex gap-1 flex-wrap">
-                  {client.offer.map((o) => (
-                    <span key={o} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{o}</span>
-                  ))}
+                {/* Offer - editavel via dropdown multi */}
+                <div className="hidden md:flex gap-1 flex-wrap" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                  <details className="relative" onClick={(e) => e.stopPropagation()}>
+                    <summary className="list-none cursor-pointer flex gap-1 flex-wrap">
+                      {client.offer.length === 0 ? (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/70">+ Offer</span>
+                      ) : (
+                        client.offer.map((o) => (
+                          <span key={o} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/70">{o}</span>
+                        ))
+                      )}
+                    </summary>
+                    <div className="absolute z-20 mt-1 rounded-lg border bg-card p-2 shadow-lg min-w-[140px]">
+                      {OFFER_OPTIONS.map((opt) => {
+                        const checked = client.offer.includes(opt);
+                        return (
+                          <label key={opt} className="flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const newOffer = checked
+                                  ? client.offer.filter((o) => o !== opt)
+                                  : [...client.offer, opt];
+                                updateClient.mutate({ id: client.id, data: { offer: newOffer } });
+                              }}
+                            />
+                            {opt}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </details>
                 </div>
 
                 {/* Contract end */}

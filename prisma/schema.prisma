@@ -46,6 +46,7 @@ model User {
   channelMembers     ChannelMember[]
   subChannelMembers  SubChannelMember[]
   messages           Message[]
+  scheduledMessages  ScheduledMessage[] @relation("ScheduledMessageAuthor")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 }
@@ -541,6 +542,9 @@ model DashboardRecord {
   conversions     Int             @default(0)  // legacy: mantido para compat. Usar conversoesFeitas
   conversoesFeitas Int            @default(0)  // Quantos fecharam contrato (novo campo claro)
   reunioesEfetuadas Int           @default(0)  // Reunioes que realmente aconteceram (substitui agendamentos)
+  // Pipeline credito: etapa entre reuniao e fecho (documentacao)
+  documentacoesPedidas     Int    @default(0)  // Nº documentacoes pedidas apos reuniao
+  documentacoesRecolhidas  Int    @default(0)  // Nº documentacoes efectivamente recolhidas
   conversionRate  Float?
   // Credito vertentes
   escrituras         Int?
@@ -615,11 +619,35 @@ model Channel {
   members     ChannelMember[]
   subChannels SubChannel[]
   messages    Message[]
+  scheduledMessages ScheduledMessage[]
   guestUsers  User[]        @relation("GuestChannel")
   isArchived  Boolean       @default(false)
   isPrivate   Boolean       @default(false)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+}
+
+// Mensagens programadas (enviadas num momento futuro; opcionalmente recorrentes)
+model ScheduledMessage {
+  id                   String    @id @default(cuid())
+  channelId            String
+  channel              Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  subChannelId         String?
+  authorId             String
+  author               User      @relation("ScheduledMessageAuthor", fields: [authorId], references: [id])
+  content              String    @db.Text
+  attachments          Json?
+  scheduledFor         DateTime                    // Proximo envio
+  recurrence           String?                     // null | "daily" | "weekly" | "monthly"
+  recurrenceDayOfWeek  Int?                        // 0-6 para weekly (0 = Domingo)
+  recurrenceDayOfMonth Int?                        // 1-31 para monthly
+  recurrenceTime       String?                     // "HH:MM" hora de envio
+  isActive             Boolean   @default(true)
+  lastSentAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([scheduledFor, isActive])
 }
 
 // Sub-channels within a channel (like Slack sections/sub-channels)
