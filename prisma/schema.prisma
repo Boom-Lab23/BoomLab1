@@ -174,6 +174,13 @@ model Document {
   googleDocsId   String?   @unique
   googleDocsUrl  String?
   lastSyncedAt   DateTime?
+  // Documentos locais (contratos gerados, faturas, etc.)
+  filePath       String?                             // Path no volume persistente do VPS
+  fileMime       String?                             // application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document
+  fileSizeBytes  Int?
+  source         String?                             // "google" | "ghl-contract" | "invoice-ninja" | "upload"
+  externalId     String?                             // ID externo (ex: Invoice Ninja invoice_id)
+  externalUrl    String?                             // Link publico (ex: invoice URL)
   clientId       String?
   client         Client?   @relation(fields: [clientId], references: [id])
   sessionId      String?
@@ -656,6 +663,19 @@ model TrackerTask {
 }
 
 // Mensagens programadas (enviadas num momento futuro; opcionalmente recorrentes)
+// Templates de contrato (DOCX) - 1 por oferta. Geridos em /admin/contract-templates
+// Ficheiro fisico em disco (TEMPLATES_DIR), metadata aqui.
+model ContractTemplate {
+  id          String   @id @default(cuid())
+  offer       String   @unique              // "Consultoria" | "IA" | "Mentoria" | "BoomClub"
+  filename    String                         // ex: template-consultoria.docx
+  displayName String?                        // Nome amigavel
+  variables   String[]                       // Lista de {placeholders} detectados no template
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // Mapeia pipelines do GoHighLevel para ofertas BoomLab
 // Usado pelo webhook /api/webhooks/ghl para saber que tipo de cliente criar
 model GhlPipelineMapping {

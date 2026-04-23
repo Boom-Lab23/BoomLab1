@@ -52,6 +52,9 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-boomlab}:${POSTGRES_PASSWORD}@boomlab-db:5432/${POSTGRES_DB:-boomlab}?schema=public
       NEXTAUTH_URL: ${NEXTAUTH_URL:-https://servico.boomlab.cloud}
       NODE_ENV: production
+      # Pastas persistentes para templates e documentos gerados
+      CONTRACT_TEMPLATES_DIR: /app/uploads/contract-templates
+      GENERATED_DOCS_DIR: /app/uploads/generated-docs
     volumes:
       - boomlab_uploads:/app/uploads
     networks:

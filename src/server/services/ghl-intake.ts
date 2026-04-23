@@ -1,6 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import fs from "fs/promises";
+import path from "path";
 import { sendWelcomeEmail, generateTempPassword } from "./email";
+import { getContact, listCustomFields, flattenCustomFields, flattenCustomFieldsByKey } from "./ghl-api";
+import { generateContract } from "./contract-generator";
+import { createInvoiceForClient } from "./invoice-ninja";
+
+// Pasta onde guardamos documentos gerados (contratos, etc.)
+const DOCUMENTS_DIR = process.env.GENERATED_DOCS_DIR ?? "/tmp/boomlab-generated-docs";
 
 /**
  * Contract do payload que o GHL envia no webhook "Opportunity Stage Changed".
@@ -132,7 +140,39 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
     }
   }
 
-  const contact = extractContact(payload);
+  // Tenta enriquecer o contacto com os custom fields do GHL (Dados On-Boarding)
+  let customFieldsFlat: Record<string, string> = {};
+  let customFieldsByKey: Record<string, string> = {};
+  let enrichedFromApi: { address1?: string; city?: string; postalCode?: string; companyName?: string; email?: string; phone?: string; name?: string } = {};
+  if (payload.contactId && process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID) {
+    try {
+      const [ghlContact, cfDefs] = await Promise.all([
+        getContact(payload.contactId),
+        listCustomFields("contact"),
+      ]);
+      customFieldsFlat = flattenCustomFields(ghlContact, cfDefs);
+      customFieldsByKey = flattenCustomFieldsByKey(ghlContact, cfDefs);
+      enrichedFromApi = {
+        name: ghlContact.name ?? [ghlContact.firstName, ghlContact.lastName].filter(Boolean).join(" ") || undefined,
+        email: ghlContact.email?.toLowerCase().trim(),
+        phone: ghlContact.phone ?? undefined,
+        companyName: ghlContact.companyName ?? undefined,
+        address1: ghlContact.address1,
+        city: ghlContact.city,
+        postalCode: ghlContact.postalCode,
+      };
+    } catch (err) {
+      console.warn("[ghl-intake] could not fetch contact from GHL API:", err);
+    }
+  }
+
+  const fallbackContact = extractContact(payload);
+  const contact = {
+    name: enrichedFromApi.name ?? fallbackContact.name,
+    email: enrichedFromApi.email ?? fallbackContact.email,
+    phone: enrichedFromApi.phone ?? fallbackContact.phone,
+    companyName: enrichedFromApi.companyName ?? fallbackContact.companyName,
+  };
 
   // Usa email como unique - se ja existe cliente/user com este email, liga a ele
   let existingClient = null;
@@ -234,6 +274,109 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
       return { client, userId, channelId, tempPassword };
     });
 
+    // 3.5. Gerar contrato DOCX a partir do template da oferta (best-effort)
+    let contractDocId: string | null = null;
+    try {
+      const template = await prisma.contractTemplate.findUnique({
+        where: { offer },
+      });
+      if (template && template.isActive) {
+        // Monta as variaveis: dados basicos + custom fields do GHL (por name e por key)
+        const variables: Record<string, string> = {
+          nome: contact.name,
+          email: contact.email ?? "",
+          telefone: contact.phone ?? "",
+          empresa: contact.companyName ?? "",
+          oferta: offer,
+          data_hoje: new Date().toLocaleDateString("pt-PT"),
+          data_inicio: new Date().toLocaleDateString("pt-PT"),
+          valor: String(payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? ""),
+          // Enriched da API
+          morada: enrichedFromApi.address1 ?? "",
+          cidade: enrichedFromApi.city ?? "",
+          codigo_postal: enrichedFromApi.postalCode ?? "",
+          // Custom fields do GHL - todos (por name e por key)
+          ...customFieldsFlat,
+          ...customFieldsByKey,
+        };
+        const docxBuffer = await generateContract(template.filename, variables);
+        // Guarda ficheiro
+        await fs.mkdir(DOCUMENTS_DIR, { recursive: true });
+        const safeClientName = contact.name.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 40);
+        const filename = `contrato-${safeClientName}-${Date.now()}.docx`;
+        const filePath = path.join(DOCUMENTS_DIR, result.client.id, filename);
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.writeFile(filePath, docxBuffer);
+        // Regista Document
+        const doc = await prisma.document.create({
+          data: {
+            title: `Contrato ${offer} - ${contact.name}`,
+            pillar: "contratos",
+            filePath,
+            fileMime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            fileSizeBytes: docxBuffer.length,
+            source: "ghl-contract",
+            clientId: result.client.id,
+          },
+        });
+        contractDocId = doc.id;
+      }
+    } catch (err) {
+      console.error("[ghl-intake] contract generation failed (continuing):", err);
+    }
+
+    // 3.6. Criar Client + Invoice draft no Invoice Ninja (best-effort)
+    let invoiceId: string | null = null;
+    let invoiceNumber: string | null = null;
+    try {
+      if (process.env.INVOICE_NINJA_URL && process.env.INVOICE_NINJA_TOKEN) {
+        const amount = payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? 0;
+        const inResult = await createInvoiceForClient({
+          client: {
+            name: contact.companyName || contact.name,
+            email: contact.email,
+            contacts: contact.email ? [{
+              first_name: contact.name.split(" ")[0],
+              last_name: contact.name.split(" ").slice(1).join(" ") || "-",
+              email: contact.email,
+              phone: contact.phone ?? undefined,
+            }] : undefined,
+            phone: contact.phone ?? undefined,
+            address1: enrichedFromApi.address1,
+            city: enrichedFromApi.city,
+            postal_code: enrichedFromApi.postalCode,
+            vat_number: customFieldsByKey.nif || customFieldsByKey.NIF || customFieldsFlat.NIF,
+            id_number: customFieldsByKey.cc || customFieldsByKey.CC || customFieldsFlat.CC,
+            private_notes: `Criado automaticamente via GHL (deal ${dealId}) - oferta ${offer}`,
+          },
+          lines: [{
+            notes: `Servicos BoomLab - ${offer}`,
+            cost: Number(amount) || 0,
+            quantity: 1,
+            tax_name1: "IVA",
+            tax_rate1: 23,
+          }],
+          privateNotes: `BoomLab - criado via automacao GHL. Cliente ID BoomLab: ${result.client.id}`,
+        });
+        invoiceId = inResult.invoiceId;
+        invoiceNumber = inResult.invoiceNumber;
+        // Regista como Document
+        const invUrl = `${process.env.INVOICE_NINJA_URL}/invoices/${inResult.invoiceId}/edit`;
+        await prisma.document.create({
+          data: {
+            title: `Fatura ${inResult.invoiceNumber} - ${contact.name}`,
+            pillar: "faturas",
+            source: "invoice-ninja",
+            externalId: inResult.invoiceId,
+            externalUrl: invUrl,
+            clientId: result.client.id,
+          },
+        });
+      }
+    } catch (err) {
+      console.error("[ghl-intake] Invoice Ninja integration failed (continuing):", err);
+    }
+
     // 4. Regista o evento como processado
     await prisma.ghlEvent.create({
       data: {
@@ -281,7 +424,10 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
             <li>Cliente criado: <a href="https://servico.boomlab.cloud/clients/${result.client.id}">Ver no BoomLab</a></li>
             ${result.channelId ? `<li>Canal: <a href="https://servico.boomlab.cloud/messaging/${result.channelId}">Abrir canal</a></li>` : ""}
             ${result.userId ? `<li>Utilizador guest criado com password temporaria enviada por email</li>` : "<li>Sem email do contacto - nao foi criado user</li>"}
-          </ul>`,
+            ${contractDocId ? `<li>Contrato gerado: <a href="https://servico.boomlab.cloud/clients/${result.client.id}">ver em Documentos</a></li>` : "<li>Sem template de contrato para esta oferta - gere manualmente</li>"}
+            ${invoiceId ? `<li>Invoice Ninja: fatura <strong>${invoiceNumber}</strong> criada em rascunho</li>` : "<li>Invoice Ninja nao configurado - fatura por criar</li>"}
+          </ul>
+          <p style="color: #666; font-size: 12px;">Custom fields do GHL disponiveis: ${Object.keys(customFieldsFlat).join(", ") || "nenhum"}</p>`,
       });
     } catch (err) {
       console.error("[ghl-intake] Failed to notify team:", err);
