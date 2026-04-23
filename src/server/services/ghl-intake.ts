@@ -277,25 +277,62 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
     // 3.5. Gerar contrato DOCX a partir do template da oferta (best-effort)
     let contractDocId: string | null = null;
     try {
+      // Detecta paymentMode + outorgantes dos custom fields do GHL
+      const formaPagamento = (customFieldsByKey.forma_pagamento ?? customFieldsFlat["Forma de Pagamento"] ?? customFieldsFlat["forma_pagamento"] ?? "").toLowerCase();
+      const paymentMode = formaPagamento.includes("prest") ? "PRESTACOES" : "AVISTA";
+
+      const gerente2Name = customFieldsByKey.gerente_2_nome
+        ?? customFieldsFlat["Gerente 2"]
+        ?? customFieldsFlat["gerente_2_nome"]
+        ?? customFieldsFlat["Segundo Outorgante"]
+        ?? "";
+      const outorgantes = gerente2Name.trim().length > 0 ? 2 : 1;
+
       const template = await prisma.contractTemplate.findUnique({
-        where: { offer },
+        where: { offer_paymentMode_outorgantes: { offer, paymentMode, outorgantes } },
       });
       if (template && template.isActive) {
-        // Monta as variaveis: dados basicos + custom fields do GHL (por name e por key)
+        // Datas calculadas
+        const now = new Date();
+        const dataInicioObj = now;
+        const dataFimObj = new Date(now);
+        dataFimObj.setMonth(dataFimObj.getMonth() + 4); // 4 meses por default
+
+        const fmtDate = (d: Date) => d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+        // Monta as variaveis standard esperadas pelos templates
         const variables: Record<string, string> = {
+          // Basicos
           nome: contact.name,
+          nome_empresa: contact.companyName || contact.name,
+          sede_empresa: [enrichedFromApi.address1, enrichedFromApi.postalCode, enrichedFromApi.city].filter(Boolean).join(", "),
+          nif_empresa: customFieldsByKey.nif_empresa ?? customFieldsByKey.NIF ?? customFieldsFlat.NIF ?? customFieldsFlat["NIF Empresa"] ?? "",
           email: contact.email ?? "",
           telefone: contact.phone ?? "",
-          empresa: contact.companyName ?? "",
-          oferta: offer,
-          data_hoje: new Date().toLocaleDateString("pt-PT"),
-          data_inicio: new Date().toLocaleDateString("pt-PT"),
+          // Gerente 1
+          gerente_1_nome: customFieldsByKey.gerente_1_nome ?? customFieldsFlat["Gerente 1"] ?? contact.name,
+          gerente_1_cc: customFieldsByKey.gerente_1_cc ?? customFieldsFlat["CC Gerente 1"] ?? customFieldsFlat["CC"] ?? "",
+          gerente_1_cc_validade: customFieldsByKey.gerente_1_cc_validade ?? customFieldsFlat["Validade CC Gerente 1"] ?? "",
+          // Gerente 2 (so usado em templates com 2 outorg.)
+          gerente_2_nome: customFieldsByKey.gerente_2_nome ?? customFieldsFlat["Gerente 2"] ?? "",
+          gerente_2_cc: customFieldsByKey.gerente_2_cc ?? customFieldsFlat["CC Gerente 2"] ?? "",
+          gerente_2_cc_validade: customFieldsByKey.gerente_2_cc_validade ?? customFieldsFlat["Validade CC Gerente 2"] ?? "",
+          // Datas
+          data_inicio: fmtDate(dataInicioObj),
+          data_fim: fmtDate(dataFimObj),
+          data_assinatura: fmtDate(now),
+          data_hoje: fmtDate(now),
+          // Valores
+          primeira_prestacao: customFieldsByKey.primeira_prestacao ?? customFieldsFlat["Primeira Prestacao"] ?? String(payload.monetaryValue ?? ""),
+          restantes_prestacoes: customFieldsByKey.restantes_prestacoes ?? customFieldsFlat["Restantes Prestacoes"] ?? "",
           valor: String(payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? ""),
-          // Enriched da API
+          oferta: offer,
+          // Legacy fallbacks
+          empresa: contact.companyName ?? "",
           morada: enrichedFromApi.address1 ?? "",
           cidade: enrichedFromApi.city ?? "",
           codigo_postal: enrichedFromApi.postalCode ?? "",
-          // Custom fields do GHL - todos (por name e por key)
+          // Adiciona todos os custom fields do GHL (por name e por key) - para templates custom
           ...customFieldsFlat,
           ...customFieldsByKey,
         };

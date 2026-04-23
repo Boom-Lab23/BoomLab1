@@ -663,17 +663,24 @@ model TrackerTask {
 }
 
 // Mensagens programadas (enviadas num momento futuro; opcionalmente recorrentes)
-// Templates de contrato (DOCX) - 1 por oferta. Geridos em /admin/contract-templates
+// Templates de contrato (DOCX). Indexado por (offer, paymentMode, outorgantes).
+// Um cliente pode ter 4 variantes por oferta:
+//   (Consultoria, PRESTACOES, 1), (Consultoria, PRESTACOES, 2),
+//   (Consultoria, AVISTA, 1),     (Consultoria, AVISTA, 2)
 // Ficheiro fisico em disco (TEMPLATES_DIR), metadata aqui.
 model ContractTemplate {
   id          String   @id @default(cuid())
-  offer       String   @unique              // "Consultoria" | "IA" | "Mentoria" | "BoomClub"
-  filename    String                         // ex: template-consultoria.docx
+  offer       String                         // "Consultoria" | "IA" | "Mentoria" | "BoomClub"
+  paymentMode String                         // "PRESTACOES" | "AVISTA"
+  outorgantes Int                            // 1 ou 2
+  filename    String                         // ex: template-consultoria-prestacoes-1out.docx
   displayName String?                        // Nome amigavel
   variables   String[]                       // Lista de {placeholders} detectados no template
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@unique([offer, paymentMode, outorgantes])
 }
 
 // Mapeia pipelines do GoHighLevel para ofertas BoomLab

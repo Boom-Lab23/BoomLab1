@@ -37,16 +37,26 @@ export async function POST(req: NextRequest) {
   const form = await req.formData();
   const file = form.get("file");
   const offer = form.get("offer");
+  const paymentMode = form.get("paymentMode");
+  const outorgantesRaw = form.get("outorgantes");
 
-  if (!(file instanceof File) || typeof offer !== "string") {
-    return NextResponse.json({ error: "Missing file or offer" }, { status: 400 });
+  if (!(file instanceof File) || typeof offer !== "string" || typeof paymentMode !== "string") {
+    return NextResponse.json({ error: "Missing file, offer or paymentMode" }, { status: 400 });
+  }
+  if (paymentMode !== "PRESTACOES" && paymentMode !== "AVISTA") {
+    return NextResponse.json({ error: "paymentMode must be PRESTACOES or AVISTA" }, { status: 400 });
+  }
+  const outorgantes = Number(outorgantesRaw);
+  if (outorgantes !== 1 && outorgantes !== 2) {
+    return NextResponse.json({ error: "outorgantes must be 1 or 2" }, { status: 400 });
   }
   if (!file.name.endsWith(".docx")) {
     return NextResponse.json({ error: "So ficheiros .docx sao suportados" }, { status: 400 });
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const filename = `template-${offer.toLowerCase().replace(/[^a-z0-9]/g, "-")}.docx`;
+  const slug = `${offer.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${paymentMode.toLowerCase()}-${outorgantes}out`;
+  const filename = `template-${slug}.docx`;
   await saveTemplate(buffer, filename);
 
   // Deteca placeholders {xxx} no texto raw (best-effort)
@@ -54,9 +64,11 @@ export async function POST(req: NextRequest) {
   const variables = Array.from(new Set((text.match(/\{([a-zA-Z0-9_]+)\}/g) ?? []).map((m) => m.slice(1, -1))));
 
   const row = await prisma.contractTemplate.upsert({
-    where: { offer },
+    where: { offer_paymentMode_outorgantes: { offer, paymentMode, outorgantes } },
     create: {
       offer,
+      paymentMode,
+      outorgantes,
       filename,
       displayName: file.name,
       variables,
