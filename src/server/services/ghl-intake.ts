@@ -69,7 +69,7 @@ function extractContact(payload: GhlWebhookPayload): ExtractedContact {
     "Cliente GHL";
   return {
     name: name || "Cliente GHL",
-    email: (contact.email ?? payload.email ?? null)?.toLowerCase().trim() || null,
+    email: ((contact.email ?? payload.email ?? null)?.toLowerCase().trim()) || null,
     phone: contact.phone ?? payload.phone ?? null,
     companyName: contact.companyName ?? payload.companyName ?? null,
   };
@@ -153,7 +153,7 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
       customFieldsFlat = flattenCustomFields(ghlContact, cfDefs);
       customFieldsByKey = flattenCustomFieldsByKey(ghlContact, cfDefs);
       enrichedFromApi = {
-        name: ghlContact.name ?? [ghlContact.firstName, ghlContact.lastName].filter(Boolean).join(" ") || undefined,
+        name: ghlContact.name ?? ([ghlContact.firstName, ghlContact.lastName].filter(Boolean).join(" ") || undefined),
         email: ghlContact.email?.toLowerCase().trim(),
         phone: ghlContact.phone ?? undefined,
         companyName: ghlContact.companyName ?? undefined,
