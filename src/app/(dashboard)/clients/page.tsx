@@ -114,7 +114,7 @@ export default function ClientsPage() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
           <Search className="h-4 w-4 text-muted-foreground" />
-          <input type="text" placeholder="Pesquisar..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-40 md:w-48 bg-transparent text-sm outline-none" />
+          <input type="text" placeholder="Pesquisar por nome, CEO ou email..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-48 md:w-64 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none" />
         </div>
         <div className="flex flex-wrap gap-1">
           {STATUS_FILTERS.map((s) => (
