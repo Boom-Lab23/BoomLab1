@@ -368,35 +368,45 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
             </div>
           </div>
         ) : (
-          <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             <div className="rounded-xl border bg-card p-4 border-l-4" style={{ borderLeftColor: color }}>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-semibold" style={{ color }}>1 -&gt; 3</span>
-                Taxa de Agendamento
+                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-semibold" style={{ color }}>1</span>
+                Agendamento
               </div>
               <p className="text-2xl font-bold mt-1" style={{ color }}>{k?.totals.tcAgendamento?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground">
-                {k?.totals.reunioesAgendadas ?? 0} agendadas / {k?.totals.calls ?? 0} contactos
+              <p className="text-[10px] text-muted-foreground truncate">
+                {k?.totals.reunioesAgendadas ?? 0} / {k?.totals.calls ?? 0}
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-indigo-500">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 font-semibold">SAL→SQL</span>
+                Qualificacao
+              </div>
+              <p className="text-2xl font-bold mt-1 text-indigo-600 dark:text-indigo-400">{(k as unknown as Record<string, Record<string, number>>)?.totals?.tcSalSql?.toFixed(1) ?? 0}%</p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {k?.totals.sqls ?? 0} / {k?.totals.sals ?? 0}
               </p>
             </div>
             <div className="rounded-xl border bg-card p-4 border-l-4 border-l-purple-500">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 font-semibold">3 -&gt; 4</span>
-                Taxa de Show-up
+                <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 font-semibold">2</span>
+                Show-up
               </div>
               <p className="text-2xl font-bold mt-1 text-purple-600 dark:text-purple-400">{k?.totals.tcShowUp?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground">
-                {k?.totals.reunioesEfetuadas ?? 0} efetuadas / {k?.totals.reunioesAgendadas ?? 0} agendadas
+              <p className="text-[10px] text-muted-foreground truncate">
+                {k?.totals.reunioesEfetuadas ?? 0} / {k?.totals.reunioesAgendadas ?? 0}
               </p>
             </div>
             <div className="rounded-xl border bg-card p-4 border-l-4 border-l-green-500">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-1.5 py-0.5 font-semibold">4 -&gt; 5</span>
-                Taxa de Fecho
+                <span className="rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-1.5 py-0.5 font-semibold">3</span>
+                Fecho
               </div>
               <p className="text-2xl font-bold mt-1 text-green-600 dark:text-green-400">{k?.totals.tcFecho?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground">
-                {k?.totals.conversoesFeitas ?? 0} fechadas / {k?.totals.reunioesEfetuadas ?? 0} efetuadas
+              <p className="text-[10px] text-muted-foreground truncate">
+                {k?.totals.conversoesFeitas ?? 0} / {k?.totals.reunioesEfetuadas ?? 0}
               </p>
             </div>
           </div>
