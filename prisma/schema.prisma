@@ -553,9 +553,17 @@ model DashboardRecord {
   // Pipeline credito: etapa entre reuniao e fecho (documentacao)
   documentacoesPedidas     Int    @default(0)  // Nº documentacoes pedidas apos reuniao
   documentacoesRecolhidas  Int    @default(0)  // Nº documentacoes efectivamente recolhidas
+  documentacoesCompletas   Int    @default(0)  // Nº documentacoes totalmente completas (prontas para banco)
   // Lead qualification (SALs / SQLs) - em todos os canais excepto cold calls
   sals                     Int    @default(0)  // Sales Accepted Leads (viaveis em 1o contacto)
   sqls                     Int    @default(0)  // Sales Qualified Leads (aprovadas pelo banco, prontas a avancar)
+  // Novos campos credito: leads totais e acordos verbais
+  leads                    Int    @default(0)  // Total de leads geradas (topo do funil)
+  acordosVerbais           Int    @default(0)  // Nº acordos verbais (pre-escritura)
+  // Duracao media do ciclo de vendas (em dias, preenchida manualmente pelo admin)
+  diasSalDocs              Float?              // Tempo medio SAL -> Docs Completas
+  diasDocsSql              Float?              // Tempo medio Docs Completas -> SQL
+  diasSqlEscritura         Float?              // Tempo medio SQL -> Escritura
   conversionRate  Float?
   // Credito vertentes
   escrituras         Int?

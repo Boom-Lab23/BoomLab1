@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import {
   MARKET_LABELS, MARKET_COLORS, MARKET_CHANNELS, MARKET_VERTENTES,
+  MARKET_PIPELINE_LABELS,
   getChannelLabel, getChannelColor,
   type MarketKey,
 } from "@/lib/market-config";
@@ -72,11 +73,14 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
     commercial: "",
     channel: channels[0]?.key ?? "cold-calling",
     date: new Date().toISOString().split("T")[0],
+    leads: "",
     callsMade: "", callsAnswered: "",
     sals: "", sqls: "",
     reunioesAgendadas: "", reunioesEfetuadas: "",
-    documentacoesPedidas: "", documentacoesRecolhidas: "",
+    documentacoesPedidas: "", documentacoesRecolhidas: "", documentacoesCompletas: "",
+    acordosVerbais: "",
     conversoesFeitas: "",
+    diasSalDocs: "", diasDocsSql: "", diasSqlEscritura: "",
     notes: "",
   });
   // Dropdown dinamico de creditos (multiplos por registo)
@@ -106,11 +110,14 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   // Edicao de registos existentes
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
+    leads: "",
     callsMade: "", callsAnswered: "",
     sals: "", sqls: "",
     reunioesAgendadas: "", reunioesEfetuadas: "",
-    documentacoesPedidas: "", documentacoesRecolhidas: "",
+    documentacoesPedidas: "", documentacoesRecolhidas: "", documentacoesCompletas: "",
+    acordosVerbais: "",
     conversoesFeitas: "",
+    diasSalDocs: "", diasDocsSql: "", diasSqlEscritura: "",
     notes: "",
   });
   const updateRecord = trpc.dashboards.updateRecord.useMutation({
@@ -239,38 +246,38 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
 
       {/* ========== OVERVIEW TAB ========== */}
       {activeTab === "overview" && (<>
-        {/* Destaque: Valor Escriturado (so para CREDITO) */}
-        {market === "CREDITO" && (
-          <div className="relative overflow-hidden rounded-2xl border-2 p-6 shadow-lg" style={{ borderColor: color, background: `linear-gradient(135deg, ${color}12, ${color}03)` }}>
+        {/* Destaque: Valor Total (label por mercado) */}
+        <div className="relative overflow-hidden rounded-2xl border-2 p-6 shadow-lg" style={{ borderColor: color, background: `linear-gradient(135deg, ${color}12, ${color}03)` }}>
             <div className="absolute top-0 right-0 opacity-10">
               <TrendingUp className="h-32 w-32" style={{ color }} />
             </div>
             <div className="relative">
-              <p className="text-sm font-medium uppercase tracking-wide" style={{ color }}>Valor Escriturado</p>
+              <p className="text-sm font-medium uppercase tracking-wide" style={{ color }}>{MARKET_PIPELINE_LABELS[market].valorTotal}</p>
               <p className="mt-1 text-4xl md:text-5xl font-bold" style={{ color }}>
                 €{Number((k as unknown as Record<string, number>)?.totals?.valorEscriturado ?? 0).toLocaleString("pt-PT", { maximumFractionDigits: 0 })}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {k?.totals.conversoesFeitas ?? 0} escrituras realizadas · periodo: {period === "week" ? "semana" : period === "month" ? "mes" : period === "trimester" ? "trimestre" : period === "year" ? "ano" : `${customRange.from} a ${customRange.to}`}
+                {k?.totals.conversoesFeitas ?? 0} {market === "CREDITO" ? "escrituras realizadas" : market === "SEGUROS" ? "apolices emitidas" : "vendas realizadas"} · periodo: {period === "week" ? "semana" : period === "month" ? "mes" : period === "trimester" ? "trimestre" : period === "year" ? "ano" : `${customRange.from} a ${customRange.to}`}
               </p>
-              {/* Breakdown por tipo */}
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-                {[
-                  { label: "Habitacao", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoHab ?? 0 },
-                  { label: "Pessoal", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoPes ?? 0 },
-                  { label: "Consumo", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoCon ?? 0 },
-                  { label: "Transferencia", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoTransf ?? 0 },
-                  { label: "Cartoes", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCartoes ?? 0 },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-lg bg-card/80 backdrop-blur border px-3 py-2">
-                    <p className="text-[10px] text-muted-foreground uppercase">{item.label}</p>
-                    <p className="font-bold">€{Number(item.val).toLocaleString("pt-PT", { maximumFractionDigits: 0 })}</p>
-                  </div>
-                ))}
-              </div>
+              {/* Breakdown por tipo (so para CREDITO) */}
+              {market === "CREDITO" && (
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                  {[
+                    { label: "Habitacao", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoHab ?? 0 },
+                    { label: "Pessoal", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoPes ?? 0 },
+                    { label: "Consumo", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoCon ?? 0 },
+                    { label: "Transferencia", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCreditoTransf ?? 0 },
+                    { label: "Cartoes", val: (k as unknown as Record<string, Record<string, number>>)?.totals?.valorCartoes ?? 0 },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-lg bg-card/80 backdrop-blur border px-3 py-2">
+                      <p className="text-[10px] text-muted-foreground uppercase">{item.label}</p>
+                      <p className="font-bold">€{Number(item.val).toLocaleString("pt-PT", { maximumFractionDigits: 0 })}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        )}
 
         {/* KPI Cards - totais do pipeline */}
         <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
@@ -303,114 +310,69 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
 
-        {/* Taxas do Pipeline - Credito tem 6 etapas (inclui SAL->SQL), outros mercados 3 */}
-        {market === "CREDITO" ? (
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-6">
-            <div className="rounded-xl border bg-card p-4 border-l-4" style={{ borderLeftColor: color }}>
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-semibold" style={{ color }}>1</span>
-                Agendamento
+        {/* Pipeline completo com 8 taxas (segundo estrutura nova BoomLab) */}
+        {(() => {
+          const kt = (k as unknown as Record<string, Record<string, number | null>>)?.totals;
+          const pipelineLabels = MARKET_PIPELINE_LABELS[market];
+          const docsLabel = market === "CREDITO" ? "Doc. Completa" : "Levant. Completo";
+          const convLabel = market === "SEGUROS" ? "Apólice" : market === "IMOBILIARIO" ? "Venda" : "Escritura";
+
+          const cards = [
+            { label: "Contacto", value: kt?.tcContacto, num: k?.totals.calls, denom: kt?.leads, color: color, fromTo: `${k?.totals.calls ?? 0}/${kt?.leads ?? 0}` },
+            { label: "Lead → SAL", value: kt?.tcLeadSal, num: k?.totals.sals, denom: k?.totals.calls, color: "#6366f1", fromTo: `${k?.totals.sals ?? 0}/${k?.totals.calls ?? 0}` },
+            { label: `SAL → ${docsLabel}`, value: kt?.tcSalDocsCompletas, num: kt?.documentacoesCompletas, denom: k?.totals.sals, color: "#8b5cf6", fromTo: `${kt?.documentacoesCompletas ?? 0}/${k?.totals.sals ?? 0}` },
+            { label: "Comparecimento", value: kt?.tcShowUp, num: k?.totals.reunioesEfetuadas, denom: k?.totals.reunioesAgendadas, color: "#a855f7", fromTo: `${k?.totals.reunioesEfetuadas ?? 0}/${k?.totals.reunioesAgendadas ?? 0}` },
+            { label: "SAL → SQL", value: kt?.tcSalSql, num: k?.totals.sqls, denom: k?.totals.sals, color: "#ec4899", fromTo: `${k?.totals.sqls ?? 0}/${k?.totals.sals ?? 0}` },
+            { label: "SQL → AV", value: kt?.tcSqlAcordo, num: kt?.acordosVerbais, denom: k?.totals.sqls, color: "#f59e0b", fromTo: `${kt?.acordosVerbais ?? 0}/${k?.totals.sqls ?? 0}` },
+            { label: `AV → ${convLabel}`, value: kt?.tcAcordoConv, num: k?.totals.conversoesFeitas, denom: kt?.acordosVerbais, color: "#10b981", fromTo: `${k?.totals.conversoesFeitas ?? 0}/${kt?.acordosVerbais ?? 0}` },
+            { label: "TC Global", value: k?.totals.conversionRate, num: k?.totals.conversoesFeitas, denom: k?.totals.calls, color: "#16a34a", fromTo: `${k?.totals.conversoesFeitas ?? 0}/${k?.totals.calls ?? 0}` },
+          ];
+
+          return (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2">Taxas de Conversão</p>
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
+                {cards.map((c) => (
+                  <div key={c.label} className="rounded-xl border bg-card p-3 border-l-4" style={{ borderLeftColor: c.color }}>
+                    <div className="text-[10px] text-muted-foreground truncate" title={c.label}>{c.label}</div>
+                    <p className="text-lg font-bold mt-0.5" style={{ color: c.color }}>
+                      {typeof c.value === "number" ? c.value.toFixed(1) : "0.0"}%
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">{c.fromTo}</p>
+                  </div>
+                ))}
               </div>
-              <p className="text-xl font-bold mt-1" style={{ color }}>{k?.totals.tcAgendamento?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {k?.totals.reunioesAgendadas ?? 0} / {k?.totals.calls ?? 0}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-indigo-500">
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 font-semibold">SAL→SQL</span>
-                Qualificacao
+
+              {/* Duracao Ciclo de Vendas + Ticket Medio */}
+              <div className="grid gap-3 grid-cols-1 md:grid-cols-4 mt-4">
+                <div className="rounded-xl border bg-card p-4 md:col-span-3">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">Duração Média do Ciclo de Vendas</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground truncate">{pipelineLabels.tempoSalDocs}</p>
+                      <p className="text-xl font-bold mt-0.5">{kt?.diasSalDocs != null ? `${Number(kt.diasSalDocs).toFixed(1)} dias` : "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground truncate">{pipelineLabels.tempoDocsSql}</p>
+                      <p className="text-xl font-bold mt-0.5">{kt?.diasDocsSql != null ? `${Number(kt.diasDocsSql).toFixed(1)} dias` : "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground truncate">{pipelineLabels.tempoSqlConv}</p>
+                      <p className="text-xl font-bold mt-0.5">{kt?.diasSqlEscritura != null ? `${Number(kt.diasSqlEscritura).toFixed(1)} dias` : "—"}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-card p-4" style={{ background: `linear-gradient(135deg, ${color}10, transparent)` }}>
+                  <p className="text-xs font-semibold text-muted-foreground">{pipelineLabels.ticketMedio}</p>
+                  <p className="text-2xl font-bold mt-1" style={{ color }}>
+                    €{Number(kt?.ticketMedio ?? 0).toLocaleString("pt-PT", { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">por {convLabel.toLowerCase()}</p>
+                </div>
               </div>
-              <p className="text-xl font-bold mt-1 text-indigo-600 dark:text-indigo-400">{(k as unknown as Record<string, Record<string, number>>)?.totals?.tcSalSql?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {k?.totals.sqls ?? 0} / {k?.totals.sals ?? 0}
-              </p>
             </div>
-            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-purple-500">
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 font-semibold">2</span>
-                Show-up
-              </div>
-              <p className="text-xl font-bold mt-1 text-purple-600 dark:text-purple-400">{k?.totals.tcShowUp?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {k?.totals.reunioesEfetuadas ?? 0} / {k?.totals.reunioesAgendadas ?? 0}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-orange-500">
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 font-semibold">3</span>
-                Pedido Docs
-              </div>
-              <p className="text-xl font-bold mt-1 text-orange-600 dark:text-orange-400">{k?.totals.tcPedidoDocs?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {k?.totals.documentacoesPedidas ?? 0} / {k?.totals.reunioesEfetuadas ?? 0}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-yellow-500">
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 px-1.5 py-0.5 font-semibold">4</span>
-                Recolha Docs
-              </div>
-              <p className="text-xl font-bold mt-1 text-yellow-600 dark:text-yellow-400">{k?.totals.tcRecolhaDocs?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {k?.totals.documentacoesRecolhidas ?? 0} / {k?.totals.documentacoesPedidas ?? 0}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-green-500 col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-1.5 py-0.5 font-semibold">5</span>
-                Fecho
-              </div>
-              <p className="text-xl font-bold mt-1 text-green-600 dark:text-green-400">{k?.totals.tcFechoDocs?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {k?.totals.conversoesFeitas ?? 0} / {k?.totals.documentacoesRecolhidas ?? 0}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl border bg-card p-4 border-l-4" style={{ borderLeftColor: color }}>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-semibold" style={{ color }}>1</span>
-                Agendamento
-              </div>
-              <p className="text-2xl font-bold mt-1" style={{ color }}>{k?.totals.tcAgendamento?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {k?.totals.reunioesAgendadas ?? 0} / {k?.totals.calls ?? 0}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-indigo-500">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 font-semibold">SAL→SQL</span>
-                Qualificacao
-              </div>
-              <p className="text-2xl font-bold mt-1 text-indigo-600 dark:text-indigo-400">{(k as unknown as Record<string, Record<string, number>>)?.totals?.tcSalSql?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {k?.totals.sqls ?? 0} / {k?.totals.sals ?? 0}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-purple-500">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 font-semibold">2</span>
-                Show-up
-              </div>
-              <p className="text-2xl font-bold mt-1 text-purple-600 dark:text-purple-400">{k?.totals.tcShowUp?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {k?.totals.reunioesEfetuadas ?? 0} / {k?.totals.reunioesAgendadas ?? 0}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-green-500">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-1.5 py-0.5 font-semibold">3</span>
-                Fecho
-              </div>
-              <p className="text-2xl font-bold mt-1 text-green-600 dark:text-green-400">{k?.totals.tcFecho?.toFixed(1) ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {k?.totals.conversoesFeitas ?? 0} / {k?.totals.reunioesEfetuadas ?? 0}
-              </p>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Charts */}
         {chartData.data && chartData.data.length > 1 && (
@@ -794,6 +756,7 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                           setEditingRecordId(r.id);
                           const rec = r as unknown as Record<string, number | null | undefined>;
                           setEditForm({
+                            leads: String(rec.leads ?? ""),
                             callsMade: String(r.callsMade ?? ""),
                             callsAnswered: String(r.callsAnswered ?? ""),
                             sals: String(rec.sals ?? ""),
@@ -802,7 +765,12 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                             reunioesEfetuadas: String(r.reunioesEfetuadas ?? r.reunioes ?? ""),
                             documentacoesPedidas: String(rec.documentacoesPedidas ?? ""),
                             documentacoesRecolhidas: String(rec.documentacoesRecolhidas ?? ""),
+                            documentacoesCompletas: String(rec.documentacoesCompletas ?? ""),
+                            acordosVerbais: String(rec.acordosVerbais ?? ""),
                             conversoesFeitas: String(r.conversoesFeitas ?? r.conversions ?? ""),
+                            diasSalDocs: String(rec.diasSalDocs ?? ""),
+                            diasDocsSql: String(rec.diasDocsSql ?? ""),
+                            diasSqlEscritura: String(rec.diasSqlEscritura ?? ""),
                             notes: r.notes ?? "",
                           });
                         }}
@@ -944,6 +912,7 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 date: new Date(eod.date),
                 commercial: eod.commercial,
                 channel: eod.channel,
+                leads: parseInt(eod.leads) || 0,
                 callsMade: parseInt(eod.callsMade) || 0,
                 callsAnswered: parseInt(eod.callsAnswered) || 0,
                 sals: showSalsSqlsInEod ? (parseInt(eod.sals) || 0) : 0,
@@ -952,7 +921,12 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 reunioesEfetuadas: parseInt(eod.reunioesEfetuadas) || 0,
                 documentacoesPedidas: showDocsInEod ? (parseInt(eod.documentacoesPedidas) || 0) : 0,
                 documentacoesRecolhidas: showDocsInEod ? (parseInt(eod.documentacoesRecolhidas) || 0) : 0,
+                documentacoesCompletas: showSalsSqlsInEod ? (parseInt(eod.documentacoesCompletas) || 0) : 0,
+                acordosVerbais: showSalsSqlsInEod ? (parseInt(eod.acordosVerbais) || 0) : 0,
                 conversoesFeitas: parseInt(eod.conversoesFeitas) || 0,
+                diasSalDocs: eod.diasSalDocs ? parseFloat(eod.diasSalDocs) : undefined,
+                diasDocsSql: eod.diasDocsSql ? parseFloat(eod.diasDocsSql) : undefined,
+                diasSqlEscritura: eod.diasSqlEscritura ? parseFloat(eod.diasSqlEscritura) : undefined,
                 notes: eod.notes || undefined,
               };
               // Vertentes: em credito usa o dropdown dinamico; noutros mercados usa os campos antigos
@@ -1013,16 +987,22 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
 
               {(() => {
                 // Calcula etapas dinamicamente
+                const docsCompletasLabel = market === "CREDITO" ? "Docs Completas" : "Levantamentos Completos";
                 const steps: { label: string; key: keyof typeof eod; hint?: string }[] = [
-                  { label: "Contactos Feitos", key: "callsMade" },
+                  { label: "Leads (topo funil)", key: "leads", hint: "Total leads geradas" },
+                  { label: "Contactos", key: "callsMade" },
                   { label: "Respondidos", key: "callsAnswered" },
                 ];
                 if (showSalsSqlsInEod) {
                   steps.push({ label: "SALs", key: "sals", hint: "leads viaveis ao 1o contacto" });
-                  steps.push({ label: "SQLs", key: "sqls", hint: "qualificadas (banco aprovou)" });
+                  steps.push({ label: docsCompletasLabel, key: "documentacoesCompletas" });
                 }
                 steps.push({ label: "Reun. Agendadas", key: "reunioesAgendadas" });
-                steps.push({ label: "Reun. Efetuadas", key: "reunioesEfetuadas" });
+                steps.push({ label: "Comparecimentos", key: "reunioesEfetuadas" });
+                if (showSalsSqlsInEod) {
+                  steps.push({ label: "SQLs", key: "sqls", hint: "qualificadas (banco aprovou)" });
+                  steps.push({ label: "Acordos Verbais", key: "acordosVerbais" });
+                }
                 if (showDocsInEod) {
                   steps.push({ label: "Docs Pedidas", key: "documentacoesPedidas" });
                   steps.push({ label: "Docs Recolhidas", key: "documentacoesRecolhidas" });
@@ -1058,6 +1038,34 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                         {showDocsInEod && <> <strong>Docs</strong>: pipeline de recolha de documentacao.</>}
                       </p>
                     )}
+                  </>
+                );
+              })()}
+
+              {/* Duracao media do ciclo de vendas (opcional, preenchido quando conhecido) */}
+              {!isColdCallEod && (() => {
+                const tempoLabels = market === "SEGUROS"
+                  ? { a: "SAL → Levantamento", b: "Levantamento → SQL", c: "SQL → Apólice" }
+                  : market === "IMOBILIARIO"
+                  ? { a: "SAL → Levantamento", b: "Levantamento → SQL", c: "SQL → Venda" }
+                  : { a: "SAL → Docs Completas", b: "Docs → SQL", c: "SQL → Escritura" };
+                return (
+                  <>
+                    <p className="text-xs font-semibold text-muted-foreground pt-1">Duracao media ciclo (dias) · opcional</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="mb-0.5 block text-[10px]">{tempoLabels.a}</label>
+                        <input type="number" step="0.1" min="0" value={eod.diasSalDocs} onChange={(e) => setEod({ ...eod, diasSalDocs: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                      </div>
+                      <div>
+                        <label className="mb-0.5 block text-[10px]">{tempoLabels.b}</label>
+                        <input type="number" step="0.1" min="0" value={eod.diasDocsSql} onChange={(e) => setEod({ ...eod, diasDocsSql: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                      </div>
+                      <div>
+                        <label className="mb-0.5 block text-[10px]">{tempoLabels.c}</label>
+                        <input type="number" step="0.1" min="0" value={eod.diasSqlEscritura} onChange={(e) => setEod({ ...eod, diasSqlEscritura: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                      </div>
+                    </div>
                   </>
                 );
               })()}
@@ -1187,15 +1195,21 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 updateRecord.mutate({
                   id: editingRecordId,
                   data: {
+                    leads: parseInt(editForm.leads) || 0,
                     callsMade: parseInt(editForm.callsMade) || 0,
                     callsAnswered: parseInt(editForm.callsAnswered) || 0,
                     sals: editShowSals ? (parseInt(editForm.sals) || 0) : 0,
                     sqls: editShowSals ? (parseInt(editForm.sqls) || 0) : 0,
+                    acordosVerbais: editShowSals ? (parseInt(editForm.acordosVerbais) || 0) : 0,
                     reunioesAgendadas: parseInt(editForm.reunioesAgendadas) || 0,
                     reunioesEfetuadas: parseInt(editForm.reunioesEfetuadas) || 0,
                     documentacoesPedidas: editShowDocs ? (parseInt(editForm.documentacoesPedidas) || 0) : 0,
                     documentacoesRecolhidas: editShowDocs ? (parseInt(editForm.documentacoesRecolhidas) || 0) : 0,
+                    documentacoesCompletas: editShowSals ? (parseInt(editForm.documentacoesCompletas) || 0) : 0,
                     conversoesFeitas: parseInt(editForm.conversoesFeitas) || 0,
+                    diasSalDocs: editForm.diasSalDocs ? parseFloat(editForm.diasSalDocs) : undefined,
+                    diasDocsSql: editForm.diasDocsSql ? parseFloat(editForm.diasDocsSql) : undefined,
+                    diasSqlEscritura: editForm.diasSqlEscritura ? parseFloat(editForm.diasSqlEscritura) : undefined,
                     notes: editForm.notes || null,
                   },
                 });
@@ -1208,16 +1222,22 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 const editShowDocs = market === "CREDITO" && !editIsColdCall;
                 const editShowSals = !editIsColdCall;
                 const editConversionLabel = editIsColdCall ? "Parc. Estab." : (market === "CREDITO" ? "Escrituras" : "Conversoes");
+                const docsCompletasLabel = market === "CREDITO" ? "Docs Completas" : "Levant. Completos";
                 const steps: { label: string; key: keyof typeof editForm }[] = [
+                  { label: "Leads", key: "leads" },
                   { label: "Contactos", key: "callsMade" },
                   { label: "Respondidos", key: "callsAnswered" },
                 ];
                 if (editShowSals) {
                   steps.push({ label: "SALs", key: "sals" });
-                  steps.push({ label: "SQLs", key: "sqls" });
+                  steps.push({ label: docsCompletasLabel, key: "documentacoesCompletas" });
                 }
                 steps.push({ label: "Agendadas", key: "reunioesAgendadas" });
-                steps.push({ label: "Efetuadas", key: "reunioesEfetuadas" });
+                steps.push({ label: "Comparecim.", key: "reunioesEfetuadas" });
+                if (editShowSals) {
+                  steps.push({ label: "SQLs", key: "sqls" });
+                  steps.push({ label: "Acordos Verbais", key: "acordosVerbais" });
+                }
                 if (editShowDocs) {
                   steps.push({ label: "Docs Pedidas", key: "documentacoesPedidas" });
                   steps.push({ label: "Docs Recolhidas", key: "documentacoesRecolhidas" });
@@ -1246,6 +1266,25 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                       <p className="text-[10px] text-blue-600 dark:text-blue-400">
                         Cold Calling B2B - sem documentacao nem SALs/SQLs (os campos so se aplicam a canais de leads particulares).
                       </p>
+                    )}
+                    {!editIsColdCall && (
+                      <>
+                        <p className="text-xs font-semibold text-muted-foreground pt-1">Duracao media ciclo (dias) · opcional</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="mb-0.5 block text-[10px]">SAL → {market === "CREDITO" ? "Docs" : "Levant."}</label>
+                            <input type="number" step="0.1" min="0" value={editForm.diasSalDocs} onChange={(e) => setEditForm({ ...editForm, diasSalDocs: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                          </div>
+                          <div>
+                            <label className="mb-0.5 block text-[10px]">{market === "CREDITO" ? "Docs" : "Levant."} → SQL</label>
+                            <input type="number" step="0.1" min="0" value={editForm.diasDocsSql} onChange={(e) => setEditForm({ ...editForm, diasDocsSql: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                          </div>
+                          <div>
+                            <label className="mb-0.5 block text-[10px]">SQL → {market === "CREDITO" ? "Escritura" : market === "SEGUROS" ? "Apólice" : "Venda"}</label>
+                            <input type="number" step="0.1" min="0" value={editForm.diasSqlEscritura} onChange={(e) => setEditForm({ ...editForm, diasSqlEscritura: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                          </div>
+                        </div>
+                      </>
                     )}
                   </>
                 );

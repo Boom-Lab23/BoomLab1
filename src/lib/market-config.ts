@@ -131,6 +131,50 @@ export const MARKET_LABELS: Record<MarketKey, string> = {
   IMOBILIARIO: "Imobiliario",
 };
 
+// =============================================================
+// PIPELINE LABELS por mercado (terminologia especifica)
+// =============================================================
+
+export interface PipelineLabels {
+  docsCompletas: string;      // "Documentacoes Completas" (cred) | "Levantamentos Completos" (seg/imo)
+  conversao: string;           // "Escritura" | "Apolice Emitida" | "Venda"
+  valorTotal: string;          // "Valor Escriturado" | "Premio Total Emitido" | "Valor Vendido"
+  ticketMedio: string;         // "Ticket Medio" | "Premio Medio Anual" | "Preco Medio"
+  tempoSalDocs: string;        // "Tempo medio SAL -> Docs" | "Tempo medio SAL -> Levantamento" | ...
+  tempoDocsSql: string;        // "Tempo medio Docs -> SQL" | "Tempo medio Levantamento -> SQL" | ...
+  tempoSqlConv: string;        // "Tempo medio SQL -> Escritura" | "... -> Apolice" | "... -> Venda"
+}
+
+export const MARKET_PIPELINE_LABELS: Record<MarketKey, PipelineLabels> = {
+  CREDITO: {
+    docsCompletas: "Documentacoes Completas",
+    conversao: "Escritura",
+    valorTotal: "Valor Escriturado",
+    ticketMedio: "Ticket Medio",
+    tempoSalDocs: "SAL -> Docs",
+    tempoDocsSql: "Docs -> SQL",
+    tempoSqlConv: "SQL -> Escritura",
+  },
+  SEGUROS: {
+    docsCompletas: "Levantamentos Completos",
+    conversao: "Apolice Emitida",
+    valorTotal: "Premio Total Emitido",
+    ticketMedio: "Premio Medio Anual",
+    tempoSalDocs: "SAL -> Levantamento",
+    tempoDocsSql: "Levantamento -> SQL",
+    tempoSqlConv: "SQL -> Apolice",
+  },
+  IMOBILIARIO: {
+    docsCompletas: "Levantamentos Completos",
+    conversao: "Venda (Escritura)",
+    valorTotal: "Valor Total Vendido",
+    ticketMedio: "Preco Medio Venda",
+    tempoSalDocs: "SAL -> Levantamento",
+    tempoDocsSql: "Levantamento -> SQL",
+    tempoSqlConv: "SQL -> Venda",
+  },
+};
+
 export const MARKET_COLORS: Record<MarketKey, string> = {
   CREDITO: "#2D76FC",
   SEGUROS: "#16a34a",

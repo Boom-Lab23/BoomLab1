@@ -67,13 +67,20 @@ export const dashboardsRouter = router({
       callsAnswered: z.number().default(0),
       callsNotAnswered: z.number().default(0),
       // Pipeline comercial
+      leads: z.number().default(0),                  // Total leads (topo funil)
       sals: z.number().default(0),                   // Sales Accepted Leads (viaveis 1o contacto) - todos canais excepto cold calls
       sqls: z.number().default(0),                   // Sales Qualified Leads (aprovadas pelo banco)
       reunioesAgendadas: z.number().default(0),      // Reunioes marcadas (pipeline)
       reunioesEfetuadas: z.number().default(0),      // Reunioes que aconteceram
       documentacoesPedidas: z.number().default(0),   // Documentacoes pedidas apos reuniao
       documentacoesRecolhidas: z.number().default(0),// Documentacoes recolhidas efectivamente
-      conversoesFeitas: z.number().default(0),       // Contratos fechados (= escrituras em credito, parcerias estabelecidas em cold calls)
+      documentacoesCompletas: z.number().default(0), // Documentacoes totalmente completas (seguros: levantamentos completos)
+      acordosVerbais: z.number().default(0),         // Acordos verbais (pre-escritura/apolice)
+      conversoesFeitas: z.number().default(0),       // Contratos fechados (= escrituras em credito, apolices em seguros, parcerias estabelecidas em cold calls)
+      // Duracao media do ciclo de vendas (em dias)
+      diasSalDocs: z.number().optional(),
+      diasDocsSql: z.number().optional(),
+      diasSqlEscritura: z.number().optional(),
       // Legacy (kept for compat)
       conversions: z.number().optional(),
       agendamentos: z.number().optional(),
@@ -154,10 +161,16 @@ export const dashboardsRouter = router({
           conversions: conversoesFeitas,
           conversoesFeitas,
           reunioesEfetuadas,
+          leads: input.leads,
           sals: input.sals,
           sqls: input.sqls,
+          acordosVerbais: input.acordosVerbais,
           documentacoesPedidas: input.documentacoesPedidas,
           documentacoesRecolhidas: input.documentacoesRecolhidas,
+          documentacoesCompletas: input.documentacoesCompletas,
+          diasSalDocs: input.diasSalDocs,
+          diasDocsSql: input.diasDocsSql,
+          diasSqlEscritura: input.diasSqlEscritura,
           agendamentos: reunioesAgendadas, // campo "reunioes agendadas"
           reunioes: reunioesEfetuadas,     // legacy
           comparecimentos: input.comparecimentos ?? reunioesEfetuadas,
@@ -213,13 +226,19 @@ export const dashboardsRouter = router({
       data: z.object({
         callsMade: z.number().optional(),
         callsAnswered: z.number().optional(),
+        leads: z.number().optional(),
         sals: z.number().optional(),
         sqls: z.number().optional(),
+        acordosVerbais: z.number().optional(),
         reunioesAgendadas: z.number().optional(),
         reunioesEfetuadas: z.number().optional(),
         documentacoesPedidas: z.number().optional(),
         documentacoesRecolhidas: z.number().optional(),
+        documentacoesCompletas: z.number().optional(),
         conversoesFeitas: z.number().optional(),
+        diasSalDocs: z.number().optional(),
+        diasDocsSql: z.number().optional(),
+        diasSqlEscritura: z.number().optional(),
         channel: z.string().optional(),
         commercial: z.string().optional(),
         notes: z.string().nullable().optional(),
@@ -323,11 +342,18 @@ export const dashboardsRouter = router({
 
       let totalCalls = 0, totalAnswered = 0, totalConversoes = 0;
       let totalAgendadas = 0, totalEfetuadas = 0;
-      let totalDocsPedidas = 0, totalDocsRecolhidas = 0;
+      let totalDocsPedidas = 0, totalDocsRecolhidas = 0, totalDocsCompletas = 0;
       let totalSals = 0, totalSqls = 0;
+      let totalLeads = 0, totalAcordos = 0;
       // Volumes de credito (valor escriturado)
       let totalCreditoHab = 0, totalCreditoPes = 0, totalCreditoCon = 0;
       let totalCreditoTransf = 0, totalCartoes = 0, totalSegurosCross = 0;
+      // Volume seguros (premio total)
+      let totalPremios = 0;
+      // Para duracao media do ciclo de vendas (mediana dos registos com valor)
+      const diasSalDocsList: number[] = [];
+      const diasDocsSqlList: number[] = [];
+      const diasSqlEscrituraList: number[] = [];
 
       for (const r of records) {
         const conv = r.conversoesFeitas || r.conversions || 0;
@@ -369,13 +395,23 @@ export const dashboardsRouter = router({
         const rExt = r as unknown as Record<string, number | null | undefined>;
         totalSals += rExt.sals ?? 0;
         totalSqls += rExt.sqls ?? 0;
+        totalLeads += rExt.leads ?? 0;
+        totalAcordos += rExt.acordosVerbais ?? 0;
+        totalDocsCompletas += rExt.documentacoesCompletas ?? 0;
         totalCreditoHab += r.creditoHabitacaoV ?? 0;
         totalCreditoPes += r.creditoPessoalV ?? 0;
         totalCreditoCon += r.creditoConsumoV ?? 0;
         totalCreditoTransf += rExt.creditoTransferenciaV ?? 0;
         totalCartoes += r.cartoesV ?? 0;
         totalSegurosCross += r.segurosCrossV ?? 0;
+        // Premios (seguros = soma de todos os seguros*V)
+        totalPremios += (r.segurosVidaV ?? 0) + (r.segurosSaudeV ?? 0) + (r.segurosAutoV ?? 0)
+                       + (r.segurosHabitacaoV ?? 0) + (r.segurosMultiV ?? 0) + (r.segurosOutrosV ?? 0);
+        if (rExt.diasSalDocs != null) diasSalDocsList.push(rExt.diasSalDocs);
+        if (rExt.diasDocsSql != null) diasDocsSqlList.push(rExt.diasDocsSql);
+        if (rExt.diasSqlEscritura != null) diasSqlEscrituraList.push(rExt.diasSqlEscritura);
       }
+      const avg = (arr: number[]) => arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length;
 
       return {
         market: dashboard.market,
@@ -399,7 +435,26 @@ export const dashboardsRouter = router({
           valorCartoes: totalCartoes,
           valorSegurosCross: totalSegurosCross,
           valorEscriturado: totalCreditoHab + totalCreditoPes + totalCreditoCon + totalCreditoTransf + totalCartoes,
-          // Taxas do pipeline
+          // Novos totais (leads, docs completas, acordos verbais, premios)
+          leads: totalLeads,
+          documentacoesCompletas: totalDocsCompletas,
+          acordosVerbais: totalAcordos,
+          valorPremios: totalPremios,
+          // Ticket medio (por conversao) - para credito usa valorEscriturado; para outros, ajusta no client
+          ticketMedio: totalConversoes > 0
+            ? (totalCreditoHab + totalCreditoPes + totalCreditoCon + totalCreditoTransf + totalCartoes + totalPremios) / totalConversoes
+            : 0,
+          // Duracao media do ciclo (dias) - null se nenhum registo preenchido
+          diasSalDocs: avg(diasSalDocsList),
+          diasDocsSql: avg(diasDocsSqlList),
+          diasSqlEscritura: avg(diasSqlEscrituraList),
+          // Taxas do pipeline novo (mais detalhado)
+          tcContacto: totalLeads > 0 ? (totalCalls / totalLeads) * 100 : 0,                     // Leads -> Contactos
+          tcLeadSal: totalCalls > 0 ? (totalSals / totalCalls) * 100 : 0,                       // Contactos -> SALs
+          tcSalDocsCompletas: totalSals > 0 ? (totalDocsCompletas / totalSals) * 100 : 0,       // SALs -> Docs Completas
+          tcSqlAcordo: totalSqls > 0 ? (totalAcordos / totalSqls) * 100 : 0,                    // SQLs -> Acordos Verbais
+          tcAcordoConv: totalAcordos > 0 ? (totalConversoes / totalAcordos) * 100 : 0,          // AV -> Escritura/Apolice
+          // Taxas do pipeline (legacy/compat)
           tcAgendamento: totalCalls > 0 ? (totalAgendadas / totalCalls) * 100 : 0,              // Contactos -> Agendadas
           tcSalSql: totalSals > 0 ? (totalSqls / totalSals) * 100 : 0,                          // SALs -> SQLs (qualificacao)
           tcShowUp: totalAgendadas > 0 ? (totalEfetuadas / totalAgendadas) * 100 : 0,           // Agendadas -> Efetuadas
