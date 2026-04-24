@@ -98,23 +98,36 @@ export const sessionsRouter = router({
     return ctx.prisma.session.delete({ where: { id: input } });
   }),
 
-  upcoming: publicProcedure.query(async ({ ctx }) => {
-    // Inicio do dia actual (inclui sessoes de hoje, mesmo que ja esteja a decorrer)
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    return ctx.prisma.session.findMany({
-      where: {
+  upcoming: publicProcedure
+    .input(z.object({
+      assignedToUserId: z.string().optional(),
+      clientId: z.string().optional(),
+      excludeModules: z.array(z.string()).optional(),
+      limit: z.number().default(20),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const baseWhere: Record<string, unknown> = {
         OR: [
           { date: { gte: startOfToday }, status: { in: ["MARCADA", "AGUARDAR_CONFIRMACAO", "POR_AGENDAR", "REAGENDADA"] } },
-          // Sessoes sem data mas ainda por agendar (mostra nas proximas)
           { date: null, status: { in: ["POR_AGENDAR", "AGUARDAR_CONFIRMACAO"] } },
         ],
-      },
-      include: { client: true, assignedTo: true },
-      orderBy: [{ date: "asc" }, { createdAt: "desc" }],
-      take: 20,
-    });
-  }),
+      };
+      if (input?.assignedToUserId) baseWhere.assignedToId = input.assignedToUserId;
+      if (input?.clientId) baseWhere.clientId = input.clientId;
+      if (input?.excludeModules && input.excludeModules.length > 0) {
+        baseWhere.module = { notIn: input.excludeModules };
+      }
+
+      return ctx.prisma.session.findMany({
+        where: baseWhere,
+        include: { client: true, assignedTo: true },
+        orderBy: [{ date: "asc" }, { createdAt: "desc" }],
+        take: input?.limit ?? 20,
+      });
+    }),
 
   // Generate action plan (manual trigger) - calls Claude with transcript + KB
   generateActionPlan: publicProcedure

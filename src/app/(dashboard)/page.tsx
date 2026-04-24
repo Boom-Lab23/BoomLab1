@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { cn, PILLARS, getStatusColor, formatStatus, getPillarFromModule } from "@/lib/utils";
@@ -38,10 +39,18 @@ function StatCard({
 }
 
 export default function DashboardPage() {
+  const [memberFilter, setMemberFilter] = useState<string>("");
+  const [hideEomOff, setHideEomOff] = useState(false);
+
   const stats = trpc.clients.stats.useQuery();
-  const upcoming = trpc.sessions.upcoming.useQuery();
+  const upcoming = trpc.sessions.upcoming.useQuery({
+    assignedToUserId: memberFilter || undefined,
+    excludeModules: hideEomOff ? ["end-of-month", "off-boarding"] : undefined,
+    limit: 50,
+  });
   const recentSessions = trpc.sessions.list.useQuery({ status: "CONCLUIDA" });
   const pendingRecordings = trpc.recordings.list.useQuery({ analyzed: false });
+  const teamMembers = trpc.admin.listUsers.useQuery();
 
   // Count sessions by pillar for the chart
   const pillarCounts: Record<string, number> = {};
@@ -103,11 +112,28 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
         {/* Upcoming Sessions */}
         <div className="lg:col-span-2 rounded-xl border bg-card">
-          <div className="flex items-center justify-between border-b p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
             <h2 className="font-semibold">Proximas Sessoes</h2>
-            <Link href="/sessions" className="flex items-center gap-1 text-sm text-primary hover:underline">
-              Ver todas <ArrowRight className="h-3 w-3" />
-            </Link>
+            <div className="flex items-center gap-2">
+              <select
+                value={memberFilter}
+                onChange={(e) => setMemberFilter(e.target.value)}
+                className="rounded-lg border bg-card px-2 py-1 text-xs text-foreground"
+                title="Filtrar por membro da equipa"
+              >
+                <option value="">Toda a equipa</option>
+                {teamMembers.data?.filter((u) => u.role === "ADMIN" || u.role === "MANAGER" || u.role === "CONSULTANT").map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+              <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer">
+                <input type="checkbox" checked={hideEomOff} onChange={(e) => setHideEomOff(e.target.checked)} className="h-3 w-3" />
+                Esconder EOM/Off
+              </label>
+              <Link href="/sessions" className="flex items-center gap-1 text-sm text-primary hover:underline">
+                Ver todas <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
           </div>
           <div className="divide-y">
             {upcoming.data?.length === 0 && (

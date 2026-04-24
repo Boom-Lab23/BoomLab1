@@ -268,7 +268,9 @@ export const dashboardsRouter = router({
   kpis: publicProcedure
     .input(z.object({
       dashboardId: z.string(),
-      period: z.enum(["week", "month", "trimester", "year"]).default("month"),
+      period: z.enum(["week", "month", "trimester", "year", "custom"]).default("month"),
+      dateFrom: z.date().optional(), // usado quando period=custom
+      dateTo: z.date().optional(),
     }))
     .query(async ({ ctx, input }) => {
       const dashboard = await ctx.prisma.clientDashboard.findUniqueOrThrow({
@@ -278,7 +280,16 @@ export const dashboardsRouter = router({
       const now = new Date();
       let dateFilter: Record<string, unknown> = {};
 
-      if (input.period === "week") {
+      if (input.period === "custom" && (input.dateFrom || input.dateTo)) {
+        const f: Record<string, Date> = {};
+        if (input.dateFrom) f.gte = input.dateFrom;
+        if (input.dateTo) {
+          const to = new Date(input.dateTo);
+          to.setHours(23, 59, 59, 999);
+          f.lte = to;
+        }
+        dateFilter = f;
+      } else if (input.period === "week") {
         const weekStart = new Date(now);
         weekStart.setDate(now.getDate() - now.getDay() + 1);
         weekStart.setHours(0, 0, 0, 0);
@@ -388,8 +399,9 @@ export const dashboardsRouter = router({
           valorCartoes: totalCartoes,
           valorSegurosCross: totalSegurosCross,
           valorEscriturado: totalCreditoHab + totalCreditoPes + totalCreditoCon + totalCreditoTransf + totalCartoes,
-          // Taxas do pipeline (5 etapas para credito)
-          tcAgendamento: totalCalls > 0 ? (totalAgendadas / totalCalls) * 100 : 0,              // 1 -> Agendadas
+          // Taxas do pipeline
+          tcAgendamento: totalCalls > 0 ? (totalAgendadas / totalCalls) * 100 : 0,              // Contactos -> Agendadas
+          tcSalSql: totalSals > 0 ? (totalSqls / totalSals) * 100 : 0,                          // SALs -> SQLs (qualificacao)
           tcShowUp: totalAgendadas > 0 ? (totalEfetuadas / totalAgendadas) * 100 : 0,           // Agendadas -> Efetuadas
           tcPedidoDocs: totalEfetuadas > 0 ? (totalDocsPedidas / totalEfetuadas) * 100 : 0,     // Efetuadas -> Docs pedidas
           tcRecolhaDocs: totalDocsPedidas > 0 ? (totalDocsRecolhidas / totalDocsPedidas) * 100 : 0, // Docs pedidas -> recolhidas

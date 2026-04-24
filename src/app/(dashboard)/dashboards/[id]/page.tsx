@@ -28,10 +28,17 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   // Permissoes:
   // - Editar registos: CLIENTE (GUEST_CLIENT) + ADMIN. Equipa do cliente (GUEST_TEAM_MEMBER) NAO edita.
   // - Apagar registos: DESACTIVADO (nao ha delete)
-  const canEditRecords = userRole === "ADMIN" || userRole === "GUEST_CLIENT" || userRole === "CONSULTANT" || userRole === "MANAGER";
+  // Apenas ADMIN, MANAGER, CONSULTANT e GUEST_CLIENT (o proprio cliente) podem editar.
+  // GUEST_TEAM_MEMBER (equipa do cliente) nao pode editar registos.
+  const canEditRecords = userRole === "ADMIN" || userRole === "MANAGER" || userRole === "CONSULTANT" || userRole === "GUEST_CLIENT";
   const canDeleteRecords = false;
 
-  const [period, setPeriod] = useState<"week" | "month" | "trimester" | "year">("month");
+  const [period, setPeriod] = useState<"week" | "month" | "trimester" | "year" | "custom">("month");
+  const [customRange, setCustomRange] = useState<{ from: string; to: string }>(() => {
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from: firstOfMonth.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) };
+  });
   const [activeTab, setActiveTab] = useState<"overview" | "channels" | "growth" | "vertentes">("overview");
   const [showEOD, setShowEOD] = useState(false);
   const [showTeam, setShowTeam] = useState(false);
@@ -48,7 +55,11 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   });
 
   const dashboard = trpc.dashboards.getById.useQuery(id);
-  const kpis = trpc.dashboards.kpis.useQuery({ dashboardId: id, period });
+  const kpis = trpc.dashboards.kpis.useQuery({
+    dashboardId: id,
+    period,
+    ...(period === "custom" ? { dateFrom: new Date(customRange.from), dateTo: new Date(customRange.to) } : {}),
+  });
   const growthKpis = trpc.dashboards.growthKpis.useQuery({ dashboardId: id });
   const chartData = trpc.dashboards.chartData.useQuery({ dashboardId: id, months: 3 });
   const utils = trpc.useUtils();
@@ -197,15 +208,33 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       {/* Period selector */}
-      <div className="flex gap-1">
-        {(["week", "month", "trimester", "year"] as const).map((p) => (
+      <div className="flex flex-wrap items-center gap-1">
+        {(["week", "month", "trimester", "year", "custom"] as const).map((p) => (
           <button key={p} onClick={() => setPeriod(p)}
             className={cn("rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-              period === p ? "bg-gray-900 text-white" : "bg-card text-muted-foreground hover:bg-muted"
+              period === p ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "bg-card text-muted-foreground hover:bg-muted"
             )}>
-            {p === "week" ? "Semana" : p === "month" ? "Mes" : p === "trimester" ? "Trimestre" : "Ano"}
+            {p === "week" ? "Semana" : p === "month" ? "Mes" : p === "trimester" ? "Trimestre" : p === "year" ? "Ano" : "Personalizado"}
           </button>
         ))}
+        {period === "custom" && (
+          <div className="flex items-center gap-2 ml-2 rounded-lg border bg-card px-3 py-1">
+            <span className="text-xs text-muted-foreground">De</span>
+            <input
+              type="date"
+              value={customRange.from}
+              onChange={(e) => setCustomRange({ ...customRange, from: e.target.value })}
+              className="bg-transparent text-xs text-foreground outline-none"
+            />
+            <span className="text-xs text-muted-foreground">ate</span>
+            <input
+              type="date"
+              value={customRange.to}
+              onChange={(e) => setCustomRange({ ...customRange, to: e.target.value })}
+              className="bg-transparent text-xs text-foreground outline-none"
+            />
+          </div>
+        )}
       </div>
 
       {/* ========== OVERVIEW TAB ========== */}
@@ -222,7 +251,7 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 €{Number((k as unknown as Record<string, number>)?.totals?.valorEscriturado ?? 0).toLocaleString("pt-PT", { maximumFractionDigits: 0 })}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {k?.totals.conversoesFeitas ?? 0} escrituras realizadas · periodo: {period === "week" ? "semana" : period === "month" ? "mes" : period === "trimester" ? "trimestre" : "ano"}
+                {k?.totals.conversoesFeitas ?? 0} escrituras realizadas · periodo: {period === "week" ? "semana" : period === "month" ? "mes" : period === "trimester" ? "trimestre" : period === "year" ? "ano" : `${customRange.from} a ${customRange.to}`}
               </p>
               {/* Breakdown por tipo */}
               <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
@@ -274,9 +303,9 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
 
-        {/* Taxas do Pipeline - Credito tem 5 etapas, outros mercados 3 */}
+        {/* Taxas do Pipeline - Credito tem 6 etapas (inclui SAL->SQL), outros mercados 3 */}
         {market === "CREDITO" ? (
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-6">
             <div className="rounded-xl border bg-card p-4 border-l-4" style={{ borderLeftColor: color }}>
               <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                 <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-semibold" style={{ color }}>1</span>
@@ -285,6 +314,16 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
               <p className="text-xl font-bold mt-1" style={{ color }}>{k?.totals.tcAgendamento?.toFixed(1) ?? 0}%</p>
               <p className="text-[10px] text-muted-foreground truncate">
                 {k?.totals.reunioesAgendadas ?? 0} / {k?.totals.calls ?? 0}
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-4 border-l-4 border-l-indigo-500">
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 font-semibold">SAL→SQL</span>
+                Qualificacao
+              </div>
+              <p className="text-xl font-bold mt-1 text-indigo-600 dark:text-indigo-400">{(k as unknown as Record<string, Record<string, number>>)?.totals?.tcSalSql?.toFixed(1) ?? 0}%</p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {k?.totals.sqls ?? 0} / {k?.totals.sals ?? 0}
               </p>
             </div>
             <div className="rounded-xl border bg-card p-4 border-l-4 border-l-purple-500">
