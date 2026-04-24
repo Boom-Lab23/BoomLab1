@@ -271,9 +271,57 @@ export const adminRouter = router({
         patch.assignedDashboardId = null;
       }
 
+      // Se email esta a ser mudado, normaliza e verifica duplicados
+      if (typeof input.data.email === "string") {
+        const normalized = input.data.email.trim().toLowerCase();
+        const existing = await ctx.prisma.user.findFirst({
+          where: { email: { equals: normalized, mode: "insensitive" }, NOT: { id: input.id } },
+        });
+        if (existing) {
+          throw new Error("Este email ja esta registado noutro utilizador.");
+        }
+        patch.email = normalized;
+      }
+      if (typeof input.data.name === "string") {
+        patch.name = input.data.name.trim();
+      }
+
       return ctx.prisma.user.update({
         where: { id: input.id },
         data: patch,
+      });
+    }),
+
+  // Qualquer user pode editar o seu proprio nome e email.
+  // Nao pode mudar role, isActive, nem acessos (so admin em updateUser).
+  updateOwnProfile: publicProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        name: z.string().min(1).optional(),
+        email: z.string().email().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const data: Record<string, unknown> = {};
+      if (input.name !== undefined) data.name = input.name.trim();
+      if (input.email !== undefined) {
+        const normalized = input.email.trim().toLowerCase();
+        // Verifica se email ja existe noutro user
+        const existing = await ctx.prisma.user.findFirst({
+          where: { email: { equals: normalized, mode: "insensitive" }, NOT: { id: input.userId } },
+        });
+        if (existing) {
+          throw new Error("Este email ja esta registado noutro utilizador.");
+        }
+        data.email = normalized;
+      }
+      if (Object.keys(data).length === 0) {
+        throw new Error("Nada para actualizar.");
+      }
+      return ctx.prisma.user.update({
+        where: { id: input.userId },
+        data,
       });
     }),
 

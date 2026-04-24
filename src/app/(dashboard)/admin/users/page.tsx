@@ -217,6 +217,7 @@ export default function AdminUsersPage() {
               onResetPw={() => setShowResetPw(user.id)}
               onResendEmail={() => resendWelcome.mutate({ userId: user.id })}
               onResetAndEmail={() => resetAndEmail.mutate({ userId: user.id })}
+              onUpdateNameEmail={(patch) => updateUser.mutate({ id: user.id, data: patch })}
               onEditPerms={() => {
                 setEditPermsUserId(user.id);
                 setEditPermsForm({
@@ -250,6 +251,7 @@ export default function AdminUsersPage() {
               onResetPw={() => setShowResetPw(user.id)}
               onResendEmail={() => resendWelcome.mutate({ userId: user.id })}
               onResetAndEmail={() => resetAndEmail.mutate({ userId: user.id })}
+              onUpdateNameEmail={(patch) => updateUser.mutate({ id: user.id, data: patch })}
               onEditPerms={() => {
                 setEditPermsUserId(user.id);
                 setEditPermsForm({
@@ -642,7 +644,7 @@ function ConsentBadge({ accepted, label }: { accepted: boolean; label: string })
 }
 
 // User row component
-function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, onResetAndEmail, onEditPerms, isBusy }: {
+function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, onResetAndEmail, onEditPerms, onUpdateNameEmail, isBusy }: {
   user: {
     id: string; name: string; email: string; role: string;
     image: string | null; assignedChannel?: { name: string } | null;
@@ -660,10 +662,25 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
   onResendEmail: () => void;
   onResetAndEmail: () => void;
   onEditPerms: () => void;
+  onUpdateNameEmail: (patch: { name?: string; email?: string }) => void;
   isBusy?: boolean;
 }) {
   const isGuest = user.role === "GUEST_CLIENT" || user.role === "GUEST_TEAM_MEMBER";
   const hasAnyConsent = user.consentPrivacyPolicy || user.consentTerms || user.consentDPA;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ name: user.name, email: user.email });
+
+  function startEdit() {
+    setDraft({ name: user.name, email: user.email });
+    setEditing(true);
+  }
+  function saveEdit() {
+    const patch: { name?: string; email?: string } = {};
+    if (draft.name.trim() && draft.name.trim() !== user.name) patch.name = draft.name.trim();
+    if (draft.email.trim() && draft.email.trim().toLowerCase() !== user.email.toLowerCase()) patch.email = draft.email.trim().toLowerCase();
+    if (Object.keys(patch).length > 0) onUpdateNameEmail(patch);
+    setEditing(false);
+  }
 
   return (
     <div className="p-3 md:p-4">
@@ -677,24 +694,59 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-medium">{user.name}</p>
-            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", ROLE_COLORS[user.role] ?? "bg-gray-100")}>
-              {ROLE_LABELS[user.role] ?? user.role}
-            </span>
-            {user.mustChangePassword && (
-              <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300" title="Utilizador ainda nao alterou a password">
-                1o login pendente
-              </span>
-            )}
-            {/* Badge 'email enviado' so aparece enquanto o 1o login esta pendente. Depois do primeiro login, desaparece. */}
-            {user.welcomeEmailSentAt && user.mustChangePassword && (
-              <span className="rounded-full bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300" title={`Email enviado em ${new Date(user.welcomeEmailSentAt).toLocaleString("pt-PT")}`}>
-                ✉️ enviado
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+          {editing ? (
+            <div className="space-y-1.5">
+              <input
+                type="text"
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(false); }}
+                placeholder="Nome"
+                autoFocus
+                className="w-full rounded border px-2 py-1 text-sm bg-card text-foreground"
+              />
+              <input
+                type="email"
+                value={draft.email}
+                onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+                onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(false); }}
+                placeholder="Email"
+                className="w-full rounded border px-2 py-1 text-xs bg-card text-foreground"
+              />
+              <div className="flex gap-1">
+                <button onClick={saveEdit} className="rounded bg-primary px-2 py-0.5 text-[10px] font-medium text-white hover:bg-primary/90">Guardar</button>
+                <button onClick={() => setEditing(false)} className="rounded border px-2 py-0.5 text-[10px] hover:bg-muted">Cancelar</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium">{user.name}</p>
+                <button
+                  onClick={startEdit}
+                  className="text-[10px] text-primary hover:underline opacity-60 hover:opacity-100"
+                  title="Editar nome e email"
+                >
+                  editar
+                </button>
+                <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", ROLE_COLORS[user.role] ?? "bg-gray-100")}>
+                  {ROLE_LABELS[user.role] ?? user.role}
+                </span>
+                {user.mustChangePassword && (
+                  <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300" title="Utilizador ainda nao alterou a password">
+                    1o login pendente
+                  </span>
+                )}
+                {/* Badge 'email enviado' so aparece enquanto o 1o login esta pendente. Depois do primeiro login, desaparece. */}
+                {user.welcomeEmailSentAt && user.mustChangePassword && (
+                  <span className="rounded-full bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300" title={`Email enviado em ${new Date(user.welcomeEmailSentAt).toLocaleString("pt-PT")}`}>
+                    ✉️ enviado
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+            </>
+          )}
           {/* Acessos restritos SO para guests. Internos (admin/manager/consultor) tem acesso global. */}
           {isGuest && user.assignedChannel && (
             <p className="text-xs text-orange-600">Canal: {user.assignedChannel.name}</p>

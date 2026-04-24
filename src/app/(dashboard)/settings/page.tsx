@@ -12,7 +12,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
-  const { data: session } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const userId = (session?.user as Record<string, unknown>)?.id as string | undefined;
   const userName = session?.user?.name ?? "Utilizador";
   const userEmail = session?.user?.email ?? "";
@@ -22,6 +22,41 @@ export default function SettingsPage() {
 
   const { theme, setTheme } = useTheme();
   const [copied, setCopied] = useState("");
+
+  // Profile edit state (name + email)
+  const [profileForm, setProfileForm] = useState({ name: "", email: "" });
+  const [profileError, setProfileError] = useState("");
+  const [profileSuccess, setProfileSuccess] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+
+  const updateOwnProfile = trpc.admin.updateOwnProfile.useMutation({
+    onSuccess: async () => {
+      setProfileSuccess(true);
+      setEditingProfile(false);
+      setProfileError("");
+      await updateSession();
+      setTimeout(() => setProfileSuccess(false), 4000);
+    },
+    onError: (err) => setProfileError(err.message),
+  });
+
+  function startEditProfile() {
+    setProfileForm({ name: userName, email: userEmail });
+    setProfileError("");
+    setEditingProfile(true);
+  }
+
+  function submitProfile(e: React.FormEvent) {
+    e.preventDefault();
+    if (!userId) { setProfileError("Sessao invalida."); return; }
+    const payload: { userId: string; name?: string; email?: string } = { userId };
+    if (profileForm.name.trim() && profileForm.name.trim() !== userName) payload.name = profileForm.name.trim();
+    if (profileForm.email.trim() && profileForm.email.trim().toLowerCase() !== userEmail.toLowerCase()) {
+      payload.email = profileForm.email.trim().toLowerCase();
+    }
+    if (!payload.name && !payload.email) { setProfileError("Nada mudou."); return; }
+    updateOwnProfile.mutate(payload);
+  }
 
   // Change password state
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
@@ -70,22 +105,69 @@ export default function SettingsPage() {
           <p className="text-muted-foreground">A tua conta</p>
         </div>
 
-        {/* Account info */}
+        {/* Account info - editavel */}
         <div className="rounded-xl border bg-card">
           <div className="flex items-center gap-2 border-b p-4">
             <User className="h-4 w-4 text-primary" />
             <h2 className="font-semibold">Conta</h2>
+            {!editingProfile && (
+              <button onClick={startEditProfile} className="ml-auto text-xs text-primary hover:underline">
+                Editar
+              </button>
+            )}
           </div>
-          <div className="p-4 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Nome</span>
-              <span className="font-medium">{userName}</span>
+          {profileSuccess && (
+            <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/30 p-2 text-xs text-green-700 dark:text-green-300">
+              <CheckCircle2 className="h-3 w-3" /> Perfil actualizado com sucesso.
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Email</span>
-              <span className="font-medium">{userEmail}</span>
+          )}
+          {editingProfile ? (
+            <form onSubmit={submitProfile} className="p-4 space-y-3">
+              {profileError && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 p-2 text-xs text-red-700 dark:text-red-300">
+                  <AlertCircle className="h-3 w-3" /> {profileError}
+                </div>
+              )}
+              <div>
+                <label className="mb-1 block text-xs font-medium">Nome</label>
+                <input
+                  type="text"
+                  required
+                  value={profileForm.name}
+                  onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card text-foreground"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium">Email</label>
+                <input
+                  type="email"
+                  required
+                  value={profileForm.email}
+                  onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                  className="w-full rounded-lg border px-3 py-2 text-sm bg-card text-foreground"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">Ao mudar o email, sera este que vais usar para fazer login.</p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button type="button" onClick={() => setEditingProfile(false)} className="rounded-lg border px-3 py-1.5 text-xs hover:bg-muted">Cancelar</button>
+                <button type="submit" disabled={updateOwnProfile.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50">
+                  {updateOwnProfile.isPending ? "A guardar..." : "Guardar"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="p-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Nome</span>
+                <span className="font-medium">{userName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Email</span>
+                <span className="font-medium">{userEmail}</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Change password */}
@@ -203,6 +285,75 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold">Configuracoes</h1>
         <p className="text-muted-foreground">Integracoes e gestao da plataforma</p>
+      </div>
+
+      {/* Perfil - editavel */}
+      <div className="rounded-xl border bg-card">
+        <div className="flex items-center gap-2 border-b p-4">
+          <User className="h-4 w-4 text-primary" />
+          <h2 className="font-semibold">O meu perfil</h2>
+          {!editingProfile && (
+            <button onClick={startEditProfile} className="ml-auto text-xs text-primary hover:underline">
+              Editar
+            </button>
+          )}
+        </div>
+        {profileSuccess && (
+          <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/30 p-2 text-xs text-green-700 dark:text-green-300">
+            <CheckCircle2 className="h-3 w-3" /> Perfil actualizado com sucesso.
+          </div>
+        )}
+        {editingProfile ? (
+          <form onSubmit={submitProfile} className="p-4 space-y-3 max-w-md">
+            {profileError && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 p-2 text-xs text-red-700 dark:text-red-300">
+                <AlertCircle className="h-3 w-3" /> {profileError}
+              </div>
+            )}
+            <div>
+              <label className="mb-1 block text-xs font-medium">Nome</label>
+              <input
+                type="text"
+                required
+                value={profileForm.name}
+                onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                className="w-full rounded-lg border px-3 py-2 text-sm bg-card text-foreground"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Email</label>
+              <input
+                type="email"
+                required
+                value={profileForm.email}
+                onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                className="w-full rounded-lg border px-3 py-2 text-sm bg-card text-foreground"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">Ao mudar o email, sera este que vais usar para fazer login.</p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setEditingProfile(false)} className="rounded-lg border px-3 py-1.5 text-xs hover:bg-muted">Cancelar</button>
+              <button type="submit" disabled={updateOwnProfile.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50">
+                {updateOwnProfile.isPending ? "A guardar..." : "Guardar"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="p-4 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Nome</span>
+              <span className="font-medium">{userName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Email</span>
+              <span className="font-medium">{userEmail}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Role</span>
+              <span className="font-medium">{userRole}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Quick Nav */}
