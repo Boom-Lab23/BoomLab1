@@ -109,16 +109,41 @@ export const sessionsRouter = router({
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
 
-      const baseWhere: Record<string, unknown> = {
+      const statusFilter: Record<string, unknown> = {
         OR: [
           { date: { gte: startOfToday }, status: { in: ["MARCADA", "AGUARDAR_CONFIRMACAO", "POR_AGENDAR", "REAGENDADA"] } },
           { date: null, status: { in: ["POR_AGENDAR", "AGUARDAR_CONFIRMACAO"] } },
         ],
       };
-      if (input?.assignedToUserId) baseWhere.assignedToId = input.assignedToUserId;
+
+      const baseWhere: Record<string, unknown> = { ...statusFilter };
       if (input?.clientId) baseWhere.clientId = input.clientId;
       if (input?.excludeModules && input.excludeModules.length > 0) {
         baseWhere.module = { notIn: input.excludeModules };
+      }
+
+      // Filter by member: includes sessions directly assigned OR sessions of clients
+      // whose past sessions have been led by that consultant (EOM/off-boarding have
+      // null assignedToId, so infer via client history).
+      if (input?.assignedToUserId) {
+        const memberId = input.assignedToUserId;
+        const clientIdsViaHistory = await ctx.prisma.session.findMany({
+          where: { assignedToId: memberId, status: "CONCLUIDA" },
+          select: { clientId: true },
+          distinct: ["clientId"],
+        });
+        const clientIds = clientIdsViaHistory.map((c) => c.clientId);
+        baseWhere.OR = [
+          { assignedToId: memberId, ...statusFilter },
+          clientIds.length > 0
+            ? { clientId: { in: clientIds }, assignedToId: null, ...statusFilter }
+            : { id: "__never__" },
+        ];
+        delete (baseWhere as Record<string, unknown>).clientId;
+        // Re-apply clientId scoping if explicitly provided
+        if (input.clientId) {
+          baseWhere.OR = (baseWhere.OR as Record<string, unknown>[]).map((o) => ({ ...o, clientId: input.clientId }));
+        }
       }
 
       return ctx.prisma.session.findMany({

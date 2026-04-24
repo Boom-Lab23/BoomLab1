@@ -40,17 +40,20 @@ function StatCard({
 
 export default function DashboardPage() {
   const [memberFilter, setMemberFilter] = useState<string>("");
+  const [clientFilter, setClientFilter] = useState<string>("");
   const [hideEomOff, setHideEomOff] = useState(false);
 
   const stats = trpc.clients.stats.useQuery();
   const upcoming = trpc.sessions.upcoming.useQuery({
     assignedToUserId: memberFilter || undefined,
+    clientId: clientFilter || undefined,
     excludeModules: hideEomOff ? ["end-of-month", "off-boarding"] : undefined,
     limit: 50,
   });
   const recentSessions = trpc.sessions.list.useQuery({ status: "CONCLUIDA" });
   const pendingRecordings = trpc.recordings.list.useQuery({ analyzed: false });
   const teamMembers = trpc.admin.listUsers.useQuery();
+  const clientsList = trpc.clients.list.useQuery({});
 
   // Count sessions by pillar for the chart
   const pillarCounts: Record<string, number> = {};
@@ -113,8 +116,11 @@ export default function DashboardPage() {
         {/* Upcoming Sessions */}
         <div className="lg:col-span-2 rounded-xl border bg-card">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
-            <h2 className="font-semibold">Proximas Sessoes</h2>
             <div className="flex items-center gap-2">
+              <h2 className="font-semibold">Proximas Sessoes</h2>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{upcoming.data?.length ?? 0}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 value={memberFilter}
                 onChange={(e) => setMemberFilter(e.target.value)}
@@ -126,6 +132,17 @@ export default function DashboardPage() {
                   <option key={u.id} value={u.id}>{u.name}</option>
                 ))}
               </select>
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                className="rounded-lg border bg-card px-2 py-1 text-xs text-foreground"
+                title="Filtrar por cliente"
+              >
+                <option value="">Todos os clientes</option>
+                {clientsList.data?.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
               <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer">
                 <input type="checkbox" checked={hideEomOff} onChange={(e) => setHideEomOff(e.target.checked)} className="h-3 w-3" />
                 Esconder EOM/Off
@@ -135,14 +152,14 @@ export default function DashboardPage() {
               </Link>
             </div>
           </div>
-          <div className="divide-y">
+          <div className="max-h-[520px] divide-y overflow-y-auto">
             {upcoming.data?.length === 0 && (
               <div className="flex flex-col items-center gap-2 p-8 text-muted-foreground">
                 <Calendar className="h-8 w-8 text-muted-foreground/30" />
                 <p className="text-sm">Sem sessoes agendadas</p>
               </div>
             )}
-            {upcoming.data?.slice(0, 6).map((session) => {
+            {upcoming.data?.map((session) => {
               const pillar = getPillarFromModule(session.module);
               return (
                 <Link

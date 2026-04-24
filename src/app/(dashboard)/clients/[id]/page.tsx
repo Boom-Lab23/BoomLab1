@@ -34,16 +34,16 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const completedSessions = c.sessions.filter((s) => s.status === "CONCLUIDA").length;
   const totalSessions = c.sessions.length;
 
-  // Proximas reunioes (futuras ou hoje, nao concluidas)
-  const now = new Date();
+  // Proximas reunioes (futuras ou hoje, nao concluidas) - todas, nao so as 5 proximas
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
   const upcomingSessions = c.sessions
     .filter((s) => {
       if (!s.date) return false;
       if (s.status === "CONCLUIDA" || s.status === "CANCELADA" || s.status === "FALTOU") return false;
-      return new Date(s.date).getTime() >= now.setHours(0, 0, 0, 0);
+      return new Date(s.date).getTime() >= todayStart.getTime();
     })
-    .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
-    .slice(0, 5);
+    .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
 
   return (
     <div className="space-y-6">
@@ -163,7 +163,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             </div>
             <span className="text-sm text-muted-foreground">{upcomingSessions.length}</span>
           </div>
-          <div className="divide-y">
+          <div className="max-h-[400px] divide-y overflow-y-auto">
             {upcomingSessions.length === 0 ? (
               <div className="p-6 text-sm text-center text-muted-foreground">Sem reunioes agendadas proximamente.</div>
             ) : (
