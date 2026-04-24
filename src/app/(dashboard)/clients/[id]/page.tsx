@@ -34,14 +34,14 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const completedSessions = c.sessions.filter((s) => s.status === "CONCLUIDA").length;
   const totalSessions = c.sessions.length;
 
-  // Proximas reunioes (futuras ou hoje, nao concluidas) - todas, nao so as 5 proximas
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  // Proximas reunioes: filtro por instante atual (sessoes que ja comecaram
+  // deixam de aparecer ao longo do dia, automaticamente).
+  const nowTs = Date.now();
   const upcomingSessions = c.sessions
     .filter((s) => {
       if (!s.date) return false;
       if (s.status === "CONCLUIDA" || s.status === "CANCELADA" || s.status === "FALTOU") return false;
-      return new Date(s.date).getTime() >= todayStart.getTime();
+      return new Date(s.date).getTime() >= nowTs;
     })
     .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
 

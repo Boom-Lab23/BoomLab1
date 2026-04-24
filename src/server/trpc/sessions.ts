@@ -107,12 +107,12 @@ export const sessionsRouter = router({
       limit: z.number().default(20),
     }).optional())
     .query(async ({ ctx, input }) => {
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
+      // Instante atual: sessoes passam a "nao proximas" assim que comecam.
+      const now = new Date();
 
       const statusFilter: Record<string, unknown> = {
         OR: [
-          { date: { gte: startOfToday }, status: { in: ["MARCADA", "AGUARDAR_CONFIRMACAO", "POR_AGENDAR", "REAGENDADA"] } },
+          { date: { gte: now }, status: { in: ["MARCADA", "AGUARDAR_CONFIRMACAO", "POR_AGENDAR", "REAGENDADA"] } },
           { date: null, status: { in: ["POR_AGENDAR", "AGUARDAR_CONFIRMACAO"] } },
         ],
       };
@@ -166,15 +166,16 @@ export const sessionsRouter = router({
       limit: z.number().default(100),
     }).optional())
     .query(async ({ ctx, input }) => {
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-      const until = new Date(startOfToday);
+      // Usar o instante atual (nao o inicio do dia): sessoes que ja comecaram
+      // caem automaticamente da lista ao longo do dia.
+      const now = new Date();
+      const until = new Date(now);
       until.setDate(until.getDate() + (input?.daysAhead ?? 30));
 
       // 1) DB sessions
       const sessionWhere: Record<string, unknown> = {
         OR: [
-          { date: { gte: startOfToday, lte: until }, status: { in: ["MARCADA", "AGUARDAR_CONFIRMACAO", "POR_AGENDAR", "REAGENDADA"] } },
+          { date: { gte: now, lte: until }, status: { in: ["MARCADA", "AGUARDAR_CONFIRMACAO", "POR_AGENDAR", "REAGENDADA"] } },
           { date: null, status: { in: ["POR_AGENDAR", "AGUARDAR_CONFIRMACAO"] } },
         ],
       };
@@ -189,9 +190,9 @@ export const sessionsRouter = router({
         });
         const clientIds = via.map((c) => c.clientId);
         sessionWhere.OR = [
-          { assignedToId: memberId, date: { gte: startOfToday, lte: until } },
+          { assignedToId: memberId, date: { gte: now, lte: until } },
           clientIds.length > 0
-            ? { clientId: { in: clientIds }, assignedToId: null, date: { gte: startOfToday, lte: until } }
+            ? { clientId: { in: clientIds }, assignedToId: null, date: { gte: now, lte: until } }
             : { id: "__never__" },
         ];
       }
@@ -229,10 +230,12 @@ export const sessionsRouter = router({
 
       for (const member of targetMembers) {
         try {
-          const events = await fetchCalendarEvents(member.id, startOfToday, until);
+          const events = await fetchCalendarEvents(member.id, now, until);
           for (const e of events) {
             if (!e.id || linkedEventIds.has(e.id)) continue;
             if (e.status === "cancelled") continue;
+            // Skip events ja terminados (start < now sem duracao util sobrante)
+            if (new Date(e.end).getTime() < now.getTime()) continue;
             calendarItems.push({
               id: `cal:${member.id}:${e.id}`,
               source: "calendar",
