@@ -44,6 +44,8 @@ export default function DashboardPage() {
   const [hideEomOff, setHideEomOff] = useState(false);
 
   const stats = trpc.clients.stats.useQuery();
+  // Query sem filtros para o stat card — total real de sessoes proximas
+  const upcomingTotal = trpc.sessions.upcoming.useQuery({ limit: 1000 });
   const upcoming = trpc.sessions.upcoming.useQuery({
     assignedToUserId: memberFilter || undefined,
     clientId: clientFilter || undefined,
@@ -81,7 +83,7 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Proximas Sessoes"
-          value={upcoming.data?.length ?? 0}
+          value={upcomingTotal.data?.length ?? 0}
           icon={Calendar}
           color="#2563eb"
           subtitle="Agendadas"
@@ -157,6 +159,13 @@ export default function DashboardPage() {
               <div className="flex flex-col items-center gap-2 p-8 text-muted-foreground">
                 <Calendar className="h-8 w-8 text-muted-foreground/30" />
                 <p className="text-sm">Sem sessoes agendadas</p>
+                {(hideEomOff || memberFilter || clientFilter) && (
+                  <p className="text-xs text-muted-foreground/70">
+                    {hideEomOff && (upcomingTotal.data?.length ?? 0) > 0
+                      ? `Ha ${upcomingTotal.data?.length} sessoes agendadas, todas do tipo EOM/Off-boarding. Desliga o filtro para as ver.`
+                      : "Tenta remover os filtros acima."}
+                  </p>
+                )}
               </div>
             )}
             {upcoming.data?.map((session) => {
