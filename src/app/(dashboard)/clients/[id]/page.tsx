@@ -21,6 +21,12 @@ import {
 export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const client = trpc.clients.getById.useQuery(id);
+  // Unified upcoming: junta Session DB com eventos Google Calendar que
+  // tenham o email do cliente nos attendees ou o nome no titulo.
+  const upcomingUnified = trpc.sessions.upcomingUnified.useQuery(
+    { clientId: id, daysAhead: 90, limit: 50 },
+    { enabled: !!id }
+  );
 
   if (client.isLoading) {
     return <div className="p-8 text-center text-muted-foreground">A carregar...</div>;
@@ -34,16 +40,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const completedSessions = c.sessions.filter((s) => s.status === "CONCLUIDA").length;
   const totalSessions = c.sessions.length;
 
-  // Proximas reunioes: filtro por instante atual (sessoes que ja comecaram
-  // deixam de aparecer ao longo do dia, automaticamente).
-  const nowTs = Date.now();
-  const upcomingSessions = c.sessions
-    .filter((s) => {
-      if (!s.date) return false;
-      if (s.status === "CONCLUIDA" || s.status === "CANCELADA" || s.status === "FALTOU") return false;
-      return new Date(s.date).getTime() >= nowTs;
-    })
-    .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
+  const upcomingSessions = upcomingUnified.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -167,30 +164,29 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             {upcomingSessions.length === 0 ? (
               <div className="p-6 text-sm text-center text-muted-foreground">Sem reunioes agendadas proximamente.</div>
             ) : (
-              upcomingSessions.map((session) => {
-                const pillar = getPillarFromModule(session.module);
-                const d = session.date ? new Date(session.date) : null;
+              upcomingSessions.map((item) => {
+                const isSession = item.source === "session";
+                const pillar = isSession ? getPillarFromModule(item.module) : null;
+                const d = item.date ? new Date(item.date) : null;
                 const isToday = d && d.toDateString() === new Date().toDateString();
                 const daysUntil = d ? Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
-                return (
-                  <Link
-                    key={session.id}
-                    href={`/sessions/${session.id}`}
-                    className="flex items-center gap-3 p-3 transition-colors hover:bg-muted/50"
-                  >
-                    <div className="flex flex-col items-center min-w-[56px] rounded-lg p-2" style={{ background: pillar ? `${pillar.color}15` : "#f3f4f6" }}>
+                const content = (
+                  <div className="flex items-center gap-3 p-3 transition-colors hover:bg-muted/50">
+                    <div className="flex flex-col items-center min-w-[56px] rounded-lg p-2" style={{ background: pillar ? `${pillar.color}15` : isSession ? "#f3f4f6" : "#dbeafe" }}>
                       <span className="text-[10px] uppercase text-muted-foreground">
                         {d?.toLocaleDateString("pt-PT", { month: "short" }).replace(".", "")}
                       </span>
-                      <span className="text-lg font-bold" style={{ color: pillar?.color ?? "#6b7280" }}>
+                      <span className="text-lg font-bold" style={{ color: pillar?.color ?? (isSession ? "#6b7280" : "#2563eb") }}>
                         {d?.getDate()}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{session.title}</p>
+                      <p className="text-sm font-medium truncate">{item.title}</p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         {pillar && <span className="h-2 w-2 rounded-full" style={{ backgroundColor: pillar.color }} />}
-                        <span>{session.topic ?? session.module}</span>
+                        <span className="truncate">
+                          {isSession ? (item.module ?? "") : `${item.memberName} · Google`}
+                        </span>
                         <span>&middot;</span>
                         <span>{d?.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}</span>
                       </div>
@@ -202,13 +198,22 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                       )}>
                         {isToday ? "Hoje" : daysUntil === 1 ? "Amanha" : `em ${daysUntil}d`}
                       </span>
-                      <p className="mt-1 text-[10px]">
-                        <span className={cn("rounded px-1.5 py-0.5 text-[9px]", getStatusColor(session.status))}>
-                          {formatStatus(session.status)}
-                        </span>
-                      </p>
+                      {isSession && (
+                        <p className="mt-1 text-[10px]">
+                          <span className={cn("rounded px-1.5 py-0.5 text-[9px]", getStatusColor(item.status))}>
+                            {formatStatus(item.status)}
+                          </span>
+                        </p>
+                      )}
                     </div>
-                  </Link>
+                  </div>
+                );
+                return isSession ? (
+                  <Link key={item.id} href={`/sessions/${item.id}`}>{content}</Link>
+                ) : item.meetLink ? (
+                  <a key={item.id} href={item.meetLink} target="_blank" rel="noreferrer">{content}</a>
+                ) : (
+                  <div key={item.id}>{content}</div>
                 );
               })
             )}

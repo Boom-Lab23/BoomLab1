@@ -206,6 +206,18 @@ export const sessionsRouter = router({
 
       const linkedEventIds = new Set(dbSessions.map((s) => s.calendarEventId).filter(Boolean) as string[]);
 
+      // Se filtro por cliente, obter email do cliente para cruzar com attendees
+      let clientEmailLc: string | null = null;
+      let clientNameLc: string | null = null;
+      if (input?.clientId) {
+        const cli = await ctx.prisma.client.findUnique({
+          where: { id: input.clientId },
+          select: { email: true, name: true },
+        });
+        clientEmailLc = cli?.email?.toLowerCase() ?? null;
+        clientNameLc = cli?.name?.toLowerCase() ?? null;
+      }
+
       // 2) Google Calendar events from team members
       const members = await ctx.prisma.user.findMany({
         where: { googleConnected: true, isActive: true, role: { in: ["ADMIN", "MANAGER", "CONSULTANT"] } },
@@ -234,8 +246,16 @@ export const sessionsRouter = router({
           for (const e of events) {
             if (!e.id || linkedEventIds.has(e.id)) continue;
             if (e.status === "cancelled") continue;
-            // Skip events ja terminados (start < now sem duracao util sobrante)
+            // Skip events ja terminados
             if (new Date(e.end).getTime() < now.getTime()) continue;
+            // Filtrar por cliente: email nos attendees OU nome do cliente no titulo
+            if (input?.clientId) {
+              const attendeesLc = e.attendees.map((a) => a.toLowerCase());
+              const titleLc = e.title.toLowerCase();
+              const emailMatch = clientEmailLc ? attendeesLc.includes(clientEmailLc) : false;
+              const nameMatch = clientNameLc ? titleLc.includes(clientNameLc) : false;
+              if (!emailMatch && !nameMatch) continue;
+            }
             calendarItems.push({
               id: `cal:${member.id}:${e.id}`,
               source: "calendar",
