@@ -44,13 +44,14 @@ export default function DashboardPage() {
   const [hideEomOff, setHideEomOff] = useState(false);
 
   const stats = trpc.clients.stats.useQuery();
-  // Query sem filtros para o stat card — total real de sessoes proximas
-  const upcomingTotal = trpc.sessions.upcoming.useQuery({ limit: 1000 });
-  const upcoming = trpc.sessions.upcoming.useQuery({
+  // Query unificada: junta Session DB + eventos Google Calendar da equipa
+  const upcomingTotal = trpc.sessions.upcomingUnified.useQuery({ daysAhead: 60, limit: 1000 });
+  const upcoming = trpc.sessions.upcomingUnified.useQuery({
     assignedToUserId: memberFilter || undefined,
     clientId: clientFilter || undefined,
     excludeModules: hideEomOff ? ["end-of-month", "off-boarding"] : undefined,
-    limit: 50,
+    daysAhead: 60,
+    limit: 100,
   });
   const recentSessions = trpc.sessions.list.useQuery({ status: "CONCLUIDA" });
   const pendingRecordings = trpc.recordings.list.useQuery({ analyzed: false });
@@ -168,25 +169,30 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
-            {upcoming.data?.map((session) => {
-              const pillar = getPillarFromModule(session.module);
-              return (
-                <Link
-                  key={session.id}
-                  href={`/sessions/${session.id}`}
-                  className="flex items-center justify-between p-4 transition-colors hover:bg-muted/50"
-                >
-                  <div className="flex items-center gap-3">
+            {upcoming.data?.map((item) => {
+              const isSession = item.source === "session";
+              const pillar = isSession ? getPillarFromModule(item.module) : null;
+              const href = isSession ? `/sessions/${item.id}` : (item.meetLink ?? "#");
+              const subtitle = isSession
+                ? item.clientName ?? "Sem cliente"
+                : `${item.memberName} · Calendario`;
+              const content = (
+                <div className="flex items-center justify-between p-4 transition-colors hover:bg-muted/50">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className="flex h-10 w-10 items-center justify-center rounded-lg"
-                      style={{ backgroundColor: pillar ? `${pillar.color}15` : "#f3f4f6" }}
+                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
+                      style={{ backgroundColor: pillar ? `${pillar.color}15` : isSession ? "#f3f4f6" : "#dbeafe" }}
                     >
-                      <Clock className="h-5 w-5" style={{ color: pillar?.color ?? "#6b7280" }} />
+                      {isSession ? (
+                        <Clock className="h-5 w-5" style={{ color: pillar?.color ?? "#6b7280" }} />
+                      ) : (
+                        <Calendar className="h-5 w-5 text-blue-600" />
+                      )}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium">{session.title}</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{item.title}</p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{session.client.name}</span>
+                        <span className="truncate">{subtitle}</span>
                         {pillar && (
                           <>
                             <span>&middot;</span>
@@ -196,22 +202,32 @@ export default function DashboardPage() {
                             </span>
                           </>
                         )}
+                        {!isSession && (
+                          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">Google</span>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     <p className="text-sm font-medium">
-                      {session.date
-                        ? new Date(session.date).toLocaleDateString("pt-PT", { day: "numeric", month: "short" })
+                      {item.date
+                        ? new Date(item.date).toLocaleDateString("pt-PT", { day: "numeric", month: "short" })
                         : "-"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {session.date
-                        ? new Date(session.date).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })
+                      {item.date
+                        ? new Date(item.date).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })
                         : ""}
                     </p>
                   </div>
-                </Link>
+                </div>
+              );
+              return isSession ? (
+                <Link key={item.id} href={href}>{content}</Link>
+              ) : item.meetLink ? (
+                <a key={item.id} href={item.meetLink} target="_blank" rel="noreferrer">{content}</a>
+              ) : (
+                <div key={item.id}>{content}</div>
               );
             })}
           </div>

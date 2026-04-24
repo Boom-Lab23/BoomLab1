@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "./init";
 import { generateActionPlanDraft } from "../services/action-plan-workflow";
+import { fetchCalendarEvents } from "../services/google-calendar";
 
 export const sessionsRouter = router({
   list: publicProcedure
@@ -152,6 +153,123 @@ export const sessionsRouter = router({
         orderBy: [{ date: "asc" }, { createdAt: "desc" }],
         take: input?.limit ?? 20,
       });
+    }),
+
+  // Unified upcoming: Session records + Google Calendar events from team members.
+  // Calendar events already linked via calendarEventId are skipped (the Session entry wins).
+  upcomingUnified: publicProcedure
+    .input(z.object({
+      assignedToUserId: z.string().optional(),
+      clientId: z.string().optional(),
+      excludeModules: z.array(z.string()).optional(),
+      daysAhead: z.number().default(30),
+      limit: z.number().default(100),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const until = new Date(startOfToday);
+      until.setDate(until.getDate() + (input?.daysAhead ?? 30));
+
+      // 1) DB sessions
+      const sessionWhere: Record<string, unknown> = {
+        OR: [
+          { date: { gte: startOfToday, lte: until }, status: { in: ["MARCADA", "AGUARDAR_CONFIRMACAO", "POR_AGENDAR", "REAGENDADA"] } },
+          { date: null, status: { in: ["POR_AGENDAR", "AGUARDAR_CONFIRMACAO"] } },
+        ],
+      };
+      if (input?.clientId) sessionWhere.clientId = input.clientId;
+      if (input?.excludeModules?.length) sessionWhere.module = { notIn: input.excludeModules };
+      if (input?.assignedToUserId) {
+        const memberId = input.assignedToUserId;
+        const via = await ctx.prisma.session.findMany({
+          where: { assignedToId: memberId, status: "CONCLUIDA" },
+          select: { clientId: true },
+          distinct: ["clientId"],
+        });
+        const clientIds = via.map((c) => c.clientId);
+        sessionWhere.OR = [
+          { assignedToId: memberId, date: { gte: startOfToday, lte: until } },
+          clientIds.length > 0
+            ? { clientId: { in: clientIds }, assignedToId: null, date: { gte: startOfToday, lte: until } }
+            : { id: "__never__" },
+        ];
+      }
+
+      const dbSessions = await ctx.prisma.session.findMany({
+        where: sessionWhere,
+        include: { client: true, assignedTo: true },
+        orderBy: [{ date: "asc" }, { createdAt: "desc" }],
+        take: input?.limit ?? 100,
+      });
+
+      const linkedEventIds = new Set(dbSessions.map((s) => s.calendarEventId).filter(Boolean) as string[]);
+
+      // 2) Google Calendar events from team members
+      const members = await ctx.prisma.user.findMany({
+        where: { googleConnected: true, isActive: true, role: { in: ["ADMIN", "MANAGER", "CONSULTANT"] } },
+        select: { id: true, name: true, email: true },
+      });
+
+      const targetMembers = input?.assignedToUserId
+        ? members.filter((m) => m.id === input.assignedToUserId)
+        : members;
+
+      const calendarItems: {
+        id: string;
+        source: "calendar";
+        title: string;
+        date: Date;
+        endDate: Date;
+        meetLink: string | null;
+        memberId: string;
+        memberName: string;
+        attendees: string[];
+      }[] = [];
+
+      for (const member of targetMembers) {
+        try {
+          const events = await fetchCalendarEvents(member.id, startOfToday, until);
+          for (const e of events) {
+            if (!e.id || linkedEventIds.has(e.id)) continue;
+            if (e.status === "cancelled") continue;
+            calendarItems.push({
+              id: `cal:${member.id}:${e.id}`,
+              source: "calendar",
+              title: e.title,
+              date: e.start,
+              endDate: e.end,
+              meetLink: e.meetLink,
+              memberId: member.id,
+              memberName: member.name,
+              attendees: e.attendees,
+            });
+          }
+        } catch {
+          // User without Google connection or expired token — skip silently
+        }
+      }
+
+      const sessionItems = dbSessions.map((s) => ({
+        id: s.id,
+        source: "session" as const,
+        title: s.title,
+        module: s.module,
+        date: s.date,
+        status: s.status,
+        clientId: s.clientId,
+        clientName: s.client?.name ?? null,
+        assignedToId: s.assignedToId,
+        assignedToName: s.assignedTo?.name ?? null,
+      }));
+
+      // Merge and sort
+      const unified = [
+        ...sessionItems.map((s) => ({ ...s, sortDate: s.date ? new Date(s.date).getTime() : Number.MAX_SAFE_INTEGER })),
+        ...calendarItems.map((c) => ({ ...c, sortDate: new Date(c.date).getTime() })),
+      ].sort((a, b) => a.sortDate - b.sortDate).slice(0, input?.limit ?? 100);
+
+      return unified;
     }),
 
   // Generate action plan (manual trigger) - calls Claude with transcript + KB
