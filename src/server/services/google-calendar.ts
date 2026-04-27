@@ -274,6 +274,62 @@ export async function pushPendingSessionsToCalendar(
   return { pushed, skipped, failed, errors };
 }
 
+// Apaga sessoes da DB e dos respectivos eventos no Google Calendar.
+// Filtros: clientNames + modules (ex: apagar EOMs de uma lista de clientes)
+export async function deleteSessionsAndCalendarEvents(
+  userId: string,
+  filter: {
+    clientNames?: string[];
+    modules?: string[];
+    onlyFuture?: boolean;
+  }
+): Promise<{ deletedDb: number; deletedCalendar: number; errors: Array<{ sessionId: string; error: string }> }> {
+  const where: Record<string, unknown> = {};
+  if (filter.modules?.length) where.module = { in: filter.modules };
+  if (filter.onlyFuture !== false) where.date = { gte: new Date() };
+  if (filter.clientNames?.length) {
+    where.client = { name: { in: filter.clientNames } };
+  }
+
+  const sessions = await prisma.session.findMany({
+    where,
+    select: { id: true, calendarEventId: true },
+  });
+
+  if (sessions.length === 0) {
+    return { deletedDb: 0, deletedCalendar: 0, errors: [] };
+  }
+
+  const calendar = await getCalendarClient(userId);
+  let deletedCalendar = 0;
+  const errors: Array<{ sessionId: string; error: string }> = [];
+
+  for (const s of sessions) {
+    if (s.calendarEventId) {
+      try {
+        await calendar.events.delete({ calendarId: "primary", eventId: s.calendarEventId });
+        deletedCalendar++;
+        await new Promise((r) => setTimeout(r, 100));
+      } catch (err) {
+        // Status 410 = ja apagado, status 404 = nao encontrado: ambos sao OK
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("410") && !msg.includes("404")) {
+          errors.push({ sessionId: s.id, error: msg });
+        } else {
+          deletedCalendar++;
+        }
+      }
+    }
+  }
+
+  // Apagar da DB
+  const result = await prisma.session.deleteMany({
+    where: { id: { in: sessions.map((s) => s.id) } },
+  });
+
+  return { deletedDb: result.count, deletedCalendar, errors };
+}
+
 // Get today's events for the dashboard
 export async function getTodaysEvents(userId: string): Promise<CalendarEvent[]> {
   const today = new Date();

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "./init";
 import { generateActionPlanDraft } from "../services/action-plan-workflow";
-import { fetchCalendarEvents, pushPendingSessionsToCalendar } from "../services/google-calendar";
+import { fetchCalendarEvents, pushPendingSessionsToCalendar, deleteSessionsAndCalendarEvents } from "../services/google-calendar";
 
 export const sessionsRouter = router({
   list: publicProcedure
@@ -293,6 +293,22 @@ export const sessionsRouter = router({
       ].sort((a, b) => a.sortDate - b.sortDate).slice(0, input?.limit ?? 100);
 
       return unified;
+    }),
+
+  // Apaga sessoes da DB e respectivos eventos no Google Calendar (em massa).
+  bulkDelete: publicProcedure
+    .input(z.object({
+      userId: z.string(),
+      clientNames: z.array(z.string()).optional(),
+      modules: z.array(z.string()).optional(),
+      onlyFuture: z.boolean().default(true),
+    }))
+    .mutation(async ({ input }) => {
+      return deleteSessionsAndCalendarEvents(input.userId, {
+        clientNames: input.clientNames,
+        modules: input.modules,
+        onlyFuture: input.onlyFuture,
+      });
     }),
 
   // Pusha sessoes MARCADAS sem calendarEventId para o Google Calendar do
