@@ -302,12 +302,16 @@ export const sessionsRouter = router({
       clientNames: z.array(z.string()).optional(),
       modules: z.array(z.string()).optional(),
       onlyFuture: z.boolean().default(true),
+      dateFrom: z.string().optional(),
+      dateTo: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       return deleteSessionsAndCalendarEvents(input.userId, {
         clientNames: input.clientNames,
         modules: input.modules,
         onlyFuture: input.onlyFuture,
+        dateFrom: input.dateFrom ? new Date(input.dateFrom) : undefined,
+        dateTo: input.dateTo ? new Date(input.dateTo) : undefined,
       });
     }),
 

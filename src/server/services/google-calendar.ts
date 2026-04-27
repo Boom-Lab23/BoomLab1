@@ -275,18 +275,27 @@ export async function pushPendingSessionsToCalendar(
 }
 
 // Apaga sessoes da DB e dos respectivos eventos no Google Calendar.
-// Filtros: clientNames + modules (ex: apagar EOMs de uma lista de clientes)
+// Filtros: clientNames + modules + dateFrom/dateTo (ex: apagar EOMs de Abril)
 export async function deleteSessionsAndCalendarEvents(
   userId: string,
   filter: {
     clientNames?: string[];
     modules?: string[];
     onlyFuture?: boolean;
+    dateFrom?: Date;
+    dateTo?: Date;
   }
 ): Promise<{ deletedDb: number; deletedCalendar: number; errors: Array<{ sessionId: string; error: string }> }> {
   const where: Record<string, unknown> = {};
   if (filter.modules?.length) where.module = { in: filter.modules };
-  if (filter.onlyFuture !== false) where.date = { gte: new Date() };
+  if (filter.dateFrom || filter.dateTo) {
+    const dateFilter: Record<string, Date> = {};
+    if (filter.dateFrom) dateFilter.gte = filter.dateFrom;
+    if (filter.dateTo) dateFilter.lte = filter.dateTo;
+    where.date = dateFilter;
+  } else if (filter.onlyFuture !== false) {
+    where.date = { gte: new Date() };
+  }
   if (filter.clientNames?.length) {
     where.client = { name: { in: filter.clientNames } };
   }
