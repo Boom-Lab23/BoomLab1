@@ -66,29 +66,42 @@ export default function ClientsPage() {
   });
 
   // Ordem desejada pelo utilizador:
-  // 1. Clientes activos/pre-arranque com contrato a terminar brevemente (menos dias -> mais dias)
-  // 2. Clientes sem data de fim
-  // 3. Clientes cujo contrato ja expirou (mais recente primeiro)
+  // 1. Status: ATIVO no topo, INATIVO/PROJETO_FINALIZADO no fundo. Mudar status
+  //    re-ordena automaticamente (a query invalida em onSuccess da mutation).
+  // 2. Dentro do mesmo grupo, ordenar por contrato a terminar (menos dias primeiro).
+  const STATUS_PRIORITY: Record<string, number> = {
+    ATIVO: 0,
+    APRESENTACAO_TIMELINE: 1,
+    LEVANTAMENTO: 2,
+    PRE_ARRANQUE: 3,
+    COBRADO: 4,
+    FECHADO: 5,
+    INATIVO: 6,
+    PROJETO_FINALIZADO: 7,
+  };
   const now = Date.now();
   const sortedClients = [...(clients.data ?? [])].sort((a, b) => {
+    // 1. Por prioridade de status
+    const aPrio = STATUS_PRIORITY[a.status] ?? 99;
+    const bPrio = STATUS_PRIORITY[b.status] ?? 99;
+    if (aPrio !== bPrio) return aPrio - bPrio;
+
+    // 2. Mesmo grupo: por data de fim de contrato
     const aExpires = a.projectEnd ? new Date(a.projectEnd).getTime() : null;
     const bExpires = b.projectEnd ? new Date(b.projectEnd).getTime() : null;
     const aExpired = aExpires !== null && aExpires < now;
     const bExpired = bExpires !== null && bExpires < now;
 
-    // Expirados vao para o fim
-    if (aExpired && !bExpired) return 1;
-    if (!aExpired && bExpired) return -1;
-
-    // Ambos expirados: mais recente primeiro
+    // Expirados ao fundo do grupo
+    if (aExpired !== bExpired) return aExpired ? 1 : -1;
     if (aExpired && bExpired) return (bExpires ?? 0) - (aExpires ?? 0);
 
-    // Sem data de fim: entre os activos, vai para o fim (antes dos expirados)
+    // Sem data depois dos com data, mas antes dos expirados
     if (aExpires === null && bExpires !== null) return 1;
     if (aExpires !== null && bExpires === null) return -1;
     if (aExpires === null && bExpires === null) return 0;
 
-    // Activos com data: mais proximos primeiro
+    // Activos com data: mais proximos primeiro (countdown)
     return (aExpires ?? 0) - (bExpires ?? 0);
   });
 
@@ -97,7 +110,7 @@ export default function ClientsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Clientes</h1>
-          <p className="text-muted-foreground">{clients.data?.length ?? 0} clientes | Ordenados por termino de contrato</p>
+          <p className="text-muted-foreground">{clients.data?.length ?? 0} clientes | Activos no topo, finalizados no fundo</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
