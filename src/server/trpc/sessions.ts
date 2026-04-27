@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "./init";
 import { generateActionPlanDraft } from "../services/action-plan-workflow";
-import { fetchCalendarEvents } from "../services/google-calendar";
+import { fetchCalendarEvents, pushPendingSessionsToCalendar } from "../services/google-calendar";
 
 export const sessionsRouter = router({
   list: publicProcedure
@@ -293,6 +293,24 @@ export const sessionsRouter = router({
       ].sort((a, b) => a.sortDate - b.sortDate).slice(0, input?.limit ?? 100);
 
       return unified;
+    }),
+
+  // Pusha sessoes MARCADAS sem calendarEventId para o Google Calendar do
+  // user indicado. Usa-se uma vez para sincronizar bulk insert.
+  pushAllToCalendar: publicProcedure
+    .input(z.object({
+      userId: z.string(),
+      modules: z.array(z.string()).optional(),
+      includeClientEmail: z.boolean().default(false),
+      onlyForOffboarding: z.boolean().default(false),
+    }))
+    .mutation(async ({ input }) => {
+      return pushPendingSessionsToCalendar(input.userId, {
+        onlyFuture: true,
+        modules: input.modules,
+        includeClientEmail: input.includeClientEmail,
+        onlyForOffboarding: input.onlyForOffboarding,
+      });
     }),
 
   // Generate action plan (manual trigger) - calls Claude with transcript + KB

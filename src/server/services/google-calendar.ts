@@ -239,6 +239,9 @@ export async function pushPendingSessionsToCalendar(
       ? (isOffboarding && wantInvite)
       : wantInvite;
 
+    // Duracao por modulo: off-boarding 120min, restantes 60min
+    const durationMinutes = isOffboarding ? 120 : 60;
+
     try {
       const evt = await createCalendarEvent(userId, {
         title: s.title,
@@ -249,7 +252,7 @@ export async function pushPendingSessionsToCalendar(
           s.client?.projectEnd ? `Fim do contrato: ${s.client.projectEnd.toISOString().slice(0, 10)}` : null,
           `\nCriado automaticamente pela BoomLab Platform.`,
         ].filter(Boolean).join("\n"),
-        durationMinutes: 60,
+        durationMinutes,
         attendees: shouldInvite && clientEmail ? [clientEmail] : [],
       });
 
@@ -257,12 +260,11 @@ export async function pushPendingSessionsToCalendar(
         where: { id: s.id },
         data: {
           calendarEventId: evt.eventId,
-          meetLink: evt.meetLink ?? undefined,
         },
       });
       pushed++;
       // Small delay para nao bater rate limit do Google (10 QPS por user)
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise((r) => setTimeout(r, 150));
     } catch (err) {
       failed++;
       errors.push({ sessionId: s.id, error: err instanceof Error ? err.message : String(err) });
