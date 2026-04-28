@@ -68,7 +68,7 @@ Responde em JSON:
       messages: [
         {
           role: "user",
-          content: `Transcricao / notas:\n\n${transcriptSource.slice(0, 60000)}`,
+          content: `Transcricao / notas:\n\n${transcriptSource.slice(0, 400000)}`,
         },
       ],
     }),

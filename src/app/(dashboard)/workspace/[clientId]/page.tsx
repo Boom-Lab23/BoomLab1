@@ -1059,9 +1059,25 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                   </p>
                 )}
                 {audioUploadStatus.state === "done" && (
-                  <p className="rounded-lg bg-green-100 dark:bg-green-900/30 px-3 py-2 text-xs text-green-800 dark:text-green-300">
-                    ✓ {audioUploadStatus.message}
-                  </p>
+                  <div className="rounded-lg border border-green-300 bg-green-50 dark:bg-green-900/30 dark:border-green-800 p-3 space-y-2">
+                    <p className="text-sm font-semibold text-green-800 dark:text-green-200">✓ Enviado ao Fireflies com sucesso</p>
+                    <p className="text-xs text-green-700 dark:text-green-300">
+                      O Fireflies vai transcrever a chamada (~5-10 min). Quando terminar, a Sessao + Recording sao criadas e o Claude analisa automaticamente.
+                    </p>
+                    <p className="text-xs text-green-700 dark:text-green-300">
+                      <strong>Podes fechar esta janela e sair da plataforma.</strong> A analise aparece automaticamente nesta tab "Analise de Vendas" e em /recordings quando estiver pronta.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAnalyze(false);
+                        setAudioUploadStatus({ state: "idle" });
+                      }}
+                      className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 )}
                 {audioUploadStatus.state === "error" && (
                   <p className="rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-xs text-red-800 dark:text-red-300">

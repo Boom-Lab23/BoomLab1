@@ -235,7 +235,7 @@ IMPORTANTE: a linguagem e sempre em portugues de Portugal, direta e sem floreado
       messages: [
         {
           role: "user",
-          content: `Transcricao da chamada entre ${commercial} e ${leadName ?? "a lead"}:\n\n${transcript.slice(0, 90000)}`,
+          content: `Transcricao da chamada entre ${commercial} e ${leadName ?? "a lead"}:\n\n${transcript.slice(0, 400000)}`,
         },
       ],
     }),

@@ -90,7 +90,7 @@ Responde em JSON:
       messages: [
         {
           role: "user",
-          content: `Transcricao:\n\n${recording.transcript.slice(0, 60000)}`,
+          content: `Transcricao:\n\n${recording.transcript.slice(0, 400000)}`,
         },
       ],
     }),
