@@ -221,7 +221,7 @@ export default function KnowledgePage() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1">
                   <button
                     onClick={() => setEditingMarketsFor(editingMarketsFor === doc.id ? null : doc.id)}
                     className="rounded border p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"

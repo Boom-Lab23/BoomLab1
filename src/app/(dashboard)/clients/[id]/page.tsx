@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { cn, getStatusColor, formatStatus, getPillarFromModule } from "@/lib/utils";
 import {
@@ -16,11 +17,20 @@ import {
   CheckCircle2,
   Clock,
   Star,
+  Trash2,
 } from "lucide-react";
 
 export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
+  const utils = trpc.useUtils();
   const client = trpc.clients.getById.useQuery(id);
+  const deleteClient = trpc.clients.delete.useMutation({
+    onSuccess: () => {
+      utils.clients.list.invalidate();
+      router.push("/clients");
+    },
+  });
   // Unified upcoming: junta Session DB com eventos Google Calendar que
   // tenham o email do cliente nos attendees ou o nome no titulo.
   const upcomingUnified = trpc.sessions.upcomingUnified.useQuery(
@@ -63,6 +73,20 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             {c.coreBusiness ?? ""} {c.ceo ? `| CEO: ${c.ceo}` : ""}
           </p>
         </div>
+        <button
+          onClick={() => {
+            const totalSessoes = c.sessions.length;
+            const totalRecordings = c.recordings.length;
+            const totalDocs = (c.documents ?? []).length;
+            const msg = `Tens a certeza que queres ELIMINAR DEFINITIVAMENTE o cliente "${c.name}"?\n\nIsto vai apagar EM CASCATA:\n  - ${totalSessoes} sessoes\n  - ${totalRecordings} gravacoes\n  - ${totalDocs} documentos (contratos/faturas)\n  - Leads, dashboards e analises associadas\n\nEsta accao NAO PODE ser desfeita.`;
+            if (confirm(msg)) deleteClient.mutate(c.id);
+          }}
+          disabled={deleteClient.isPending}
+          className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900 dark:hover:bg-red-950/50 disabled:opacity-50"
+        >
+          <Trash2 className="h-4 w-4" />
+          Eliminar Cliente
+        </button>
       </div>
 
       {/* Quick Stats */}
