@@ -15,6 +15,10 @@ export default function SessionsPage() {
   const sessions = trpc.sessions.list.useQuery({
     module: module || undefined,
     status: status || undefined,
+  }, {
+    // Auto-refresh: novas sessoes Fireflies aparecem sem F5
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
   const utils = trpc.useUtils();
   const syncFireflies = trpc.fireflies.sync.useMutation({

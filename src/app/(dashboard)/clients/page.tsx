@@ -59,6 +59,10 @@ export default function ClientsPage() {
   const clients = trpc.clients.list.useQuery({
     search: search || undefined,
     status: status || undefined,
+  }, {
+    // Auto-refresh sem F5: refetch a cada 30s + ao voltar foco a tab
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
   const utils = trpc.useUtils();
   const updateClient = trpc.clients.update.useMutation({

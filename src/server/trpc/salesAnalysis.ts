@@ -198,6 +198,21 @@ export const salesAnalysisRouter = router({
         throw new Error(`Fireflies recusou o upload: ${result.message ?? "sem detalhes"}`);
       }
 
+      // Regista upload pendente para o cron poll-fireflies processar quando
+      // a transcricao estiver pronta. Fireflies nao dispara webhook em uploads
+      // via API; o cron faz polling a cada minuto.
+      await ctx.prisma.pendingFirefliesUpload.create({
+        data: {
+          audioPublicUrl: input.audioPublicUrl,
+          title,
+          clientId: input.clientId,
+          commercial: input.commercial,
+          leadName: input.leadName ?? null,
+          callType: input.callType,
+          visibility: "COMMERCIAL_ONLY",
+        },
+      });
+
       return {
         success: true,
         message: result.message ?? "Audio enviado ao Fireflies. A transcricao e analise IA chegam quando terminar (~5-10 min).",

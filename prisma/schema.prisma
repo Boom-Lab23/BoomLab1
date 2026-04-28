@@ -189,6 +189,32 @@ model Document {
   updatedAt      DateTime  @updatedAt
 }
 
+// Tracking de uploads de audio que foram enviados ao Fireflies via API.
+// Fireflies nao dispara webhook para esses uploads; o cron poll-fireflies
+// verifica regularmente se a transcricao ja esta pronta e dispara o processo.
+model PendingFirefliesUpload {
+  id              String    @id @default(cuid())
+  // Identificacao da chamada
+  audioPublicUrl  String                              // URL servida pelo BoomLab
+  title           String                              // Titulo enviado ao Fireflies
+  // Contexto BoomLab
+  clientId        String                              // Cliente onde a analise vai parar
+  commercial      String                              // Nome do consultor
+  leadName        String?                             // Nome da lead (opcional)
+  callType        String                              // Discovery Call, etc
+  visibility      String                              // COMMERCIAL_ONLY | WHOLE_TEAM
+  // Tracking
+  firefliesId     String?                             // Set quando encontramos o transcript
+  status          String    @default("PENDING")       // PENDING | PROCESSED | FAILED
+  attempts        Int       @default(0)
+  lastCheckedAt   DateTime?
+  processedAt     DateTime?
+  errorMessage    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  @@index([status, lastCheckedAt])
+}
+
 model AIScript {
   id            String   @id @default(cuid())
   name          String

@@ -24,7 +24,10 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const { id } = use(params);
   const router = useRouter();
   const utils = trpc.useUtils();
-  const client = trpc.clients.getById.useQuery(id);
+  const client = trpc.clients.getById.useQuery(id, {
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
   const deleteClient = trpc.clients.delete.useMutation({
     onSuccess: () => {
       utils.clients.list.invalidate();
@@ -35,7 +38,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   // tenham o email do cliente nos attendees ou o nome no titulo.
   const upcomingUnified = trpc.sessions.upcomingUnified.useQuery(
     { clientId: id, daysAhead: 90, limit: 50 },
-    { enabled: !!id }
+    { enabled: !!id, refetchInterval: 30_000, refetchOnWindowFocus: true }
   );
 
   if (client.isLoading) {
@@ -244,75 +247,6 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
 
-        {/* Timeline / Sessions */}
-        <div className="lg:col-span-2 rounded-xl border bg-card">
-          <div className="flex items-center justify-between border-b p-4">
-            <h2 className="font-semibold">Timeline de Sessoes</h2>
-            <span className="text-sm text-muted-foreground">{totalSessions} sessoes</span>
-          </div>
-          <div className="max-h-[500px] divide-y overflow-y-auto">
-            {c.sessions.length === 0 && (
-              <div className="p-8 text-center text-muted-foreground">Sem sessoes registadas</div>
-            )}
-            {c.sessions.map((session) => {
-              const pillar = getPillarFromModule(session.module);
-              return (
-                <Link
-                  key={session.id}
-                  href={`/sessions/${session.id}`}
-                  className="flex items-center justify-between p-4 transition-colors hover:bg-muted/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{
-                      backgroundColor: pillar ? `${pillar.color}15` : "#f3f4f6",
-                    }}>
-                      {session.status === "CONCLUIDA" ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <Clock className="h-4 w-4" style={{ color: pillar?.color ?? "#6b7280" }} />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{session.title}</p>
-                      <div className="flex items-center gap-2">
-                        {pillar && (
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: pillar.color }}
-                          />
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          {session.topic ?? session.module}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-right">
-                    {session.evaluation && (
-                      <div className="flex items-center gap-1">
-                        <Star className="h-3 w-3 text-yellow-500" />
-                        <span className="text-sm font-medium">{session.evaluation}</span>
-                      </div>
-                    )}
-                    {session.recordings.length > 0 && (
-                      <Mic className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <div>
-                      <p className="text-sm">
-                        {session.date
-                          ? new Date(session.date).toLocaleDateString("pt-PT", { day: "numeric", month: "short" })
-                          : "-"}
-                      </p>
-                      <p className={cn("text-xs", getStatusColor(session.status) + " rounded px-1")}>
-                        {formatStatus(session.status)}
-                      </p>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
       </div>
 
       {/* Contratos */}
