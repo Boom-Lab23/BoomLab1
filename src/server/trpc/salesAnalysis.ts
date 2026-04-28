@@ -181,10 +181,11 @@ export const salesAnalysisRouter = router({
       if (!client) throw new Error("Cliente nao encontrado.");
 
       const title = input.title || `${input.commercial} x ${input.leadName ?? client.name} - ${input.callType}`;
+      // ATENCAO: nao passamos emails aos attendees para o Fireflies nao
+      // enviar convites/notificacoes a ninguem. Apenas displayNames.
       const attendees: { displayName?: string; email?: string }[] = [];
       if (input.commercial) attendees.push({ displayName: input.commercial });
       if (input.leadName) attendees.push({ displayName: input.leadName });
-      if (client.email) attendees.push({ email: client.email });
 
       const result = await firefliesUploadAudio({
         url: input.audioPublicUrl,

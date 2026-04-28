@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { fetchRecentTranscripts, fetchTranscript } from "@/server/services/fireflies";
 import { generateActionPlanDraft } from "@/server/services/action-plan-workflow";
 import { generatePersonalizedFeedback } from "@/server/services/feedback-engine";
+import { analyzeSalesCall } from "@/server/services/sales-call-analyzer";
 import { categorizeByTitle } from "@/server/services/session-categorizer";
 
 export const runtime = "nodejs";
@@ -138,6 +139,57 @@ export async function POST(req: NextRequest) {
             console.error("[poll-fireflies] feedback failed:", err)
           );
         }
+
+        // Analise de vendas (preenche tab "Analise de Vendas" do workspace).
+        // Async — corre Claude com transcript + KB filtrado por mercado.
+        (async () => {
+          try {
+            const result = await analyzeSalesCall({
+              clientId: p.clientId,
+              transcript: fullTranscript,
+              commercial: p.commercial,
+              leadName: p.leadName ?? undefined,
+              callType: p.callType,
+            });
+            await prisma.recording.update({
+              where: { id: recording.id },
+              data: {
+                aiAnalysis: result as unknown as Record<string, unknown>,
+                aiScore: result.overallScore,
+                analyzedAt: new Date(),
+              },
+            });
+            await prisma.salesAnalysis.create({
+              data: {
+                clientId: p.clientId,
+                recordingId: recording.id,
+                commercial: p.commercial,
+                leadName: p.leadName ?? null,
+                callType: p.callType,
+                callDate: meetingDate,
+                durationMinutes: transcript.duration ? Math.round(transcript.duration) : null,
+                visibility: (p.visibility as "COMMERCIAL_ONLY" | "WHOLE_TEAM") ?? "COMMERCIAL_ONLY",
+                classification: result.classification,
+                overallScore: result.overallScore,
+                clarezaFluidez: result.clarezaFluidez ?? null,
+                tomVoz: result.tomVoz ?? null,
+                expositivoConversacional: result.expositivoConversacional ?? null,
+                assertividadeControlo: result.assertividadeControlo ?? null,
+                empatia: result.empatia ?? null,
+                passagemValor: result.passagemValor ?? null,
+                respostaObjecoes: result.respostaObjecoes ?? null,
+                estruturaMeet: result.estruturaMeet ?? null,
+                strengths: result.strengths ?? null,
+                weaknesses: result.weaknesses ?? null,
+                generalTips: result.generalTips ?? null,
+                focusNext: result.focusNext ?? null,
+                summary: result.summary ?? null,
+              },
+            });
+          } catch (err) {
+            console.error("[poll-fireflies] sales analysis failed:", err);
+          }
+        })();
 
         processed++;
       } catch (err) {
