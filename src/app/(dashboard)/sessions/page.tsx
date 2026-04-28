@@ -181,7 +181,29 @@ export default function SessionsPage() {
         </div>
       )}
 
-      {/* SECCAO 2: Marcadas (futuras) */}
+      {/* SECCAO 2: Concluidas (primeiro - mais relevantes para revisao) */}
+      {(() => {
+        const concluded = (sessions.data ?? []).filter((s) => s.status === "CONCLUIDA");
+        return (
+          <div className="rounded-xl border bg-card">
+            <div className="border-b p-4 flex items-center justify-between">
+              <h2 className="font-semibold flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                Sessoes Concluidas
+              </h2>
+              <span className="text-sm text-muted-foreground">{concluded.length}</span>
+            </div>
+            <div className="max-h-[420px] divide-y overflow-y-auto">
+              {concluded.length === 0 && (
+                <div className="p-6 text-center text-sm text-muted-foreground">Sem sessoes concluidas.</div>
+              )}
+              {concluded.map((s) => <SessionRow key={s.id} session={s} />)}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* SECCAO 3: Marcadas (futuras) */}
       {(() => {
         const now = Date.now();
         const futures = (sessions.data ?? []).filter((s) =>
@@ -196,33 +218,11 @@ export default function SessionsPage() {
               </h2>
               <span className="text-sm text-muted-foreground">{futures.length}</span>
             </div>
-            <div className="divide-y">
+            <div className="max-h-[320px] divide-y overflow-y-auto">
               {futures.length === 0 && (
-                <div className="p-8 text-center text-sm text-muted-foreground">Sem sessoes marcadas para o futuro.</div>
+                <div className="p-6 text-center text-sm text-muted-foreground">Sem sessoes marcadas para o futuro.</div>
               )}
               {futures.map((s) => <SessionRow key={s.id} session={s} />)}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* SECCAO 3: Concluidas */}
-      {(() => {
-        const concluded = (sessions.data ?? []).filter((s) => s.status === "CONCLUIDA");
-        return (
-          <div className="rounded-xl border bg-card">
-            <div className="border-b p-4 flex items-center justify-between">
-              <h2 className="font-semibold flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                Sessoes Concluidas
-              </h2>
-              <span className="text-sm text-muted-foreground">{concluded.length}</span>
-            </div>
-            <div className="max-h-[800px] divide-y overflow-y-auto">
-              {concluded.length === 0 && (
-                <div className="p-8 text-center text-sm text-muted-foreground">Sem sessoes concluidas.</div>
-              )}
-              {concluded.map((s) => <SessionRow key={s.id} session={s} />)}
             </div>
           </div>
         );

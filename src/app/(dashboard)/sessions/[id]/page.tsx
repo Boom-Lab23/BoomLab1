@@ -44,6 +44,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const generatePlan = trpc.sessions.generateActionPlan.useMutation({
     onSuccess: () => session.refetch(),
   });
+  const suggestForUpcoming = trpc.sessions.suggestForUpcoming.useMutation({
+    onSuccess: () => session.refetch(),
+  });
 
   if (session.isLoading) {
     return <div className="p-8 text-center text-muted-foreground">A carregar...</div>;
@@ -115,7 +118,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
         {/* Action buttons */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {s.firefliesNotes && !s.aiAnalysis && (
             <button
               onClick={() => analyzeMeeting.mutate(s.id)}
@@ -124,6 +127,16 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             >
               <Sparkles className="h-4 w-4" />
               {analyzeMeeting.isPending ? "A analisar..." : "Analisar com IA"}
+            </button>
+          )}
+          {s.status === "MARCADA" && s.date && new Date(s.date).getTime() > Date.now() && (
+            <button
+              onClick={() => suggestForUpcoming.mutate({ sessionId: s.id })}
+              disabled={suggestForUpcoming.isPending}
+              className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800 disabled:opacity-50"
+            >
+              <Bot className="h-4 w-4" />
+              {suggestForUpcoming.isPending ? "A gerar sugestoes..." : "Sugestoes IA p/ esta reuniao"}
             </button>
           )}
           {actionPlan && (
@@ -172,6 +185,27 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           <p className="mt-1 text-2xl font-bold">{s.evaluation ?? "-"}<span className="text-sm font-normal text-muted-foreground">/10</span></p>
         </div>
       </div>
+
+      {/* Sugestoes IA para esta reuniao (notes preenchidas via suggestForUpcoming
+          quando a sessao ainda esta MARCADA no futuro) */}
+      {s.status === "MARCADA" && s.date && new Date(s.date).getTime() > Date.now() && s.notes && (
+        <div className="rounded-xl border-2 border-blue-200 dark:border-blue-800 bg-blue-50/40 dark:bg-blue-950/20 p-5">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-2">
+              <Bot className="h-4 w-4" /> Sugestoes IA para esta reuniao
+            </h2>
+            <button
+              onClick={() => suggestForUpcoming.mutate({ sessionId: s.id })}
+              disabled={suggestForUpcoming.isPending}
+              className="text-xs text-blue-700 dark:text-blue-300 hover:underline disabled:opacity-50"
+              title="Re-gerar sugestoes com base no historico actualizado"
+            >
+              {suggestForUpcoming.isPending ? "A re-gerar..." : "Re-gerar"}
+            </button>
+          </div>
+          <pre className="whitespace-pre-wrap text-sm text-blue-900 dark:text-blue-100 font-sans">{s.notes}</pre>
+        </div>
+      )}
 
       {/* AI Analysis (if available) */}
       {analysis && (

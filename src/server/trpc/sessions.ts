@@ -126,6 +126,115 @@ export const sessionsRouter = router({
       });
     }),
 
+  // Sugestoes IA do que abordar nesta reuniao com base no historico de sessoes
+  // anteriores deste cliente. Usado em EOM, off-boarding ou qualquer reuniao
+  // futura onde o consultor quer um briefing rapido.
+  suggestForUpcoming: publicProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const target = await ctx.prisma.session.findUniqueOrThrow({
+        where: { id: input.sessionId },
+        include: { client: true },
+      });
+
+      // Busca todas as sessoes CONCLUIDAS deste cliente com transcricao/notas/action plan
+      const past = await ctx.prisma.session.findMany({
+        where: {
+          clientId: target.clientId,
+          status: "CONCLUIDA",
+          id: { not: target.id },
+          OR: [
+            { firefliesNotes: { not: null } },
+            { firefliesSummary: { not: null } },
+            { actionPlan: { not: undefined } },
+            { notes: { not: null } },
+          ],
+        },
+        orderBy: { date: "desc" },
+        take: 15, // Ultimas 15 sessoes
+      });
+
+      if (past.length === 0) {
+        return {
+          suggestions: "Sem sessoes anteriores deste cliente para gerar sugestoes baseadas em historico.",
+          basedOn: 0,
+        };
+      }
+
+      // Agrega historico em texto compacto para o Claude
+      const historyContext = past
+        .map((s, i) => {
+          const date = s.date ? new Date(s.date).toLocaleDateString("pt-PT") : "sem data";
+          const summary = s.firefliesSummary || s.notes || "(sem resumo)";
+          const ap = s.actionPlan ? JSON.stringify(s.actionPlan).slice(0, 1500) : "";
+          const ai = s.actionItems ? JSON.stringify(s.actionItems).slice(0, 800) : "";
+          return `--- Sessao ${i + 1}: [${date}] ${s.title} (${s.module}) ---
+Resumo: ${summary.slice(0, 1200)}
+${ap ? `Action Plan: ${ap}` : ""}
+${ai ? `Action Items: ${ai}` : ""}`;
+        })
+        .join("\n\n");
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) throw new Error("ANTHROPIC_API_KEY em falta.");
+
+      const targetType = (() => {
+        if (target.module === "end-of-month") return "End-of-Month (revisao mensal)";
+        if (target.module === "off-boarding") return "Off-Boarding (encerramento de projeto)";
+        return target.module;
+      })();
+
+      const systemPrompt = `Es um assistente da BoomLab a preparar um consultor para uma reuniao com um cliente. Vais analisar o historico de reunioes anteriores e sugerir o que deve ser abordado na proxima reuniao.
+
+Cliente: ${target.client.name}
+Tipo de reuniao: ${targetType}
+Data prevista: ${target.date ? new Date(target.date).toLocaleDateString("pt-PT") : "sem data"}
+
+Vais ler o historico das ultimas sessoes (mais recente primeiro) e produzir um briefing curto e accionavel:
+
+1) **Pontos pendentes** - action items das sessoes anteriores que ainda nao foram resolvidos
+2) **Topicos a abordar** - 3 a 5 topicos especificos para esta reuniao baseado no que foi prometido / discutido / problemas identificados
+3) **Perguntas de discovery** - 2 a 3 perguntas para validar progresso desde a ultima sessao
+4) **Riscos / Alertas** - se houver sinais de churn, insatisfacao, problemas operacionais
+
+Responde em PT-PT, formato markdown, conciso. Maximo 600 palavras.`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 2000,
+          system: systemPrompt,
+          messages: [
+            {
+              role: "user",
+              content: `Historico das ultimas ${past.length} sessoes com este cliente:\n\n${historyContext.slice(0, 100000)}`,
+            },
+          ],
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Claude API error: ${res.status} ${await res.text()}`);
+      }
+
+      const data = await res.json();
+      const suggestions = data.content?.[0]?.text ?? "";
+
+      // Guarda as sugestoes em notes da sessao para nao re-correr Claude desnecessariamente
+      await ctx.prisma.session.update({
+        where: { id: input.sessionId },
+        data: { notes: suggestions },
+      });
+
+      return { suggestions, basedOn: past.length };
+    }),
+
   // Lista sessoes que precisam de revisao: MARCADA, data passou, sem firefliesId.
   needsReview: publicProcedure.query(async ({ ctx }) => {
     const now = new Date();
