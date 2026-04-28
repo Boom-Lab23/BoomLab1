@@ -637,6 +637,8 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
     },
   });
 
+  const queueAudioInFireflies = trpc.salesAnalysis.queueAudioInFireflies.useMutation();
+
   const updateAnalysis = trpc.salesAnalysis.update.useMutation({
     onSuccess: () => utils.salesAnalysis.list.invalidate(),
   });
@@ -960,7 +962,7 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                   value={analyzeForm.transcript}
                   onChange={(e) => setAnalyzeForm({ ...analyzeForm, transcript: e.target.value })}
                   className="w-full rounded-lg border px-3 py-2 text-sm bg-card font-mono"
-                  rows={10}
+                  rows={8}
                   placeholder="Cola aqui a transcricao da chamada (min 100 chars). A IA do Claude analisa conteudo, objecoes, tom inferido, ritmo (a partir de timestamps [mm:ss] se houver), e da feedback estruturado em 8 dimensoes."
                 />
                 <p className="mt-1 text-[10px] text-muted-foreground">
@@ -968,9 +970,59 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                 </p>
               </div>
 
-              {analyzeCall.error && (
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center" aria-hidden="true"><div className="w-full border-t border-muted" /></div>
+                <div className="relative flex justify-center"><span className="bg-card px-2 text-[10px] text-muted-foreground uppercase">ou envia o audio para o Fireflies</span></div>
+              </div>
+
+              {/* Upload audio para Fireflies transcrever automaticamente */}
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
+                <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">🎙️ Carregar gravacao da chamada</p>
+                <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                  Carrega o ficheiro audio/video. O Fireflies vai transcrever, criar a Sessao + Recording e disparar a analise IA do Claude automaticamente quando terminar (~5-10min).
+                </p>
+                <input
+                  type="file"
+                  accept="audio/*,video/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (!analyzeForm.commercial) { alert("Define primeiro o nome do comercial."); return; }
+                    try {
+                      // 1) Upload ficheiro para o servidor
+                      const fd = new FormData();
+                      fd.append("file", file);
+                      const upRes = await fetch("/api/uploads/call-audio", { method: "POST", body: fd });
+                      const upJson = await upRes.json();
+                      if (!upRes.ok) throw new Error(upJson.error ?? "Upload falhou");
+                      // 2) Pedir ao Fireflies para transcrever via URL publica
+                      await queueAudioInFireflies.mutateAsync({
+                        clientId,
+                        commercial: analyzeForm.commercial,
+                        leadName: analyzeForm.leadName || undefined,
+                        callType: analyzeForm.callType,
+                        audioPublicUrl: upJson.publicUrl,
+                        title: `${analyzeForm.commercial} x ${analyzeForm.leadName || "Lead"} - ${analyzeForm.callType}`,
+                      });
+                      alert("Audio enviado ao Fireflies! Quando terminar (~5-10min) a analise aparece automaticamente nesta tab. Podes fechar esta janela.");
+                      setShowAnalyze(false);
+                    } catch (err) {
+                      alert(`Erro: ${err instanceof Error ? err.message : String(err)}`);
+                    }
+                  }}
+                  disabled={queueAudioInFireflies.isPending}
+                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-amber-600 file:text-white file:text-xs file:px-3 file:py-1.5 file:cursor-pointer disabled:opacity-50"
+                />
+                {queueAudioInFireflies.isPending && (
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    <Loader2 className="h-3 w-3 inline animate-spin" /> A enviar para o Fireflies...
+                  </p>
+                )}
+              </div>
+
+              {(analyzeCall.error || queueAudioInFireflies.error) && (
                 <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 p-2 text-xs text-red-700 dark:text-red-300">
-                  Erro: {analyzeCall.error.message}
+                  Erro: {(analyzeCall.error ?? queueAudioInFireflies.error)?.message}
                 </div>
               )}
 
@@ -982,7 +1034,7 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                   disabled={analyzeCall.isPending || analyzeForm.transcript.length < 100}
                   className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
                 >
-                  {analyzeCall.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> A analisar...</> : <><Sparkles className="h-4 w-4" /> Analisar com IA</>}
+                  {analyzeCall.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> A analisar...</> : <><Sparkles className="h-4 w-4" /> Analisar transcricao</>}
                 </button>
               </div>
             </form>

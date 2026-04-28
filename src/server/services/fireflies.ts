@@ -47,6 +47,37 @@ type FirefliesTranscript = {
   }[];
 };
 
+// Pede ao Fireflies para descarregar e transcrever um audio publico.
+// Quando termina, o Fireflies dispara o webhook normal e o flow existente
+// (cria Session + Recording + dispara Claude analysis) toma conta.
+export async function firefliesUploadAudio(input: {
+  url: string;
+  title: string;
+  attendees?: { displayName?: string; email?: string }[];
+  customLanguage?: string;
+  saveVideo?: boolean;
+}): Promise<{ success: boolean; title?: string | null; message?: string | null }> {
+  const data = await firefliesQuery<{ uploadAudio: { success: boolean; title: string | null; message: string | null } }>(
+    `mutation UploadAudio($input: AudioUploadInput!) {
+       uploadAudio(input: $input) {
+         success
+         title
+         message
+       }
+     }`,
+    {
+      input: {
+        url: input.url,
+        title: input.title,
+        attendees: input.attendees ?? [],
+        custom_language: input.customLanguage ?? "pt",
+        save_video: input.saveVideo ?? false,
+      },
+    }
+  );
+  return data.uploadAudio;
+}
+
 // Fetch all recent transcripts from Fireflies
 export async function fetchRecentTranscripts(limit = 20): Promise<FirefliesTranscript[]> {
   const data = await firefliesQuery<{ transcripts: FirefliesTranscript[] }>(`

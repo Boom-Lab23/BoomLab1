@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, publicProcedure } from "./init";
 import { analyzeSalesCall } from "../services/sales-call-analyzer";
 import { analyzeAudioFromUrl, uploadAudioBuffer } from "../services/assembly-ai";
+import { firefliesUploadAudio } from "../services/fireflies";
 
 const VISIBILITY = ["COMMERCIAL_ONLY", "WHOLE_TEAM"] as const;
 
@@ -160,6 +161,49 @@ export const salesAnalysisRouter = router({
   delete: publicProcedure.input(z.string()).mutation(async ({ ctx, input }) => {
     return ctx.prisma.salesAnalysis.delete({ where: { id: input } });
   }),
+
+  // ============================================================
+  // queueAudioInFireflies - envia URL publica do audio uploaded para
+  // o Fireflies. Fireflies transcreve async e dispara o webhook quando
+  // termina, que cria Session + Recording + dispara analyses Claude.
+  // ============================================================
+  queueAudioInFireflies: publicProcedure
+    .input(z.object({
+      clientId: z.string(),
+      commercial: z.string().min(1),
+      leadName: z.string().optional(),
+      callType: z.string().default("Discovery Call"),
+      audioPublicUrl: z.string().url(),
+      title: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const client = await ctx.prisma.client.findUnique({ where: { id: input.clientId } });
+      if (!client) throw new Error("Cliente nao encontrado.");
+
+      const title = input.title || `${input.commercial} x ${input.leadName ?? client.name} - ${input.callType}`;
+      const attendees: { displayName?: string; email?: string }[] = [];
+      if (input.commercial) attendees.push({ displayName: input.commercial });
+      if (input.leadName) attendees.push({ displayName: input.leadName });
+      if (client.email) attendees.push({ email: client.email });
+
+      const result = await firefliesUploadAudio({
+        url: input.audioPublicUrl,
+        title,
+        attendees,
+        customLanguage: "pt",
+        saveVideo: false,
+      });
+
+      if (!result.success) {
+        throw new Error(`Fireflies recusou o upload: ${result.message ?? "sem detalhes"}`);
+      }
+
+      return {
+        success: true,
+        message: result.message ?? "Audio enviado ao Fireflies. A transcricao e analise IA chegam quando terminar (~5-10 min).",
+        title: result.title ?? title,
+      };
+    }),
 
   // ============================================================
   // Upload de audio para AssemblyAI (data URL base64)
