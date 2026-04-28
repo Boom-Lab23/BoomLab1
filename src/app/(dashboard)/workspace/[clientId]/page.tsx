@@ -993,6 +993,10 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                 <input
                   type="file"
                   accept="audio/*,video/*"
+                  onClick={(e) => {
+                    // Reset value para permitir re-seleccionar o mesmo ficheiro depois dum erro
+                    (e.currentTarget as HTMLInputElement).value = "";
+                  }}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
