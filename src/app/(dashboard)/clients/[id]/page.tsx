@@ -291,6 +291,58 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
+      {/* Contratos & Documentos */}
+      {c.documents && c.documents.length > 0 && (
+        <div className="rounded-xl border bg-card">
+          <div className="border-b p-4 flex items-center justify-between">
+            <h2 className="font-semibold flex items-center gap-2">
+              <FileText className="h-4 w-4 text-blue-600" />
+              Contratos &amp; Documentos
+            </h2>
+            <span className="text-sm text-muted-foreground">{c.documents.length} ficheiro{c.documents.length > 1 ? "s" : ""}</span>
+          </div>
+          <div className="divide-y">
+            {c.documents.map((doc) => {
+              const url = doc.googleDocsUrl ?? doc.externalUrl ?? null;
+              const isContract = doc.source === "drive-import" || doc.source === "ghl-contract";
+              const isInvoice = doc.source === "invoice-ninja";
+              const badge = isContract ? "Contrato" : isInvoice ? "Fatura" : doc.source ?? "Documento";
+              const badgeColor = isContract
+                ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                : isInvoice
+                ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+                : "bg-muted text-muted-foreground";
+              return (
+                <div key={doc.id} className="flex items-center justify-between p-4 transition-colors hover:bg-muted/50">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="h-5 w-5 flex-shrink-0 text-blue-600" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{doc.title}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium", badgeColor)}>{badge}</span>
+                        <span>{new Date(doc.createdAt).toLocaleDateString("pt-PT")}</span>
+                      </div>
+                    </div>
+                  </div>
+                  {url ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90"
+                    >
+                      Abrir <ExternalLink className="h-3 w-3" />
+                    </a>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Sem link</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Recordings */}
       {c.recordings.length > 0 && (
         <div className="rounded-xl border bg-card">
