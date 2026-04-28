@@ -592,6 +592,15 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
 
   const [showCreate, setShowCreate] = useState(false);
   const [showAnalyze, setShowAnalyze] = useState(false);
+  const [audioUploadStatus, setAudioUploadStatus] = useState<{
+    state: "idle" | "uploading" | "queueing" | "done" | "error";
+    fileName?: string;
+    pct?: number;
+    bytesUploaded?: number;
+    bytesTotal?: number;
+    error?: string;
+    message?: string;
+  }>({ state: "idle" });
   const [selectedCommercial, setSelectedCommercial] = useState<string>("");
   const [form, setForm] = useState({
     commercial: "", leadName: "", callType: "Discovery Call", callDate: new Date().toISOString().split("T")[0],
@@ -984,38 +993,75 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                 <input
                   type="file"
                   accept="audio/*,video/*"
-                  onChange={async (e) => {
+                  onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    if (!analyzeForm.commercial) { alert("Define primeiro o nome do comercial."); return; }
-                    try {
-                      // 1) Upload ficheiro para o servidor
-                      const fd = new FormData();
-                      fd.append("file", file);
-                      const upRes = await fetch("/api/uploads/call-audio", { method: "POST", body: fd });
-                      const upJson = await upRes.json();
-                      if (!upRes.ok) throw new Error(upJson.error ?? "Upload falhou");
-                      // 2) Pedir ao Fireflies para transcrever via URL publica
-                      await queueAudioInFireflies.mutateAsync({
-                        clientId,
-                        commercial: analyzeForm.commercial,
-                        leadName: analyzeForm.leadName || undefined,
-                        callType: analyzeForm.callType,
-                        audioPublicUrl: upJson.publicUrl,
-                        title: `${analyzeForm.commercial} x ${analyzeForm.leadName || "Lead"} - ${analyzeForm.callType}`,
-                      });
-                      alert("Audio enviado ao Fireflies! Quando terminar (~5-10min) a analise aparece automaticamente nesta tab. Podes fechar esta janela.");
-                      setShowAnalyze(false);
-                    } catch (err) {
-                      alert(`Erro: ${err instanceof Error ? err.message : String(err)}`);
+                    if (!analyzeForm.commercial) {
+                      setAudioUploadStatus({ state: "error", error: "Define primeiro o nome do comercial." });
+                      return;
                     }
+                    setAudioUploadStatus({ state: "uploading", fileName: file.name, pct: 0, bytesUploaded: 0, bytesTotal: file.size });
+
+                    // Use XHR para conseguir progress events (fetch nao tem progress nativo)
+                    const fd = new FormData();
+                    fd.append("file", file);
+                    const xhr = new XMLHttpRequest();
+                    xhr.upload.onprogress = (ev) => {
+                      if (ev.lengthComputable) {
+                        const pct = Math.round((ev.loaded / ev.total) * 100);
+                        setAudioUploadStatus((s) => ({ ...s, pct, bytesUploaded: ev.loaded, bytesTotal: ev.total }));
+                      }
+                    };
+                    xhr.onerror = () => setAudioUploadStatus({ state: "error", fileName: file.name, error: "Falha de rede no upload." });
+                    xhr.onload = async () => {
+                      try {
+                        const upJson = JSON.parse(xhr.responseText || "{}");
+                        if (xhr.status < 200 || xhr.status >= 300) {
+                          throw new Error(upJson.error ?? `Upload falhou (HTTP ${xhr.status})`);
+                        }
+                        setAudioUploadStatus({ state: "queueing", fileName: file.name, pct: 100, bytesUploaded: file.size, bytesTotal: file.size });
+                        await queueAudioInFireflies.mutateAsync({
+                          clientId,
+                          commercial: analyzeForm.commercial,
+                          leadName: analyzeForm.leadName || undefined,
+                          callType: analyzeForm.callType,
+                          audioPublicUrl: upJson.publicUrl,
+                          title: `${analyzeForm.commercial} x ${analyzeForm.leadName || "Lead"} - ${analyzeForm.callType}`,
+                        });
+                        setAudioUploadStatus({ state: "done", fileName: file.name, message: "Enviado ao Fireflies! A analise aparece em 5-10 min." });
+                      } catch (err) {
+                        setAudioUploadStatus({ state: "error", fileName: file.name, error: err instanceof Error ? err.message : String(err) });
+                      }
+                    };
+                    xhr.open("POST", "/api/uploads/call-audio");
+                    xhr.send(fd);
                   }}
-                  disabled={queueAudioInFireflies.isPending}
+                  disabled={audioUploadStatus.state === "uploading" || audioUploadStatus.state === "queueing"}
                   className="w-full rounded-lg border bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-amber-600 file:text-white file:text-xs file:px-3 file:py-1.5 file:cursor-pointer disabled:opacity-50"
                 />
-                {queueAudioInFireflies.isPending && (
+                {audioUploadStatus.state === "uploading" && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-amber-800 dark:text-amber-300">
+                      <Loader2 className="h-3 w-3 inline animate-spin" /> A enviar {audioUploadStatus.fileName} ({audioUploadStatus.pct}% — {((audioUploadStatus.bytesUploaded ?? 0)/1024/1024).toFixed(1)}MB de {((audioUploadStatus.bytesTotal ?? 0)/1024/1024).toFixed(1)}MB)
+                    </p>
+                    <div className="h-1.5 w-full bg-amber-200 dark:bg-amber-900/40 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-600 transition-all" style={{ width: `${audioUploadStatus.pct ?? 0}%` }} />
+                    </div>
+                  </div>
+                )}
+                {audioUploadStatus.state === "queueing" && (
                   <p className="text-xs text-amber-800 dark:text-amber-300">
-                    <Loader2 className="h-3 w-3 inline animate-spin" /> A enviar para o Fireflies...
+                    <Loader2 className="h-3 w-3 inline animate-spin" /> Upload completo. A pedir ao Fireflies para transcrever...
+                  </p>
+                )}
+                {audioUploadStatus.state === "done" && (
+                  <p className="rounded-lg bg-green-100 dark:bg-green-900/30 px-3 py-2 text-xs text-green-800 dark:text-green-300">
+                    ✓ {audioUploadStatus.message}
+                  </p>
+                )}
+                {audioUploadStatus.state === "error" && (
+                  <p className="rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-xs text-red-800 dark:text-red-300">
+                    ✗ {audioUploadStatus.error}
                   </p>
                 )}
               </div>
