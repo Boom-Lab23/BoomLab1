@@ -99,6 +99,47 @@ export const sessionsRouter = router({
     return ctx.prisma.session.delete({ where: { id: input } });
   }),
 
+  // Sessoes que passaram a data sem Fireflies / sem confirmacao.
+  // Gestor/consultor escolhe a razao e o sistema atualiza status.
+  markMissed: publicProcedure
+    .input(z.object({
+      id: z.string(),
+      reason: z.enum(["REAGENDADA", "CANCELADA", "FIREFLIES_AUSENTE"]),
+      newDate: z.date().optional(),  // Necessario se reason=REAGENDADA
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const userId = (ctx.session?.user as Record<string, unknown> | undefined)?.id as string | undefined;
+      let newStatus: "REAGENDADA" | "CANCELADA" | "CONCLUIDA";
+      if (input.reason === "REAGENDADA") newStatus = "REAGENDADA";
+      else if (input.reason === "CANCELADA") newStatus = "CANCELADA";
+      else newStatus = "CONCLUIDA"; // Fireflies ausente = considerada feita, sem transcricao
+
+      return ctx.prisma.session.update({
+        where: { id: input.id },
+        data: {
+          status: newStatus,
+          missedReason: input.reason,
+          missedReasonAt: new Date(),
+          missedReasonBy: userId,
+          ...(input.reason === "REAGENDADA" && input.newDate ? { date: input.newDate, status: "MARCADA", missedReason: null } : {}),
+        },
+      });
+    }),
+
+  // Lista sessoes que precisam de revisao: MARCADA, data passou, sem firefliesId.
+  needsReview: publicProcedure.query(async ({ ctx }) => {
+    const now = new Date();
+    return ctx.prisma.session.findMany({
+      where: {
+        status: "MARCADA",
+        date: { lt: now },
+        firefliesId: null,
+      },
+      include: { client: true, assignedTo: true },
+      orderBy: { date: "desc" },
+    });
+  }),
+
   upcoming: publicProcedure
     .input(z.object({
       assignedToUserId: z.string().optional(),

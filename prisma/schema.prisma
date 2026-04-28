@@ -131,6 +131,11 @@ model Session {
   notes            String?       @db.Text
   slackChannelId   String?
   firefliesRecordingUrl String?             // Link direto para gravacao no Fireflies
+  // Quando uma sessao MARCADA passa a data sem Fireflies a transcrever, o
+  // gestor/consultor decide o que aconteceu: REAGENDADA/CANCELADA/sem Fireflies
+  missedReason     String?                  // "REAGENDADA" | "CANCELADA" | "FIREFLIES_AUSENTE"
+  missedReasonAt   DateTime?                // Quando foi marcado
+  missedReasonBy   String?                  // userId que marcou
   recordings       Recording[]
   documents        Document[]
   feedbacks        Feedback[]
