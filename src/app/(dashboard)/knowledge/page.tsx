@@ -63,6 +63,10 @@ export default function KnowledgePage() {
     onSuccess: () => { utils.knowledge.list.invalidate(); setEditingMarketsFor(null); },
   });
 
+  const syncFromDoc = trpc.knowledge.syncFromGoogleDoc.useMutation({
+    onSuccess: () => utils.knowledge.list.invalidate(),
+  });
+
   function handleEdit(doc: { id: string; name: string; category: string | null; content: string; googleDocUrl?: string | null; fileName?: string | null; fileUrl?: string | null }) {
     setDocForm({
       name: doc.name, category: doc.category ?? "", content: doc.content,
@@ -233,6 +237,22 @@ export default function KnowledgePage() {
                   >
                     <RefreshCw className={cn("h-3.5 w-3.5", redetect.isPending && "animate-spin")} />
                   </button>
+                  {doc.googleDocUrl && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await syncFromDoc.mutateAsync({ id: doc.id });
+                        } catch (err) {
+                          alert(`Sync falhou: ${err instanceof Error ? err.message : String(err)}`);
+                        }
+                      }}
+                      disabled={syncFromDoc.isPending}
+                      className="rounded border p-1.5 text-muted-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 disabled:opacity-50"
+                      title="Sincronizar conteudo do Google Doc (puxar versao mais recente)"
+                    >
+                      <RefreshCw className={cn("h-3.5 w-3.5", syncFromDoc.isPending && "animate-spin", !syncFromDoc.isPending && "text-blue-600")} />
+                    </button>
+                  )}
                   <button
                     onClick={() => handleEdit(doc)}
                     className="rounded border p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"

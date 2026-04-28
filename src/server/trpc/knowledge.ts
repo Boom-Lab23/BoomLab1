@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "./init";
 import { detectDocumentMarkets } from "../services/sales-call-analyzer";
+import { extractGoogleFileId, fetchDriveFileContent } from "../services/google-docs";
 
 export const knowledgeRouter = router({
   // List all knowledge base documents (optionally filtered by market)
@@ -39,7 +40,30 @@ export const knowledgeRouter = router({
       googleDocUrl: z.string().url().optional().or(z.literal("")),
     }))
     .mutation(async ({ ctx, input }) => {
-      const finalContent = input.content || (input.googleDocUrl ? `[Google Doc: ${input.googleDocUrl}]` : input.fileName ? `[Ficheiro: ${input.fileName}]` : "");
+      let finalContent = input.content || "";
+
+      // Se foi dado googleDocUrl, tenta fazer fetch automatico do conteudo (live)
+      // Usa o user que esta autenticado (ctx.session.user.id) para o token OAuth.
+      if (input.googleDocUrl) {
+        const fileId = extractGoogleFileId(input.googleDocUrl);
+        const userId = (ctx.session?.user as Record<string, unknown> | undefined)?.id as string | undefined;
+        if (fileId && userId) {
+          try {
+            const fetched = await fetchDriveFileContent(userId, fileId);
+            if (fetched.text) finalContent = fetched.text;
+          } catch (err) {
+            console.error("[knowledge.create] google doc fetch failed:", err);
+          }
+        }
+      }
+
+      if (!finalContent) {
+        finalContent = input.googleDocUrl
+          ? `[Google Doc: ${input.googleDocUrl}]`
+          : input.fileName
+          ? `[Ficheiro: ${input.fileName}]`
+          : "";
+      }
 
       // Auto-detect which markets this doc applies to (runs Claude)
       let markets: string[] = ["ALL"];
@@ -67,6 +91,78 @@ export const knowledgeRouter = router({
           markets,
         },
       });
+    }),
+
+  // Re-fetch o conteudo do googleDocUrl associado e actualiza content + markets.
+  syncFromGoogleDoc: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const doc = await ctx.prisma.aIScript.findUniqueOrThrow({ where: { id: input.id } });
+      if (!doc.googleDocUrl) {
+        throw new Error("Este documento nao tem Google Doc URL associado.");
+      }
+      const fileId = extractGoogleFileId(doc.googleDocUrl);
+      if (!fileId) throw new Error("URL do Google Doc invalido (nao foi possivel extrair o ID).");
+
+      const userId = (ctx.session?.user as Record<string, unknown> | undefined)?.id as string | undefined;
+      if (!userId) throw new Error("Sessao invalida.");
+
+      const fetched = await fetchDriveFileContent(userId, fileId);
+      if (!fetched.text) {
+        throw new Error(`Tipo de ficheiro nao suportado para sync automatico: ${fetched.mimeType}. Suportado apenas Google Docs/Sheets/Slides.`);
+      }
+
+      // Re-detect markets com o conteudo novo
+      let markets = doc.markets;
+      try {
+        markets = await detectDocumentMarkets({
+          name: doc.name,
+          category: doc.category,
+          content: fetched.text,
+        });
+      } catch (err) {
+        console.error("[knowledge.syncFromGoogleDoc] market detection failed:", err);
+      }
+
+      return ctx.prisma.aIScript.update({
+        where: { id: input.id },
+        data: {
+          content: fetched.text,
+          markets,
+        },
+      });
+    }),
+
+  // Sincroniza TODOS os AIScripts que tem googleDocUrl. Para cron diario.
+  syncAllFromGoogleDocs: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const docs = await ctx.prisma.aIScript.findMany({
+        where: { isActive: true, googleDocUrl: { not: null } },
+      });
+      let synced = 0, failed = 0;
+      const errors: Array<{ id: string; name: string; error: string }> = [];
+      for (const d of docs) {
+        const fileId = d.googleDocUrl ? extractGoogleFileId(d.googleDocUrl) : null;
+        if (!fileId) { failed++; errors.push({ id: d.id, name: d.name, error: "URL invalido" }); continue; }
+        try {
+          const fetched = await fetchDriveFileContent(input.userId, fileId);
+          if (fetched.text) {
+            await ctx.prisma.aIScript.update({
+              where: { id: d.id },
+              data: { content: fetched.text },
+            });
+            synced++;
+          } else {
+            failed++;
+            errors.push({ id: d.id, name: d.name, error: `MIME nao suportado: ${fetched.mimeType}` });
+          }
+        } catch (err) {
+          failed++;
+          errors.push({ id: d.id, name: d.name, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      return { synced, failed, total: docs.length, errors };
     }),
 
   // Re-run AI market detection for an existing doc
@@ -111,6 +207,25 @@ export const knowledgeRouter = router({
       const { id, ...rest } = input;
       const data: Record<string, unknown> = { ...rest };
       if (data.googleDocUrl === "") data.googleDocUrl = null;
+
+      // Se googleDocUrl mudou para um valor novo, busca o conteudo live agora
+      if (input.googleDocUrl) {
+        const existing = await ctx.prisma.aIScript.findUnique({ where: { id } });
+        const urlChanged = existing?.googleDocUrl !== input.googleDocUrl;
+        const userId = (ctx.session?.user as Record<string, unknown> | undefined)?.id as string | undefined;
+        if (urlChanged && userId) {
+          const fileId = extractGoogleFileId(input.googleDocUrl);
+          if (fileId) {
+            try {
+              const fetched = await fetchDriveFileContent(userId, fileId);
+              if (fetched.text) data.content = fetched.text;
+            } catch (err) {
+              console.error("[knowledge.update] google doc fetch failed:", err);
+            }
+          }
+        }
+      }
+
       return ctx.prisma.aIScript.update({ where: { id }, data });
     }),
 

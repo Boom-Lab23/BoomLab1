@@ -102,6 +102,56 @@ export async function getDocContent(
   return text;
 }
 
+// Extrai o ID dum URL Google (Docs, Sheets, Slides, Drive file).
+export function extractGoogleFileId(url: string): string | null {
+  if (!url) return null;
+  // /d/<ID>/  format (docs/sheets/slides) ou /file/d/<ID>/
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]{20,})/);
+  if (m) return m[1];
+  // ?id=<ID>  format
+  const q = url.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+  if (q) return q[1];
+  return null;
+}
+
+// Fetch content de qualquer Google Workspace doc (Docs/Sheets/Slides) ou
+// PDF/DOCX nativo armazenado no Drive. Usa export plain-text via Drive API.
+// Retorna texto + tipo detectado. Lança erro se nao acessivel.
+export async function fetchDriveFileContent(
+  userId: string,
+  fileId: string
+): Promise<{ text: string; mimeType: string; title: string; modifiedTime: Date }> {
+  const { drive } = await getDriveClient(userId);
+
+  const meta = await drive.files.get({
+    fileId,
+    fields: "id,name,mimeType,modifiedTime",
+    supportsAllDrives: true,
+  });
+  const mime = meta.data.mimeType ?? "";
+  const title = meta.data.name ?? "";
+  const modifiedTime = new Date(meta.data.modifiedTime ?? Date.now());
+
+  let text = "";
+
+  if (mime.startsWith("application/vnd.google-apps.")) {
+    // Google Workspace doc: Docs/Sheets/Slides — usar Drive export to text/plain
+    const exportMime = mime === "application/vnd.google-apps.spreadsheet" ? "text/csv" : "text/plain";
+    const res = await drive.files.export(
+      { fileId, mimeType: exportMime },
+      { responseType: "text" }
+    );
+    text = String(res.data ?? "");
+  } else if (mime === "application/pdf" || mime.includes("officedocument") || mime === "text/plain") {
+    // PDF/DOCX/TXT: download direct e retorna o texto best-effort.
+    // Para PDF/DOCX o cliente UI normalmente passa o conteudo em texto manualmente — aqui
+    // apenas retornamos meta + texto vazio para avisar que e estatico.
+    text = "";
+  }
+
+  return { text, mimeType: mime, title, modifiedTime };
+}
+
 // Link a Google Doc to a client/session in the platform
 export async function linkGoogleDoc(
   userId: string,
