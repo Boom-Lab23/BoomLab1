@@ -75,11 +75,13 @@ export const dashboardsRouter = router({
       // Reunioes com PARCEIROS (separado de clientes)
       reunioesParceirosAgendadas: z.number().default(0),
       reunioesParceirosEfetuadas: z.number().default(0),
-      // Detalhe por lead (opcional): array de { name, email?, note? }
+      // Detalhe por lead (opcional): array de { name, email?, note?, partner? }
+      // partner so aplica quando o canal e 'parcerias' (de qual parceiro veio a lead)
       leadDetails: z.array(z.object({
         name: z.string().min(1),
         email: z.string().email().optional().or(z.literal("")),
         note: z.string().optional(),
+        partner: z.string().optional(),
       })).optional(),
       documentacoesPedidas: z.number().default(0),   // Documentacoes pedidas apos reuniao
       documentacoesRecolhidas: z.number().default(0),// Documentacoes recolhidas efectivamente
@@ -508,6 +510,64 @@ export const dashboardsRouter = router({
         })).sort((a, b) => b.calls - a.calls),
         objectives: dashboard.objectives as Record<string, number> | null,
       };
+    }),
+
+  // Leads agrupadas por parceiro (top parceiros que trazem mais leads).
+  // Le os leadDetails de cada DashboardRecord e agrega por campo `partner`.
+  leadsByPartner: publicProcedure
+    .input(z.object({
+      dashboardId: z.string(),
+      period: z.enum(["week", "month", "trimester", "year", "custom"]).default("month"),
+      dateFrom: z.date().optional(),
+      dateTo: z.date().optional(),
+      commercial: z.string().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const now = new Date();
+      let dateFilter: Record<string, unknown> = {};
+      if (input.period === "custom" && (input.dateFrom || input.dateTo)) {
+        const f: Record<string, Date> = {};
+        if (input.dateFrom) f.gte = input.dateFrom;
+        if (input.dateTo) {
+          const to = new Date(input.dateTo);
+          to.setHours(23, 59, 59, 999);
+          f.lte = to;
+        }
+        dateFilter = f;
+      } else if (input.period === "week") {
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay() + 1);
+        weekStart.setHours(0, 0, 0, 0);
+        dateFilter = { gte: weekStart };
+      } else if (input.period === "month") {
+        dateFilter = { gte: new Date(now.getFullYear(), now.getMonth(), 1) };
+      } else if (input.period === "trimester") {
+        const qStart = Math.floor(now.getMonth() / 3) * 3;
+        dateFilter = { gte: new Date(now.getFullYear(), qStart, 1) };
+      } else {
+        dateFilter = { gte: new Date(now.getFullYear(), 0, 1) };
+      }
+      const where: Record<string, unknown> = { dashboardId: input.dashboardId, date: dateFilter, channel: "parcerias" };
+      if (input.commercial) where.commercial = input.commercial;
+      const records = await ctx.prisma.dashboardRecord.findMany({ where });
+
+      const byPartner: Record<string, { partner: string; count: number; leads: Array<{ name: string; email?: string; note?: string; commercial: string; date: Date }> }> = {};
+      for (const r of records) {
+        const details = (r.leadDetails as Array<{ name?: string; email?: string; note?: string; partner?: string }> | null) ?? [];
+        for (const lead of details) {
+          const partner = (lead.partner ?? "").trim() || "Sem parceiro indicado";
+          if (!byPartner[partner]) byPartner[partner] = { partner, count: 0, leads: [] };
+          byPartner[partner].count++;
+          byPartner[partner].leads.push({
+            name: lead.name ?? "?",
+            email: lead.email ?? undefined,
+            note: lead.note ?? undefined,
+            commercial: r.commercial,
+            date: r.date,
+          });
+        }
+      }
+      return Object.values(byPartner).sort((a, b) => b.count - a.count);
     }),
 
   // Growth KPIs - aggregated by week (and by channel)

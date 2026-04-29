@@ -91,8 +91,9 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   const [creditLines, setCreditLines] = useState<CreditLine[]>([]);
   // Reunioes com parceiros (separado de reunioes com clientes)
   const [eodParceiros, setEodParceiros] = useState({ agendadas: "", efetuadas: "" });
-  // Lista detalhada de leads (opcional): nome / email / nota
-  type LeadDetail = { name: string; email: string; note: string };
+  // Lista detalhada de leads (opcional): nome / email / nota / partner
+  // partner so e usado quando o canal e "parcerias"
+  type LeadDetail = { name: string; email: string; note: string; partner: string };
   const [leadDetailsList, setLeadDetailsList] = useState<LeadDetail[]>([]);
 
   // Helper: cold calls tem pipeline especial (sem docs, conversao = parceria)
@@ -993,6 +994,7 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                   name: l.name.trim(),
                   email: l.email.trim() || undefined,
                   note: l.note.trim() || undefined,
+                  partner: l.partner.trim() || undefined,
                 })),
                 notes: eod.notes || undefined,
               };
@@ -1133,75 +1135,117 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               )}
 
-              {/* Detalhe por lead (opcional): nome / email / nota */}
-              <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/30 dark:bg-purple-950/10 p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-purple-900 dark:text-purple-200">
-                    📝 Detalhe por lead (opcional)
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setLeadDetailsList([...leadDetailsList, { name: "", email: "", note: "" }])}
-                    className="rounded bg-purple-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-purple-700"
-                  >
-                    + Adicionar lead
-                  </button>
-                </div>
-                <p className="text-[10px] text-purple-800 dark:text-purple-300">
-                  Registo individual por lead. Util para acompanhar leads especificas — fica anexo a este registo.
-                </p>
-                {leadDetailsList.length === 0 ? (
-                  <p className="text-[10px] text-muted-foreground italic">Sem leads detalhadas. Clica em &quot;+ Adicionar lead&quot; para comecar.</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {leadDetailsList.map((lead, idx) => (
-                      <div key={idx} className="flex flex-wrap items-start gap-1.5 rounded border bg-card p-2">
-                        <input
-                          type="text"
-                          placeholder="Nome *"
-                          value={lead.name}
-                          onChange={(e) => {
-                            const next = [...leadDetailsList];
-                            next[idx] = { ...next[idx], name: e.target.value };
-                            setLeadDetailsList(next);
-                          }}
-                          className="flex-1 min-w-[120px] rounded border px-2 py-1 text-xs bg-card"
-                        />
-                        <input
-                          type="email"
-                          placeholder="Email"
-                          value={lead.email}
-                          onChange={(e) => {
-                            const next = [...leadDetailsList];
-                            next[idx] = { ...next[idx], email: e.target.value };
-                            setLeadDetailsList(next);
-                          }}
-                          className="flex-1 min-w-[160px] rounded border px-2 py-1 text-xs bg-card"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Nota"
-                          value={lead.note}
-                          onChange={(e) => {
-                            const next = [...leadDetailsList];
-                            next[idx] = { ...next[idx], note: e.target.value };
-                            setLeadDetailsList(next);
-                          }}
-                          className="flex-[2] min-w-[200px] rounded border px-2 py-1 text-xs bg-card"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setLeadDetailsList(leadDetailsList.filter((_, i) => i !== idx))}
-                          className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600"
-                          title="Remover"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
+              {/* Detalhe por lead (opcional): nome / email / nota / parceiro */}
+              {(() => {
+                const isParceiriasCh = eod.channel === "parcerias";
+                const leadsNum = parseInt(eod.leads) || 0;
+                // Auto-sync: se canal=parcerias e ha leads numero, garantir que ha N rows
+                // (so quando ainda nao foram criadas — nao sobrescreve dados existentes)
+                if (isParceiriasCh && leadsNum > 0 && leadDetailsList.length < leadsNum) {
+                  const toAdd = leadsNum - leadDetailsList.length;
+                  setTimeout(() => {
+                    setLeadDetailsList((prev) => {
+                      if (prev.length >= leadsNum) return prev;
+                      return [...prev, ...Array.from({ length: toAdd }, () => ({ name: "", email: "", note: "", partner: "" }))];
+                    });
+                  }, 0);
+                }
+                return (
+                  <div className={cn(
+                    "rounded-lg border p-3 space-y-2",
+                    isParceiriasCh
+                      ? "border-green-200 dark:border-green-800 bg-green-50/30 dark:bg-green-950/10"
+                      : "border-purple-200 dark:border-purple-800 bg-purple-50/30 dark:bg-purple-950/10"
+                  )}>
+                    <div className="flex items-center justify-between">
+                      <p className={cn("text-xs font-semibold", isParceiriasCh ? "text-green-900 dark:text-green-200" : "text-purple-900 dark:text-purple-200")}>
+                        {isParceiriasCh ? "🤝 Leads de Parcerias — origem por lead" : "📝 Detalhe por lead (opcional)"}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setLeadDetailsList([...leadDetailsList, { name: "", email: "", note: "", partner: "" }])}
+                        className={cn("rounded px-2 py-1 text-[10px] font-medium text-white", isParceiriasCh ? "bg-green-600 hover:bg-green-700" : "bg-purple-600 hover:bg-purple-700")}
+                      >
+                        + Adicionar lead
+                      </button>
+                    </div>
+                    <p className={cn("text-[10px]", isParceiriasCh ? "text-green-800 dark:text-green-300" : "text-purple-800 dark:text-purple-300")}>
+                      {isParceiriasCh
+                        ? `Indica de que parceiro veio cada lead. Usado para saber qual parceiro traz mais leads. (${leadDetailsList.length} de ${leadsNum} preenchidos)`
+                        : "Registo individual por lead. Util para acompanhar leads especificas."}
+                    </p>
+                    {leadDetailsList.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground italic">
+                        {isParceiriasCh
+                          ? "Define primeiro o numero de leads acima e os campos aparecem automaticamente."
+                          : "Sem leads detalhadas. Clica em \"+ Adicionar lead\" para comecar."}
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {leadDetailsList.map((lead, idx) => (
+                          <div key={idx} className="flex flex-wrap items-start gap-1.5 rounded border bg-card p-2">
+                            <span className="rounded bg-muted px-1.5 py-1 text-[10px] font-medium">#{idx + 1}</span>
+                            <input
+                              type="text"
+                              placeholder={isParceiriasCh ? "Nome lead" : "Nome *"}
+                              value={lead.name}
+                              onChange={(e) => {
+                                const next = [...leadDetailsList];
+                                next[idx] = { ...next[idx], name: e.target.value };
+                                setLeadDetailsList(next);
+                              }}
+                              className="flex-1 min-w-[120px] rounded border px-2 py-1 text-xs bg-card"
+                            />
+                            {isParceiriasCh && (
+                              <input
+                                type="text"
+                                placeholder="Parceiro origem *"
+                                value={lead.partner}
+                                onChange={(e) => {
+                                  const next = [...leadDetailsList];
+                                  next[idx] = { ...next[idx], partner: e.target.value };
+                                  setLeadDetailsList(next);
+                                }}
+                                className="flex-1 min-w-[140px] rounded border bg-green-50 dark:bg-green-950/30 px-2 py-1 text-xs font-medium"
+                              />
+                            )}
+                            <input
+                              type="email"
+                              placeholder="Email"
+                              value={lead.email}
+                              onChange={(e) => {
+                                const next = [...leadDetailsList];
+                                next[idx] = { ...next[idx], email: e.target.value };
+                                setLeadDetailsList(next);
+                              }}
+                              className="flex-1 min-w-[140px] rounded border px-2 py-1 text-xs bg-card"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Nota"
+                              value={lead.note}
+                              onChange={(e) => {
+                                const next = [...leadDetailsList];
+                                next[idx] = { ...next[idx], note: e.target.value };
+                                setLeadDetailsList(next);
+                              }}
+                              className="flex-[2] min-w-[160px] rounded border px-2 py-1 text-xs bg-card"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setLeadDetailsList(leadDetailsList.filter((_, i) => i !== idx))}
+                              className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                              title="Remover"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Duracao media do ciclo de vendas (opcional, preenchido quando conhecido) */}
               {!isColdCallEod && (() => {
