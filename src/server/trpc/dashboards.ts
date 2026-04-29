@@ -248,6 +248,16 @@ export const dashboardsRouter = router({
         acordosVerbais: z.number().optional(),
         reunioesAgendadas: z.number().optional(),
         reunioesEfetuadas: z.number().optional(),
+        // Reunioes com parceiros (cold-calling)
+        reunioesParceirosAgendadas: z.number().optional(),
+        reunioesParceirosEfetuadas: z.number().optional(),
+        // Detalhe por lead
+        leadDetails: z.array(z.object({
+          name: z.string().min(1),
+          email: z.string().email().optional().or(z.literal("")),
+          note: z.string().optional(),
+          partner: z.string().optional(),
+        })).optional(),
         documentacoesPedidas: z.number().optional(),
         documentacoesRecolhidas: z.number().optional(),
         documentacoesCompletas: z.number().optional(),
@@ -285,6 +295,25 @@ export const dashboardsRouter = router({
       if (input.data.conversoesFeitas !== undefined) {
         data.conversions = input.data.conversoesFeitas;
       }
+      // leadDetails como Json (Prisma)
+      if (input.data.leadDetails !== undefined) {
+        data.leadDetails = input.data.leadDetails as unknown as object;
+      }
+
+      // BUG fix: recalcula conversionRate e showUpRate quando os inputs envolvidos mudam.
+      // Carrega o record actual para obter os valores em falta.
+      const recalcKeys = ["callsMade", "conversoesFeitas", "reunioesAgendadas", "reunioesEfetuadas"];
+      const needsRecalc = recalcKeys.some((k) => k in input.data);
+      if (needsRecalc) {
+        const current = await ctx.prisma.dashboardRecord.findUniqueOrThrow({ where: { id: input.id } });
+        const callsMade = input.data.callsMade ?? current.callsMade;
+        const conversoesFeitas = input.data.conversoesFeitas ?? current.conversoesFeitas ?? current.conversions ?? 0;
+        const reunioesAgendadas = input.data.reunioesAgendadas ?? current.agendamentos ?? 0;
+        const reunioesEfetuadas = input.data.reunioesEfetuadas ?? current.reunioesEfetuadas ?? current.reunioes ?? 0;
+        data.conversionRate = callsMade > 0 ? (conversoesFeitas / callsMade) * 100 : 0;
+        data.showUpRate = reunioesAgendadas > 0 ? (reunioesEfetuadas / reunioesAgendadas) * 100 : 0;
+      }
+
       return ctx.prisma.dashboardRecord.update({
         where: { id: input.id },
         data,

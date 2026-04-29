@@ -79,7 +79,15 @@ function isDealWon(payload: GhlWebhookPayload): boolean {
   const status = (payload.status ?? "").toLowerCase();
   if (status === "won") return true;
   const stage = (payload.stageName ?? "").toLowerCase();
-  if (stage.includes("fechado") || stage.includes("won") || stage.includes("closed")) return true;
+  // Apanha: "fechado", "fechada", "fechado (cash collected)", "won", "closed", "concluido", etc.
+  if (
+    stage.includes("fechad") ||
+    stage.includes("won") ||
+    stage.includes("closed") ||
+    stage.includes("conclu") ||
+    stage.includes("cash collected") ||
+    stage.includes("ganho")
+  ) return true;
   return false;
 }
 

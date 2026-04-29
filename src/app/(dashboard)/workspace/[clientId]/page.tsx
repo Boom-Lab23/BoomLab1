@@ -1,13 +1,13 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, Fragment } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft, BarChart3, Users, Phone, ExternalLink, Plus, X, AlertTriangle,
-  Mail, Eye, EyeOff, Trash2, Sparkles, Brain, Loader2, Edit,
+  Mail, Eye, EyeOff, Trash2, Sparkles, Brain, Loader2, Edit, ChevronRight,
 } from "lucide-react";
 
 type Tab = "dashboard" | "leads" | "analysis" | "tracker";
@@ -798,6 +798,7 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
 
   const [showCreate, setShowCreate] = useState(false);
   const [showAnalyze, setShowAnalyze] = useState(false);
+  const [expandedAnalysisId, setExpandedAnalysisId] = useState<string | null>(null);
   const [audioUploadStatus, setAudioUploadStatus] = useState<{
     state: "idle" | "uploading" | "queueing" | "done" | "error";
     fileName?: string;
@@ -952,40 +953,106 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
               {analyses.isLoading && <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">A carregar...</td></tr>}
               {analyses.data?.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Sem analises. Cria a primeira analise ou liga uma gravacao para auto-criar.</td></tr>}
               {analyses.data?.map(a => (
-                <tr key={a.id} className="hover:bg-muted/50">
-                  <td className="p-2 text-xs">{new Date(a.callDate).toLocaleDateString("pt-PT")}</td>
-                  <td className="p-2 text-xs">
-                    <div className="font-medium">{a.commercial}{a.leadName ? ` x ${a.leadName}` : ""}</div>
-                    {a.summary && <div className="text-[10px] text-muted-foreground truncate max-w-xs">{a.summary}</div>}
-                  </td>
-                  <td className="p-2 text-xs">{a.callType}</td>
-                  <td className="p-2">
-                    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium",
-                      a.classification.toLowerCase().startsWith("bom") ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300" :
-                      a.classification.toLowerCase().startsWith("med") ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300" :
-                      "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300")}>
-                      {a.classification}
-                    </span>
-                  </td>
-                  <td className="p-2 text-right font-medium text-xs">{a.overallScore?.toFixed(0) ?? "-"}</td>
-                  <td className="p-2">
-                    <button
-                      onClick={() => updateAnalysis.mutate({ id: a.id, data: { visibility: a.visibility === "COMMERCIAL_ONLY" ? "WHOLE_TEAM" : "COMMERCIAL_ONLY" } })}
-                      className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                        a.visibility === "WHOLE_TEAM" ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" : "bg-gray-100 text-gray-700")}
-                      title="Toggle visibilidade"
-                    >
-                      {a.visibility === "WHOLE_TEAM" ? <Eye className="h-2.5 w-2.5" /> : <EyeOff className="h-2.5 w-2.5" />}
-                      {a.visibility === "WHOLE_TEAM" ? "Equipa" : "So comercial"}
-                    </button>
-                  </td>
-                  <td className="p-2 text-right">
-                    <button onClick={() => { if (confirm("Apagar?")) deleteAnalysis.mutate(a.id); }}
-                      className="text-muted-foreground hover:text-red-600 p-1">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
-                </tr>
+                <Fragment key={a.id}>
+                  <tr className="hover:bg-muted/50 cursor-pointer" onClick={() => setExpandedAnalysisId(expandedAnalysisId === a.id ? null : a.id)}>
+                    <td className="p-2 text-xs">
+                      <div className="flex items-center gap-1">
+                        <ChevronRight className={cn("h-3 w-3 transition-transform", expandedAnalysisId === a.id && "rotate-90")} />
+                        {new Date(a.callDate).toLocaleDateString("pt-PT")}
+                      </div>
+                    </td>
+                    <td className="p-2 text-xs">
+                      <div className="font-medium">{a.commercial}{a.leadName ? ` x ${a.leadName}` : ""}</div>
+                      {a.summary && <div className="text-[10px] text-muted-foreground truncate max-w-xs">{a.summary}</div>}
+                    </td>
+                    <td className="p-2 text-xs">{a.callType}</td>
+                    <td className="p-2">
+                      <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium",
+                        a.classification.toLowerCase().startsWith("bom") ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300" :
+                        a.classification.toLowerCase().startsWith("med") ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300" :
+                        "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300")}>
+                        {a.classification}
+                      </span>
+                    </td>
+                    <td className="p-2 text-right font-medium text-xs">{a.overallScore?.toFixed(0) ?? "-"}</td>
+                    <td className="p-2" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => updateAnalysis.mutate({ id: a.id, data: { visibility: a.visibility === "COMMERCIAL_ONLY" ? "WHOLE_TEAM" : "COMMERCIAL_ONLY" } })}
+                        className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                          a.visibility === "WHOLE_TEAM" ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" : "bg-gray-100 text-gray-700")}
+                        title="Toggle visibilidade"
+                      >
+                        {a.visibility === "WHOLE_TEAM" ? <Eye className="h-2.5 w-2.5" /> : <EyeOff className="h-2.5 w-2.5" />}
+                        {a.visibility === "WHOLE_TEAM" ? "Equipa" : "So comercial"}
+                      </button>
+                    </td>
+                    <td className="p-2 text-right" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => { if (confirm("Apagar?")) deleteAnalysis.mutate(a.id); }}
+                        className="text-muted-foreground hover:text-red-600 p-1">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedAnalysisId === a.id && (
+                    <tr className="bg-muted/30">
+                      <td colSpan={7} className="p-4">
+                        <div className="grid gap-3 md:grid-cols-2 text-xs">
+                          {/* 8 dimensoes scoring */}
+                          <div className="md:col-span-2 rounded-lg border bg-card p-3">
+                            <h4 className="mb-2 text-[11px] font-semibold uppercase text-muted-foreground">8 Dimensoes</h4>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              {[
+                                { label: "Clareza/Fluidez", val: a.clarezaFluidez },
+                                { label: "Tom de Voz", val: a.tomVoz },
+                                { label: "Assertividade", val: a.assertividadeControlo },
+                                { label: "Empatia", val: a.empatia },
+                                { label: "Passagem Valor", val: a.passagemValor },
+                                { label: "Resposta Objecoes", val: a.respostaObjecoes },
+                                { label: "Estrutura Meet", val: a.estruturaMeet },
+                                { label: "Modo", val: a.expositivoConversacional },
+                              ].map((d) => (
+                                <div key={d.label} className="rounded border bg-muted/40 p-2">
+                                  <p className="text-[9px] uppercase text-muted-foreground">{d.label}</p>
+                                  <p className="text-sm font-semibold">{d.val ?? "-"}{typeof d.val === "number" && "/5"}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          {a.strengths && (
+                            <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20 p-3">
+                              <h4 className="mb-2 text-[11px] font-semibold text-green-800 dark:text-green-200">✅ Pontos Fortes</h4>
+                              <pre className="whitespace-pre-wrap text-xs text-foreground font-sans">{a.strengths}</pre>
+                            </div>
+                          )}
+                          {a.weaknesses && (
+                            <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 p-3">
+                              <h4 className="mb-2 text-[11px] font-semibold text-red-800 dark:text-red-200">❌ Pontos Fracos</h4>
+                              <pre className="whitespace-pre-wrap text-xs text-foreground font-sans">{a.weaknesses}</pre>
+                            </div>
+                          )}
+                          {a.generalTips && (
+                            <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-3">
+                              <h4 className="mb-2 text-[11px] font-semibold text-blue-800 dark:text-blue-200">💡 Dicas Gerais</h4>
+                              <pre className="whitespace-pre-wrap text-xs text-foreground font-sans">{a.generalTips}</pre>
+                            </div>
+                          )}
+                          {a.focusNext && (
+                            <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20 p-3">
+                              <h4 className="mb-2 text-[11px] font-semibold text-purple-800 dark:text-purple-200">🎯 Foco para a Proxima</h4>
+                              <pre className="whitespace-pre-wrap text-xs text-foreground font-sans">{a.focusNext}</pre>
+                            </div>
+                          )}
+                          {a.summary && (
+                            <div className="md:col-span-2 rounded-lg border bg-card p-3">
+                              <h4 className="mb-2 text-[11px] font-semibold uppercase text-muted-foreground">Resumo Executivo</h4>
+                              <pre className="whitespace-pre-wrap text-xs text-foreground font-sans">{a.summary}</pre>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>
