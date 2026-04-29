@@ -72,6 +72,15 @@ export const dashboardsRouter = router({
       sqls: z.number().default(0),                   // Sales Qualified Leads (aprovadas pelo banco)
       reunioesAgendadas: z.number().default(0),      // Reunioes marcadas (pipeline)
       reunioesEfetuadas: z.number().default(0),      // Reunioes que aconteceram
+      // Reunioes com PARCEIROS (separado de clientes)
+      reunioesParceirosAgendadas: z.number().default(0),
+      reunioesParceirosEfetuadas: z.number().default(0),
+      // Detalhe por lead (opcional): array de { name, email?, note? }
+      leadDetails: z.array(z.object({
+        name: z.string().min(1),
+        email: z.string().email().optional().or(z.literal("")),
+        note: z.string().optional(),
+      })).optional(),
       documentacoesPedidas: z.number().default(0),   // Documentacoes pedidas apos reuniao
       documentacoesRecolhidas: z.number().default(0),// Documentacoes recolhidas efectivamente
       documentacoesCompletas: z.number().default(0), // Documentacoes totalmente completas (seguros: levantamentos completos)
@@ -174,6 +183,11 @@ export const dashboardsRouter = router({
           agendamentos: reunioesAgendadas, // campo "reunioes agendadas"
           reunioes: reunioesEfetuadas,     // legacy
           comparecimentos: input.comparecimentos ?? reunioesEfetuadas,
+          reunioesParceirosAgendadas: input.reunioesParceirosAgendadas ?? 0,
+          reunioesParceirosEfetuadas: input.reunioesParceirosEfetuadas ?? 0,
+          leadDetails: input.leadDetails && input.leadDetails.length > 0
+            ? (input.leadDetails as unknown as object)
+            : undefined,
           conversionRate: convRate,
           showUpRate: showUp,
           escrituras: input.escrituras,

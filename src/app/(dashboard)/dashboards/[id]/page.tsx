@@ -87,6 +87,11 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   // Dropdown dinamico de creditos (multiplos por registo)
   type CreditLine = { key: string; n: string; v: string };
   const [creditLines, setCreditLines] = useState<CreditLine[]>([]);
+  // Reunioes com parceiros (separado de reunioes com clientes)
+  const [eodParceiros, setEodParceiros] = useState({ agendadas: "", efetuadas: "" });
+  // Lista detalhada de leads (opcional): nome / email / nota
+  type LeadDetail = { name: string; email: string; note: string };
+  const [leadDetailsList, setLeadDetailsList] = useState<LeadDetail[]>([]);
 
   // Helper: cold calls tem pipeline especial (sem docs, conversao = parceria)
   const isColdCallEod = eod.channel === "cold-calling";
@@ -956,6 +961,13 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 diasSalDocs: eod.diasSalDocs ? parseFloat(eod.diasSalDocs) : undefined,
                 diasDocsSql: eod.diasDocsSql ? parseFloat(eod.diasDocsSql) : undefined,
                 diasSqlEscritura: eod.diasSqlEscritura ? parseFloat(eod.diasSqlEscritura) : undefined,
+                reunioesParceirosAgendadas: parseInt(eodParceiros.agendadas) || 0,
+                reunioesParceirosEfetuadas: parseInt(eodParceiros.efetuadas) || 0,
+                leadDetails: leadDetailsList.filter((l) => l.name.trim().length > 0).map((l) => ({
+                  name: l.name.trim(),
+                  email: l.email.trim() || undefined,
+                  note: l.note.trim() || undefined,
+                })),
                 notes: eod.notes || undefined,
               };
               // Vertentes: em credito usa o dropdown dinamico; noutros mercados usa os campos antigos
@@ -983,6 +995,8 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
               addRecord.mutate(data as Parameters<typeof addRecord.mutate>[0], {
                 onSuccess: () => {
                   setCreditLines([]);
+                  setEodParceiros({ agendadas: "", efetuadas: "" });
+                  setLeadDetailsList([]);
                 },
               });
             }} className="space-y-3">
@@ -1026,8 +1040,8 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                   steps.push({ label: "SALs", key: "sals", hint: "leads viaveis ao 1o contacto" });
                   steps.push({ label: docsCompletasLabel, key: "documentacoesCompletas" });
                 }
-                steps.push({ label: "Reun. Agendadas", key: "reunioesAgendadas" });
-                steps.push({ label: "Comparecimentos", key: "reunioesEfetuadas" });
+                steps.push({ label: "Reun. Clientes Agend.", key: "reunioesAgendadas" });
+                steps.push({ label: "Reun. Clientes Efetuadas", key: "reunioesEfetuadas" });
                 if (showSalsSqlsInEod) {
                   steps.push({ label: "SQLs", key: "sqls", hint: "qualificadas (banco aprovou)" });
                   steps.push({ label: "Acordos Verbais", key: "acordosVerbais" });
@@ -1070,6 +1084,96 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                   </>
                 );
               })()}
+
+              {/* Reunioes com Parceiros (separadas das reunioes com clientes acima) */}
+              <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/30 dark:bg-orange-950/10 p-3 space-y-2">
+                <p className="text-xs font-semibold text-orange-900 dark:text-orange-200">
+                  🤝 Reunioes com Parceiros (opcional)
+                </p>
+                <p className="text-[10px] text-orange-800 dark:text-orange-300">
+                  Reunioes que o comercial teve com parceiros (nao com clientes finais). Conta separadamente das reunioes Cliente acima.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="mb-0.5 block text-[10px]">Parceiros Agendadas</label>
+                    <input type="number" min="0" value={eodParceiros.agendadas} onChange={(e) => setEodParceiros({ ...eodParceiros, agendadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                  </div>
+                  <div>
+                    <label className="mb-0.5 block text-[10px]">Parceiros Efetuadas</label>
+                    <input type="number" min="0" value={eodParceiros.efetuadas} onChange={(e) => setEodParceiros({ ...eodParceiros, efetuadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Detalhe por lead (opcional): nome / email / nota */}
+              <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/30 dark:bg-purple-950/10 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-purple-900 dark:text-purple-200">
+                    📝 Detalhe por lead (opcional)
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setLeadDetailsList([...leadDetailsList, { name: "", email: "", note: "" }])}
+                    className="rounded bg-purple-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-purple-700"
+                  >
+                    + Adicionar lead
+                  </button>
+                </div>
+                <p className="text-[10px] text-purple-800 dark:text-purple-300">
+                  Registo individual por lead. Util para acompanhar leads especificas — fica anexo a este registo.
+                </p>
+                {leadDetailsList.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground italic">Sem leads detalhadas. Clica em &quot;+ Adicionar lead&quot; para comecar.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {leadDetailsList.map((lead, idx) => (
+                      <div key={idx} className="flex flex-wrap items-start gap-1.5 rounded border bg-card p-2">
+                        <input
+                          type="text"
+                          placeholder="Nome *"
+                          value={lead.name}
+                          onChange={(e) => {
+                            const next = [...leadDetailsList];
+                            next[idx] = { ...next[idx], name: e.target.value };
+                            setLeadDetailsList(next);
+                          }}
+                          className="flex-1 min-w-[120px] rounded border px-2 py-1 text-xs bg-card"
+                        />
+                        <input
+                          type="email"
+                          placeholder="Email"
+                          value={lead.email}
+                          onChange={(e) => {
+                            const next = [...leadDetailsList];
+                            next[idx] = { ...next[idx], email: e.target.value };
+                            setLeadDetailsList(next);
+                          }}
+                          className="flex-1 min-w-[160px] rounded border px-2 py-1 text-xs bg-card"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Nota"
+                          value={lead.note}
+                          onChange={(e) => {
+                            const next = [...leadDetailsList];
+                            next[idx] = { ...next[idx], note: e.target.value };
+                            setLeadDetailsList(next);
+                          }}
+                          className="flex-[2] min-w-[200px] rounded border px-2 py-1 text-xs bg-card"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setLeadDetailsList(leadDetailsList.filter((_, i) => i !== idx))}
+                          className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                          title="Remover"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Duracao media do ciclo de vendas (opcional, preenchido quando conhecido) */}
               {!isColdCallEod && (() => {
