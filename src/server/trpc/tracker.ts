@@ -15,13 +15,16 @@ export const trackerRouter = router({
   list: publicProcedure
     .input(
       z.object({
-        userId: z.string(),
+        userId: z.string().optional(),
+        clientId: z.string().optional(),
         status: z.enum(STATUSES).optional(),
         includeCompleted: z.boolean().default(true),
       })
     )
     .query(async ({ ctx, input }) => {
-      const where: Record<string, unknown> = { userId: input.userId };
+      const where: Record<string, unknown> = {};
+      if (input.userId) where.userId = input.userId;
+      if (input.clientId) where.clientId = input.clientId;
       if (input.status) {
         where.status = input.status;
       } else if (!input.includeCompleted) {
@@ -29,6 +32,7 @@ export const trackerRouter = router({
       }
       return ctx.prisma.trackerTask.findMany({
         where,
+        include: { user: { select: { id: true, name: true, email: true, image: true } } },
         orderBy: [
           { status: "asc" },                 // POR_FAZER / EM_CURSO primeiro
           { priority: "desc" },              // URGENTE > ALTA > MEDIA > BAIXA (ord texto nao ideal, melhoramos client-side)
@@ -36,6 +40,28 @@ export const trackerRouter = router({
           { createdAt: "desc" },
         ],
       });
+    }),
+
+  // Lista tarefas dum cliente agrupadas por membro (para a tab Tracker
+  // dentro do workspace). Inclui tarefas de qualquer user com pelo menos
+  // uma tarefa para este cliente.
+  listByClient: publicProcedure
+    .input(z.object({ clientId: z.string(), includeCompleted: z.boolean().default(false) }))
+    .query(async ({ ctx, input }) => {
+      const where: Record<string, unknown> = { clientId: input.clientId };
+      if (!input.includeCompleted) where.status = { notIn: ["FEITO", "CANCELADO"] };
+      const tasks = await ctx.prisma.trackerTask.findMany({
+        where,
+        include: { user: { select: { id: true, name: true, email: true, image: true } } },
+        orderBy: [{ status: "asc" }, { priority: "desc" }, { deadline: "asc" }, { createdAt: "desc" }],
+      });
+      // Group by user
+      const byUser: Record<string, { user: { id: string; name: string; email: string; image: string | null }; tasks: typeof tasks }> = {};
+      for (const t of tasks) {
+        if (!byUser[t.userId]) byUser[t.userId] = { user: t.user, tasks: [] };
+        byUser[t.userId].tasks.push(t);
+      }
+      return Object.values(byUser).sort((a, b) => a.user.name.localeCompare(b.user.name));
     }),
 
   stats: publicProcedure

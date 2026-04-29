@@ -10,7 +10,7 @@ import {
   Mail, Eye, EyeOff, Trash2, Sparkles, Brain, Loader2, Edit,
 } from "lucide-react";
 
-type Tab = "dashboard" | "leads" | "analysis";
+type Tab = "dashboard" | "leads" | "analysis" | "tracker";
 
 const LEAD_STATUS_LABELS: Record<string, string> = {
   NOVA: "Nova", CONTACTADA: "Contactada", QUALIFICADA: "Qualificada",
@@ -69,6 +69,7 @@ export default function ClientWorkspacePage({ params }: { params: Promise<{ clie
           { key: "dashboard", label: "Dashboard", icon: BarChart3 },
           { key: "leads", label: "CRM Leads", icon: Users },
           { key: "analysis", label: "Analise de Vendas", icon: Phone },
+          { key: "tracker", label: "Tracker Equipa", icon: Edit },
         ].map((t) => (
           <button key={t.key} onClick={() => setTab(t.key as Tab)}
             className={cn("flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
@@ -84,6 +85,211 @@ export default function ClientWorkspacePage({ params }: { params: Promise<{ clie
       )}
       {tab === "leads" && <LeadsTab clientId={clientId} />}
       {tab === "analysis" && <SalesAnalysisTab clientId={clientId} />}
+      {tab === "tracker" && <TrackerTab clientId={clientId} commercials={dashboard.data?.commercials ?? []} />}
+    </div>
+  );
+}
+
+// ============ TRACKER TAB - tarefas do cliente, divididas por membro ============
+function TrackerTab({ clientId, commercials }: { clientId: string; commercials: string[] }) {
+  const utils = trpc.useUtils();
+  const teamMembers = trpc.admin.listUsers.useQuery();
+  const tracker = trpc.tracker.listByClient.useQuery({ clientId, includeCompleted: false }, { refetchInterval: 30_000 });
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({
+    userId: "",
+    title: "",
+    description: "",
+    category: "OUTROS" as "PROSPECAO" | "FOLLOW_UP" | "REUNIAO" | "ADMIN" | "OUTROS",
+    priority: "MEDIA" as "BAIXA" | "MEDIA" | "ALTA" | "URGENTE",
+    deadline: "",
+  });
+  const createTask = trpc.tracker.create.useMutation({
+    onSuccess: () => {
+      utils.tracker.listByClient.invalidate();
+      setShowCreate(false);
+      setForm({ userId: "", title: "", description: "", category: "OUTROS", priority: "MEDIA", deadline: "" });
+    },
+  });
+  const toggleStatus = trpc.tracker.toggleStatus.useMutation({
+    onSuccess: () => utils.tracker.listByClient.invalidate(),
+  });
+  const deleteTask = trpc.tracker.delete.useMutation({
+    onSuccess: () => utils.tracker.listByClient.invalidate(),
+  });
+
+  // Match commercials (nomes) com users reais (para poder criar tasks)
+  const teamUsers = (teamMembers.data ?? []).filter((u) =>
+    commercials.some((c) => c.toLowerCase().trim() === u.name.toLowerCase().trim())
+  );
+
+  const PRIORITY_COLORS: Record<string, string> = {
+    BAIXA: "bg-gray-100 text-gray-700",
+    MEDIA: "bg-blue-100 dark:bg-blue-900/40 text-blue-700",
+    ALTA: "bg-orange-100 dark:bg-orange-900/40 text-orange-700",
+    URGENTE: "bg-red-100 dark:bg-red-900/40 text-red-700",
+  };
+  const STATUS_COLORS: Record<string, string> = {
+    POR_FAZER: "bg-gray-100 text-gray-700",
+    EM_CURSO: "bg-blue-100 dark:bg-blue-900/40 text-blue-700",
+    FEITO: "bg-green-100 dark:bg-green-900/40 text-green-700",
+    CANCELADO: "bg-red-100 dark:bg-red-900/40 text-red-700",
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-lg font-semibold">Tracker da Equipa do Cliente</h2>
+          <p className="text-xs text-muted-foreground">Tarefas dos membros da equipa relacionadas com este cliente</p>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+        >
+          <Edit className="h-4 w-4" /> Nova tarefa
+        </button>
+      </div>
+
+      {tracker.isLoading && <p className="p-6 text-center text-sm text-muted-foreground">A carregar...</p>}
+      {tracker.data?.length === 0 && (
+        <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
+          Sem tarefas activas. Cria a primeira no botao &quot;Nova tarefa&quot; em cima.
+        </div>
+      )}
+
+      {/* Uma seccao por membro */}
+      {tracker.data?.map((group) => (
+        <div key={group.user.id} className="rounded-xl border bg-card">
+          <div className="border-b p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-white">
+                {group.user.name.charAt(0)}
+              </div>
+              <div>
+                <p className="text-sm font-semibold">{group.user.name}</p>
+                <p className="text-[10px] text-muted-foreground">{group.tasks.length} tarefas activas</p>
+              </div>
+            </div>
+          </div>
+          <div className="divide-y">
+            {group.tasks.map((task) => (
+              <div key={task.id} className="flex flex-wrap items-center justify-between gap-2 p-3 hover:bg-muted/30">
+                <div className="flex items-start gap-2 min-w-0 flex-1">
+                  <button
+                    onClick={() => toggleStatus.mutate({ id: task.id, status: task.status === "FEITO" ? "POR_FAZER" : "FEITO" })}
+                    disabled={toggleStatus.isPending}
+                    className={cn(
+                      "mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2",
+                      task.status === "FEITO" ? "border-green-600 bg-green-600 text-white" : "border-muted-foreground/40"
+                    )}
+                  >
+                    {task.status === "FEITO" && <span className="text-[10px]">✓</span>}
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p className={cn("text-sm font-medium", task.status === "FEITO" && "line-through text-muted-foreground")}>{task.title}</p>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground flex-wrap">
+                      <span className={cn("rounded px-1.5 py-0.5 font-medium", PRIORITY_COLORS[task.priority])}>{task.priority}</span>
+                      <span className={cn("rounded px-1.5 py-0.5 font-medium", STATUS_COLORS[task.status])}>{task.status.replace("_", " ")}</span>
+                      {task.category && <span className="rounded bg-muted px-1.5 py-0.5">{task.category}</span>}
+                      {task.deadline && (
+                        <span className={cn(new Date(task.deadline) < new Date() && task.status !== "FEITO" ? "text-red-600 font-medium" : "")}>
+                          📅 {new Date(task.deadline).toLocaleDateString("pt-PT")}
+                        </span>
+                      )}
+                    </div>
+                    {task.description && <p className="mt-1 text-xs text-muted-foreground">{task.description}</p>}
+                  </div>
+                </div>
+                <button
+                  onClick={() => { if (confirm(`Apagar "${task.title}"?`)) deleteTask.mutate(task.id); }}
+                  disabled={deleteTask.isPending}
+                  className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* Modal criar tarefa */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-card p-6 shadow-lg">
+            <h3 className="mb-4 text-lg font-semibold">Nova tarefa</h3>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!form.userId || !form.title) return;
+                createTask.mutate({
+                  userId: form.userId,
+                  clientId,
+                  title: form.title,
+                  description: form.description || undefined,
+                  category: form.category,
+                  priority: form.priority,
+                  deadline: form.deadline ? new Date(form.deadline) : undefined,
+                });
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="mb-0.5 block text-xs font-medium">Atribuir a *</label>
+                <select required value={form.userId} onChange={(e) => setForm({ ...form, userId: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card">
+                  <option value="">Selecionar membro...</option>
+                  {teamUsers.length === 0 ? (
+                    <option disabled>Nenhum membro da equipa criado ainda</option>
+                  ) : teamUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+                {teamUsers.length === 0 && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">Adiciona membros em /admin/users e atribui-os ao dashboard.</p>
+                )}
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs font-medium">Titulo *</label>
+                <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Ex: Preparar reuniao SAL" />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs font-medium">Descricao</label>
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" rows={2} />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Categoria</label>
+                  <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as "OUTROS" })} className="w-full rounded-lg border px-2 py-2 text-xs bg-card">
+                    <option value="PROSPECAO">Prospecao</option>
+                    <option value="FOLLOW_UP">Follow-up</option>
+                    <option value="REUNIAO">Reuniao</option>
+                    <option value="ADMIN">Admin</option>
+                    <option value="OUTROS">Outros</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Prioridade</label>
+                  <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value as "MEDIA" })} className="w-full rounded-lg border px-2 py-2 text-xs bg-card">
+                    <option value="BAIXA">Baixa</option>
+                    <option value="MEDIA">Media</option>
+                    <option value="ALTA">Alta</option>
+                    <option value="URGENTE">Urgente</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-xs font-medium">Prazo</label>
+                  <input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="w-full rounded-lg border px-2 py-2 text-xs bg-card" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 border-t pt-3">
+                <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
+                <button type="submit" disabled={createTask.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
+                  {createTask.isPending ? "A criar..." : "Criar tarefa"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
