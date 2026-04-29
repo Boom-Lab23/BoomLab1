@@ -36,6 +36,7 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   const canDeleteRecords = userRole === "ADMIN" || userRole === "MANAGER" || userRole === "CONSULTANT" || userRole === "GUEST_CLIENT";
 
   const [period, setPeriod] = useState<"week" | "month" | "trimester" | "year" | "custom">("month");
+  const [commercialFilter, setCommercialFilter] = useState<string>(""); // "" = todos
   const [customRange, setCustomRange] = useState<{ from: string; to: string }>(() => {
     const now = new Date();
     const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -60,10 +61,11 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   const kpis = trpc.dashboards.kpis.useQuery({
     dashboardId: id,
     period,
+    commercial: commercialFilter || undefined,
     ...(period === "custom" ? { dateFrom: new Date(customRange.from), dateTo: new Date(customRange.to) } : {}),
   });
-  const growthKpis = trpc.dashboards.growthKpis.useQuery({ dashboardId: id });
-  const chartData = trpc.dashboards.chartData.useQuery({ dashboardId: id, months: 3 });
+  const growthKpis = trpc.dashboards.growthKpis.useQuery({ dashboardId: id, commercial: commercialFilter || undefined });
+  const chartData = trpc.dashboards.chartData.useQuery({ dashboardId: id, months: 3, commercial: commercialFilter || undefined });
   const utils = trpc.useUtils();
 
   const market: MarketKey = (dashboard.data?.market as MarketKey) ?? "CREDITO";
@@ -258,6 +260,30 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
             />
           </div>
         )}
+
+        {/* Filtro por comercial — afecta TODAS as tabs (overview, channels, growth, vertentes) */}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Comercial:</span>
+          <select
+            value={commercialFilter}
+            onChange={(e) => setCommercialFilter(e.target.value)}
+            className="rounded-lg border bg-card px-3 py-1.5 text-xs text-foreground"
+          >
+            <option value="">Todos</option>
+            {db.commercials.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+          {commercialFilter && (
+            <button
+              onClick={() => setCommercialFilter("")}
+              className="rounded-lg border bg-card px-2 py-1.5 text-xs hover:bg-muted"
+              title="Limpar filtro"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ========== OVERVIEW TAB ========== */}
@@ -1085,25 +1111,27 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                 );
               })()}
 
-              {/* Reunioes com Parceiros (separadas das reunioes com clientes acima) */}
-              <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/30 dark:bg-orange-950/10 p-3 space-y-2">
-                <p className="text-xs font-semibold text-orange-900 dark:text-orange-200">
-                  🤝 Reunioes com Parceiros (opcional)
-                </p>
-                <p className="text-[10px] text-orange-800 dark:text-orange-300">
-                  Reunioes que o comercial teve com parceiros (nao com clientes finais). Conta separadamente das reunioes Cliente acima.
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="mb-0.5 block text-[10px]">Parceiros Agendadas</label>
-                    <input type="number" min="0" value={eodParceiros.agendadas} onChange={(e) => setEodParceiros({ ...eodParceiros, agendadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
-                  </div>
-                  <div>
-                    <label className="mb-0.5 block text-[10px]">Parceiros Efetuadas</label>
-                    <input type="number" min="0" value={eodParceiros.efetuadas} onChange={(e) => setEodParceiros({ ...eodParceiros, efetuadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+              {/* Reunioes com Parceiros - SO aparecem em cold-calling (canal B2B) */}
+              {isColdCallEod && (
+                <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/30 dark:bg-orange-950/10 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-orange-900 dark:text-orange-200">
+                    🤝 Reunioes com Parceiros (opcional)
+                  </p>
+                  <p className="text-[10px] text-orange-800 dark:text-orange-300">
+                    Reunioes que o comercial teve com parceiros (nao com clientes finais). Conta separadamente das reunioes Cliente acima.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-0.5 block text-[10px]">Parceiros Agendadas</label>
+                      <input type="number" min="0" value={eodParceiros.agendadas} onChange={(e) => setEodParceiros({ ...eodParceiros, agendadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                    </div>
+                    <div>
+                      <label className="mb-0.5 block text-[10px]">Parceiros Efetuadas</label>
+                      <input type="number" min="0" value={eodParceiros.efetuadas} onChange={(e) => setEodParceiros({ ...eodParceiros, efetuadas: e.target.value })} className="w-full rounded border px-2 py-1.5 text-sm bg-card" />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Detalhe por lead (opcional): nome / email / nota */}
               <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/30 dark:bg-purple-950/10 p-3 space-y-2">

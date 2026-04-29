@@ -309,6 +309,7 @@ export const dashboardsRouter = router({
       period: z.enum(["week", "month", "trimester", "year", "custom"]).default("month"),
       dateFrom: z.date().optional(), // usado quando period=custom
       dateTo: z.date().optional(),
+      commercial: z.string().optional(), // filtrar por colaborador especifico
     }))
     .query(async ({ ctx, input }) => {
       const dashboard = await ctx.prisma.clientDashboard.findUniqueOrThrow({
@@ -341,8 +342,10 @@ export const dashboardsRouter = router({
         dateFilter = { gte: new Date(now.getFullYear(), 0, 1) };
       }
 
+      const recordsWhere: Record<string, unknown> = { dashboardId: input.dashboardId, date: dateFilter };
+      if (input.commercial) recordsWhere.commercial = input.commercial;
       const records = await ctx.prisma.dashboardRecord.findMany({
-        where: { dashboardId: input.dashboardId, date: dateFilter },
+        where: recordsWhere,
         orderBy: { date: "asc" },
       });
 
@@ -509,10 +512,12 @@ export const dashboardsRouter = router({
 
   // Growth KPIs - aggregated by week (and by channel)
   growthKpis: publicProcedure
-    .input(z.object({ dashboardId: z.string() }))
+    .input(z.object({ dashboardId: z.string(), commercial: z.string().optional() }))
     .query(async ({ ctx, input }) => {
+      const where: Record<string, unknown> = { dashboardId: input.dashboardId };
+      if (input.commercial) where.commercial = input.commercial;
       const records = await ctx.prisma.dashboardRecord.findMany({
-        where: { dashboardId: input.dashboardId },
+        where,
         orderBy: { date: "asc" },
       });
 
@@ -583,13 +588,16 @@ export const dashboardsRouter = router({
     .input(z.object({
       dashboardId: z.string(),
       months: z.number().default(3),
+      commercial: z.string().optional(),
     }))
     .query(async ({ ctx, input }) => {
       const since = new Date();
       since.setMonth(since.getMonth() - input.months);
 
+      const where: Record<string, unknown> = { dashboardId: input.dashboardId, date: { gte: since } };
+      if (input.commercial) where.commercial = input.commercial;
       const records = await ctx.prisma.dashboardRecord.findMany({
-        where: { dashboardId: input.dashboardId, date: { gte: since } },
+        where,
         orderBy: { date: "asc" },
       });
 
