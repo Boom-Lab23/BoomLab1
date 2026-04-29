@@ -42,6 +42,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (pathname.startsWith("/tracker")) return;
     if (pathname.startsWith("/settings")) return;
     if (pathname.startsWith("/dashboards/")) return;  // Dashboard detail OK (guard feito na pagina)
+    if (pathname.startsWith("/admin/my-team")) return; // Cliente pode gerir a sua propria equipa
     if (pathname.startsWith("/first-login")) return;
 
     // Default redirect: prefer workspace if assigned, otherwise messaging

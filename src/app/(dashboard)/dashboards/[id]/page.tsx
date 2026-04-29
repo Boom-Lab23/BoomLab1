@@ -32,7 +32,8 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
   // Apenas ADMIN, MANAGER, CONSULTANT e GUEST_CLIENT (o proprio cliente) podem editar.
   // GUEST_TEAM_MEMBER (equipa do cliente) nao pode editar registos.
   const canEditRecords = userRole === "ADMIN" || userRole === "MANAGER" || userRole === "CONSULTANT" || userRole === "GUEST_CLIENT";
-  const canDeleteRecords = false;
+  // GUEST_TEAM_MEMBER NAO pode apagar registos. Cliente (GUEST_CLIENT) e equipa interna podem.
+  const canDeleteRecords = userRole === "ADMIN" || userRole === "MANAGER" || userRole === "CONSULTANT" || userRole === "GUEST_CLIENT";
 
   const [period, setPeriod] = useState<"week" | "month" | "trimester" | "year" | "custom">("month");
   const [customRange, setCustomRange] = useState<{ from: string; to: string }>(() => {
@@ -142,6 +143,16 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
       setSelectedIds(new Set());
       setSelectMode(false);
       setBulkFilter({ commercial: "", from: "", to: "" });
+    },
+  });
+
+  // Apagar registo individual (botao Trash em cada linha)
+  const deleteRecord = trpc.dashboards.deleteRecord.useMutation({
+    onSuccess: () => {
+      utils.dashboards.getById.invalidate();
+      utils.dashboards.kpis.invalidate();
+      utils.dashboards.growthKpis.invalidate();
+      utils.dashboards.chartData.invalidate();
     },
   });
 
@@ -749,36 +760,54 @@ export default function DashboardDetailPage({ params }: { params: Promise<{ id: 
                   <td className="p-2 text-right">{r.reunioesEfetuadas ?? r.agendamentos ?? 0}</td>
                   <td className="p-2 text-right">{r.conversoesFeitas ?? r.conversions ?? 0}</td>
                   <td className="p-2 text-right">{r.conversionRate?.toFixed(1)}%</td>
-                  {canEditRecords && (
+                  {(canEditRecords || canDeleteRecords) && (
                     <td className="p-2 text-right">
-                      <button
-                        onClick={() => {
-                          setEditingRecordId(r.id);
-                          const rec = r as unknown as Record<string, number | null | undefined>;
-                          setEditForm({
-                            leads: String(rec.leads ?? ""),
-                            callsMade: String(r.callsMade ?? ""),
-                            callsAnswered: String(r.callsAnswered ?? ""),
-                            sals: String(rec.sals ?? ""),
-                            sqls: String(rec.sqls ?? ""),
-                            reunioesAgendadas: String(r.agendamentos ?? ""),
-                            reunioesEfetuadas: String(r.reunioesEfetuadas ?? r.reunioes ?? ""),
-                            documentacoesPedidas: String(rec.documentacoesPedidas ?? ""),
-                            documentacoesRecolhidas: String(rec.documentacoesRecolhidas ?? ""),
-                            documentacoesCompletas: String(rec.documentacoesCompletas ?? ""),
-                            acordosVerbais: String(rec.acordosVerbais ?? ""),
-                            conversoesFeitas: String(r.conversoesFeitas ?? r.conversions ?? ""),
-                            diasSalDocs: String(rec.diasSalDocs ?? ""),
-                            diasDocsSql: String(rec.diasDocsSql ?? ""),
-                            diasSqlEscritura: String(rec.diasSqlEscritura ?? ""),
-                            notes: r.notes ?? "",
-                          });
-                        }}
-                        className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 transition-opacity"
-                        title="Editar registo"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex justify-end gap-1">
+                        {canEditRecords && (
+                          <button
+                            onClick={() => {
+                              setEditingRecordId(r.id);
+                              const rec = r as unknown as Record<string, number | null | undefined>;
+                              setEditForm({
+                                leads: String(rec.leads ?? ""),
+                                callsMade: String(r.callsMade ?? ""),
+                                callsAnswered: String(r.callsAnswered ?? ""),
+                                sals: String(rec.sals ?? ""),
+                                sqls: String(rec.sqls ?? ""),
+                                reunioesAgendadas: String(r.agendamentos ?? ""),
+                                reunioesEfetuadas: String(r.reunioesEfetuadas ?? r.reunioes ?? ""),
+                                documentacoesPedidas: String(rec.documentacoesPedidas ?? ""),
+                                documentacoesRecolhidas: String(rec.documentacoesRecolhidas ?? ""),
+                                documentacoesCompletas: String(rec.documentacoesCompletas ?? ""),
+                                acordosVerbais: String(rec.acordosVerbais ?? ""),
+                                conversoesFeitas: String(r.conversoesFeitas ?? r.conversions ?? ""),
+                                diasSalDocs: String(rec.diasSalDocs ?? ""),
+                                diasDocsSql: String(rec.diasDocsSql ?? ""),
+                                diasSqlEscritura: String(rec.diasSqlEscritura ?? ""),
+                                notes: r.notes ?? "",
+                              });
+                            }}
+                            className="rounded p-1 text-muted-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600"
+                            title="Editar registo"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {canDeleteRecords && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`Apagar registo de ${r.commercial} (${new Date(r.date).toLocaleDateString("pt-PT")})?`)) {
+                                deleteRecord.mutate(r.id);
+                              }
+                            }}
+                            disabled={deleteRecord.isPending}
+                            className="rounded p-1 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 disabled:opacity-50"
+                            title="Apagar registo"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>

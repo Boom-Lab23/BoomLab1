@@ -278,6 +278,11 @@ export const dashboardsRouter = router({
   deleteRecord: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      // Permissao: GUEST_TEAM_MEMBER nao pode apagar. Restantes podem.
+      const role = (ctx.session?.user as Record<string, unknown> | undefined)?.role as string | undefined;
+      if (role === "GUEST_TEAM_MEMBER") {
+        throw new Error("Sem permissao para apagar registos.");
+      }
       return ctx.prisma.dashboardRecord.delete({
         where: { id: input.id },
       });

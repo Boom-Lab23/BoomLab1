@@ -4,6 +4,99 @@ import bcrypt from "bcryptjs";
 import { sendWelcomeEmail, sendPasswordResetEmail, generateTempPassword } from "../services/email";
 
 export const adminRouter = router({
+  // ============================================================
+  // GUEST_CLIENT — gerir a propria equipa (GUEST_TEAM_MEMBER)
+  // Cliente so pode criar/listar/apagar membros da sua equipa
+  // (mesmo assignedWorkspaceClientId).
+  // ============================================================
+  myTeamList: publicProcedure.query(async ({ ctx }) => {
+    const user = ctx.session?.user as Record<string, unknown> | undefined;
+    if (!user) throw new Error("Sem sessao.");
+    const role = user.role as string | undefined;
+    const myClientId = user.assignedWorkspaceClientId as string | undefined;
+    if (role !== "GUEST_CLIENT" || !myClientId) {
+      throw new Error("So clientes (GUEST_CLIENT) podem gerir equipa propria.");
+    }
+    return ctx.prisma.user.findMany({
+      where: {
+        role: "GUEST_TEAM_MEMBER",
+        assignedWorkspaceClientId: myClientId,
+        isActive: true,
+      },
+      select: { id: true, name: true, email: true, createdAt: true, isActive: true },
+      orderBy: { createdAt: "desc" },
+    });
+  }),
+
+  myTeamAdd: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      email: z.string().email(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const user = ctx.session?.user as Record<string, unknown> | undefined;
+      if (!user) throw new Error("Sem sessao.");
+      const role = user.role as string | undefined;
+      const myClientId = user.assignedWorkspaceClientId as string | undefined;
+      const myChannelId = user.assignedChannelId as string | undefined;
+      if (role !== "GUEST_CLIENT" || !myClientId) {
+        throw new Error("So clientes (GUEST_CLIENT) podem adicionar membros.");
+      }
+
+      const normalizedEmail = input.email.trim().toLowerCase();
+      const existing = await ctx.prisma.user.findFirst({
+        where: { email: { equals: normalizedEmail, mode: "insensitive" } },
+      });
+      if (existing) throw new Error("Email ja registado.");
+
+      const plainPassword = generateTempPassword();
+      const hashedPassword = await bcrypt.hash(plainPassword, 12);
+
+      const newUser = await ctx.prisma.user.create({
+        data: {
+          name: input.name,
+          email: normalizedEmail,
+          password: hashedPassword,
+          role: "GUEST_TEAM_MEMBER",
+          isActive: true,
+          assignedWorkspaceClientId: myClientId,
+          assignedChannelId: myChannelId ?? null,
+          mustChangePassword: true,
+        },
+      });
+
+      // Email de welcome ao novo membro
+      sendWelcomeEmail({
+        name: input.name,
+        email: normalizedEmail,
+        password: plainPassword,
+        role: "GUEST_TEAM_MEMBER",
+      }).catch((err) => console.error("[myTeamAdd] welcome email failed:", err));
+
+      return { id: newUser.id, name: newUser.name, email: newUser.email };
+    }),
+
+  myTeamRemove: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const user = ctx.session?.user as Record<string, unknown> | undefined;
+      if (!user) throw new Error("Sem sessao.");
+      const role = user.role as string | undefined;
+      const myClientId = user.assignedWorkspaceClientId as string | undefined;
+      if (role !== "GUEST_CLIENT" || !myClientId) {
+        throw new Error("So clientes (GUEST_CLIENT) podem remover membros.");
+      }
+      // Verifica que o user que vai ser removido pertence mesmo ao client do GUEST_CLIENT
+      const target = await ctx.prisma.user.findUnique({ where: { id: input.userId } });
+      if (!target || target.assignedWorkspaceClientId !== myClientId || target.role !== "GUEST_TEAM_MEMBER") {
+        throw new Error("Membro nao encontrado ou nao pertence a tua equipa.");
+      }
+      return ctx.prisma.user.update({
+        where: { id: input.userId },
+        data: { isActive: false },
+      });
+    }),
+
   // Limpa acessos restritos de users non-guest (migracao one-off para dados antigos)
   cleanupNonGuestAccesses: publicProcedure.mutation(async ({ ctx }) => {
     const result = await ctx.prisma.user.updateMany({

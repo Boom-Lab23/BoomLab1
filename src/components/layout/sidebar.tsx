@@ -28,6 +28,7 @@ const mainNav = [
   { href: "/referrals", label: "Referencias", icon: UserPlus },
   { href: "/boom-club", label: "Boom Club", icon: Rocket },
   { href: "/admin/users", label: "Admin", icon: ShieldCheck },
+  { href: "/admin/my-team", label: "A minha equipa", icon: UserPlus },
 ];
 
 const pillarNav = [
@@ -58,13 +59,16 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   // Assim o cliente ve os items mesmo que a sessao ainda nao tenha atualizado
   // o campo assignedWorkspaceClientId apos o admin atribuir.
   const guestAllowed = new Set(["/workspace", "/messaging", "/tracker", "/settings"]);
+  const clientOnlyAllowed = new Set(["/admin/my-team"]); // Visivel para GUEST_CLIENT
   const adminOnly = new Set(["/admin/users"]);
   const isAdminOrManager = role === "ADMIN" || role === "MANAGER";
+  const isClient = role === "GUEST_CLIENT";
 
   const visibleNav = isGuest
-    ? mainNav.filter((item) => guestAllowed.has(item.href))
+    ? mainNav.filter((item) => guestAllowed.has(item.href) || (isClient && clientOnlyAllowed.has(item.href)))
     : mainNav.filter((item) => {
         if (adminOnly.has(item.href) && !isAdminOrManager) return false;
+        if (clientOnlyAllowed.has(item.href)) return false; // So clientes veem
         return true;
       });
 

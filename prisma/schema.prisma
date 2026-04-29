@@ -642,6 +642,12 @@ model DashboardRecord {
   reunioes        Int?
   comparecimentos Int?
   showUpRate      Float?
+  // Reunioes com parceiros (separado de reunioes com clientes - reunioesEfetuadas/agendamentos)
+  reunioesParceirosAgendadas Int @default(0)
+  reunioesParceirosEfetuadas Int @default(0)
+  // Notas por lead (opcional): array de { name, email?, note? } para tracking detalhado
+  // Mantem compat com o contador agregado `leads` (continua a ser preenchido).
+  leadDetails     Json?
   // Extra
   notes           String?
   createdAt       DateTime        @default(now())
