@@ -278,62 +278,132 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
 
     // 3.5. Gerar contrato DOCX a partir do template da oferta (best-effort)
     let contractDocId: string | null = null;
-    try {
-      // Detecta paymentMode + outorgantes dos custom fields do GHL
-      const formaPagamento = (customFieldsByKey.forma_pagamento ?? customFieldsFlat["Forma de Pagamento"] ?? customFieldsFlat["forma_pagamento"] ?? "").toLowerCase();
-      const paymentMode = formaPagamento.includes("prest") ? "PRESTACOES" : "AVISTA";
 
-      const gerente2Name = customFieldsByKey.gerente_2_nome
-        ?? customFieldsFlat["Gerente 2"]
-        ?? customFieldsFlat["gerente_2_nome"]
-        ?? customFieldsFlat["Segundo Outorgante"]
-        ?? "";
+    // ============================================================
+    // Lookup helper que tolera variacoes de fieldKey (com/sem
+    // acentos, com/sem snake_case prefix). O GHL gera fieldKeys
+    // automaticamente do label (ex: "Nif (Número...)" -> "nif_nmero...").
+    // ============================================================
+    const lookupCustom = (...candidates: string[]): string => {
+      for (const cand of candidates) {
+        const norm = cand.toLowerCase().replace(/[^a-z0-9]/g, "");
+        // 1) match exacto por fieldKey
+        if (customFieldsByKey[cand]) return String(customFieldsByKey[cand]);
+        // 2) match por fieldKey normalizado
+        for (const [k, v] of Object.entries(customFieldsByKey)) {
+          if (k.toLowerCase().replace(/[^a-z0-9]/g, "") === norm && v) return String(v);
+        }
+        // 3) match por nome de campo (case-insensitive)
+        for (const [k, v] of Object.entries(customFieldsFlat)) {
+          if (k.toLowerCase().replace(/[^a-z0-9]/g, "") === norm && v) return String(v);
+        }
+      }
+      return "";
+    };
+
+    // ============================================================
+    // Calcula prestacoes (1 a 4) com valor + data
+    // Hibrido: 1a data = fecho do deal; 2a-4a = +30/+60/+90 dias
+    // (override possivel via custom field prestacao_N_data).
+    // ============================================================
+    type PrestacaoInfo = { numero: number; valor: number; data: Date; dataStr: string };
+    const dealCloseDate = new Date();
+    const calcPrestacaoData = (numero: number): Date => {
+      const overrideStr = lookupCustom(`prestacao_${numero}_data`, `prestacao${numero}data`, `${numero}_prestacao_data`);
+      if (overrideStr) {
+        const d = new Date(overrideStr);
+        if (!Number.isNaN(d.getTime())) return d;
+      }
+      const offsetDays = (numero - 1) * 30;
+      const d = new Date(dealCloseDate);
+      d.setDate(d.getDate() + offsetDays);
+      return d;
+    };
+    const fmtDate2 = (d: Date) => d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const prestacoes: PrestacaoInfo[] = [];
+    for (let i = 1; i <= 4; i++) {
+      const valorStr = lookupCustom(`prestacao_${i}_valor`, `prestacao${i}valor`, `${i}_prestacao`, `${i}_prestacao_valor`);
+      const valor = Number(valorStr.replace(/[^\d.,-]/g, "").replace(",", "."));
+      if (!valor || valor <= 0) continue;
+      const data = calcPrestacaoData(i);
+      prestacoes.push({ numero: i, valor, data, dataStr: fmtDate2(data) });
+    }
+
+    // Detecta paymentMode + outorgantes dos custom fields do GHL
+    try {
+      const formaPagamento = lookupCustom("forma_pagamento", "formapagamento", "forma_de_pagamento").toLowerCase();
+      // Se ha pelo menos 1 prestacao preenchida E forma_pagamento contem 'prest', e PRESTACOES.
+      // Senao, AVISTA (mesmo se forma_pagamento estiver vazio).
+      const paymentMode = (formaPagamento.includes("prest") && prestacoes.length > 0) ? "PRESTACOES" : "AVISTA";
+
+      const gerente2Name = lookupCustom("gerente_2_nome", "gerente2nome", "segundo_outorgante", "outorgante_2");
       const outorgantes = gerente2Name.trim().length > 0 ? 2 : 1;
 
       const template = await prisma.contractTemplate.findUnique({
         where: { offer_paymentMode_outorgantes: { offer, paymentMode, outorgantes } },
       });
       if (template && template.isActive) {
-        // Datas calculadas
-        const now = new Date();
-        const dataInicioObj = now;
-        const dataFimObj = new Date(now);
-        dataFimObj.setMonth(dataFimObj.getMonth() + 4); // 4 meses por default
-
         const fmtDate = (d: Date) => d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+        // Datas projecto (custom field ou default)
+        const dataInicioStr = lookupCustom("data_inicio", "data_inicio_projecto", "datainicio", "inicio_projecto");
+        const dataFimStr = lookupCustom("data_fim", "data_fim_projecto", "datafim", "fim_projecto");
+        const dataInicioObj = dataInicioStr ? new Date(dataInicioStr) : dealCloseDate;
+        const dataFimObj = dataFimStr ? new Date(dataFimStr) : (() => {
+          const d = new Date(dealCloseDate);
+          d.setMonth(d.getMonth() + 4);
+          return d;
+        })();
+
+        // Valor total (avista) ou soma das prestacoes
+        const valorTotal = paymentMode === "PRESTACOES"
+          ? prestacoes.reduce((s, p) => s + p.valor, 0)
+          : Number(payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? 0);
 
         // Monta as variaveis standard esperadas pelos templates
         const variables: Record<string, string> = {
           // Basicos
           nome: contact.name,
-          nome_empresa: contact.companyName || contact.name,
-          sede_empresa: [enrichedFromApi.address1, enrichedFromApi.postalCode, enrichedFromApi.city].filter(Boolean).join(", "),
-          nif_empresa: customFieldsByKey.nif_empresa ?? customFieldsByKey.NIF ?? customFieldsFlat.NIF ?? customFieldsFlat["NIF Empresa"] ?? "",
+          nome_empresa: lookupCustom("nome_empresa") || contact.companyName || contact.name,
+          sede_empresa: lookupCustom("sede_empresa", "sede_da_empresa", "sede") || [enrichedFromApi.address1, enrichedFromApi.postalCode, enrichedFromApi.city].filter(Boolean).join(", "),
+          nif_empresa: lookupCustom("nif_empresa", "nif", "nif_numero_de_identificacao_fiscal", "numero_identificacao_fiscal"),
           email: contact.email ?? "",
           telefone: contact.phone ?? "",
           // Gerente 1
-          gerente_1_nome: customFieldsByKey.gerente_1_nome ?? customFieldsFlat["Gerente 1"] ?? contact.name,
-          gerente_1_cc: customFieldsByKey.gerente_1_cc ?? customFieldsFlat["CC Gerente 1"] ?? customFieldsFlat["CC"] ?? "",
-          gerente_1_cc_validade: customFieldsByKey.gerente_1_cc_validade ?? customFieldsFlat["Validade CC Gerente 1"] ?? "",
+          gerente_1_nome: lookupCustom("gerente_1_nome", "gerente1nome", "primeiro_outorgante", "outorgante_1_nome") || contact.name,
+          gerente_1_cc: lookupCustom("gerente_1_cc", "gerente1cc", "cc_gerente_1", "outorgante_1_cc"),
+          gerente_1_cc_validade: lookupCustom("gerente_1_cc_validade", "validade_cc_gerente_1", "outorgante_1_cc_validade"),
           // Gerente 2 (so usado em templates com 2 outorg.)
-          gerente_2_nome: customFieldsByKey.gerente_2_nome ?? customFieldsFlat["Gerente 2"] ?? "",
-          gerente_2_cc: customFieldsByKey.gerente_2_cc ?? customFieldsFlat["CC Gerente 2"] ?? "",
-          gerente_2_cc_validade: customFieldsByKey.gerente_2_cc_validade ?? customFieldsFlat["Validade CC Gerente 2"] ?? "",
+          gerente_2_nome: lookupCustom("gerente_2_nome", "gerente2nome", "segundo_outorgante", "outorgante_2_nome"),
+          gerente_2_cc: lookupCustom("gerente_2_cc", "gerente2cc", "cc_gerente_2", "outorgante_2_cc"),
+          gerente_2_cc_validade: lookupCustom("gerente_2_cc_validade", "validade_cc_gerente_2", "outorgante_2_cc_validade"),
           // Datas
           data_inicio: fmtDate(dataInicioObj),
           data_fim: fmtDate(dataFimObj),
-          data_assinatura: fmtDate(now),
-          data_hoje: fmtDate(now),
+          data_assinatura: fmtDate(dealCloseDate),
+          data_hoje: fmtDate(dealCloseDate),
           // Valores
-          primeira_prestacao: customFieldsByKey.primeira_prestacao ?? customFieldsFlat["Primeira Prestacao"] ?? String(payload.monetaryValue ?? ""),
-          restantes_prestacoes: customFieldsByKey.restantes_prestacoes ?? customFieldsFlat["Restantes Prestacoes"] ?? "",
-          valor: String(payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? ""),
+          valor: String(valorTotal),
+          valor_total: String(valorTotal),
+          // Prestacoes 1-4 (vazias se nao aplicaveis)
+          prestacao_1_valor: prestacoes[0] ? String(prestacoes[0].valor) : "",
+          prestacao_1_data: prestacoes[0]?.dataStr ?? "",
+          prestacao_2_valor: prestacoes[1] ? String(prestacoes[1].valor) : "",
+          prestacao_2_data: prestacoes[1]?.dataStr ?? "",
+          prestacao_3_valor: prestacoes[2] ? String(prestacoes[2].valor) : "",
+          prestacao_3_data: prestacoes[2]?.dataStr ?? "",
+          prestacao_4_valor: prestacoes[3] ? String(prestacoes[3].valor) : "",
+          prestacao_4_data: prestacoes[3]?.dataStr ?? "",
+          numero_prestacoes: String(prestacoes.length),
+          forma_pagamento: paymentMode,
+          // Legacy fallbacks (templates antigos)
+          primeira_prestacao: prestacoes[0] ? String(prestacoes[0].valor) : String(valorTotal),
+          restantes_prestacoes: prestacoes.slice(1).map((p) => `${p.valor}€ a ${p.dataStr}`).join("; "),
           oferta: offer,
-          // Legacy fallbacks
           empresa: contact.companyName ?? "",
-          morada: enrichedFromApi.address1 ?? "",
-          cidade: enrichedFromApi.city ?? "",
-          codigo_postal: enrichedFromApi.postalCode ?? "",
+          morada: lookupCustom("morada", "morada_faturacao", "morada_da_empresa") || enrichedFromApi.address1 || "",
+          cidade: lookupCustom("cidade") || enrichedFromApi.city || "",
+          codigo_postal: lookupCustom("codigo_postal", "cdigo_postal_da_empresa", "cp") || enrichedFromApi.postalCode || "",
           // Adiciona todos os custom fields do GHL (por name e por key) - para templates custom
           ...customFieldsFlat,
           ...customFieldsByKey,
@@ -364,53 +434,98 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
       console.error("[ghl-intake] contract generation failed (continuing):", err);
     }
 
-    // 3.6. Criar Client + Invoice draft no Invoice Ninja (best-effort)
+    // 3.6. Criar Client + Invoice draft(s) no Invoice Ninja (best-effort)
+    // Se AVISTA: 1 fatura com valor total. Se PRESTACOES: N faturas (uma
+    // por prestacao) com due_date = data da prestacao. Todas em rascunho.
     let invoiceId: string | null = null;
     let invoiceNumber: string | null = null;
     try {
       if (process.env.INVOICE_NINJA_URL && process.env.INVOICE_NINJA_TOKEN) {
-        const amount = payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? 0;
-        const inResult = await createInvoiceForClient({
-          client: {
-            name: contact.companyName || contact.name,
+        // Determina formaPagamento + lista de prestacoes (calculadas no bloco anterior)
+        const formaPagamento = lookupCustom("forma_pagamento", "formapagamento", "forma_de_pagamento").toLowerCase();
+        const isPrestacoes = formaPagamento.includes("prest") && prestacoes.length > 0;
+
+        const clientInput = {
+          name: contact.companyName || contact.name,
+          email: contact.email,
+          contacts: contact.email ? [{
+            first_name: contact.name.split(" ")[0],
+            last_name: contact.name.split(" ").slice(1).join(" ") || "-",
             email: contact.email,
-            contacts: contact.email ? [{
-              first_name: contact.name.split(" ")[0],
-              last_name: contact.name.split(" ").slice(1).join(" ") || "-",
-              email: contact.email,
-              phone: contact.phone ?? undefined,
-            }] : undefined,
             phone: contact.phone ?? undefined,
-            address1: enrichedFromApi.address1,
-            city: enrichedFromApi.city,
-            postal_code: enrichedFromApi.postalCode,
-            vat_number: customFieldsByKey.nif || customFieldsByKey.NIF || customFieldsFlat.NIF,
-            id_number: customFieldsByKey.cc || customFieldsByKey.CC || customFieldsFlat.CC,
-            private_notes: `Criado automaticamente via GHL (deal ${dealId}) - oferta ${offer}`,
-          },
-          lines: [{
-            notes: `Servicos BoomLab - ${offer}`,
-            cost: Number(amount) || 0,
-            quantity: 1,
-            tax_name1: "IVA",
-            tax_rate1: 23,
-          }],
-          privateNotes: `BoomLab - criado via automacao GHL. Cliente ID BoomLab: ${result.client.id}`,
-        });
-        invoiceId = inResult.invoiceId;
-        invoiceNumber = inResult.invoiceNumber;
-        // Regista como Document
-        const invUrl = `${process.env.INVOICE_NINJA_URL}/invoices/${inResult.invoiceId}/edit`;
-        await prisma.document.create({
-          data: {
-            title: `Fatura ${inResult.invoiceNumber} - ${contact.name}`,
-            pillar: "faturas",
-            source: "invoice-ninja",
-            externalId: inResult.invoiceId,
-            externalUrl: invUrl,
-            clientId: result.client.id,
-          },
-        });
+          }] : undefined,
+          phone: contact.phone ?? undefined,
+          address1: enrichedFromApi.address1,
+          city: enrichedFromApi.city,
+          postal_code: enrichedFromApi.postalCode,
+          vat_number: lookupCustom("nif_empresa", "nif", "nif_numero_de_identificacao_fiscal") || undefined,
+          id_number: lookupCustom("cc", "gerente_1_cc") || undefined,
+          private_notes: `Criado automaticamente via GHL (deal ${dealId}) - oferta ${offer}`,
+        };
+
+        const createdInvoices: Array<{ id: string; number: string; url: string }> = [];
+
+        if (isPrestacoes) {
+          // Cria uma fatura por prestacao (em rascunho)
+          for (const p of prestacoes) {
+            const dueDateStr = p.data.toISOString().slice(0, 10); // YYYY-MM-DD
+            const inResult = await createInvoiceForClient({
+              client: clientInput,
+              dueDate: dueDateStr,
+              lines: [{
+                notes: `Servicos BoomLab - ${offer} (prestacao ${p.numero}/${prestacoes.length})`,
+                cost: p.valor,
+                quantity: 1,
+                tax_name1: "IVA",
+                tax_rate1: 23,
+              }],
+              privateNotes: `BoomLab - prestacao ${p.numero} de ${prestacoes.length}. Cliente: ${result.client.id}`,
+            });
+            const url = `${process.env.INVOICE_NINJA_URL}/invoices/${inResult.invoiceId}/edit`;
+            createdInvoices.push({ id: inResult.invoiceId, number: inResult.invoiceNumber, url });
+            await prisma.document.create({
+              data: {
+                title: `Fatura ${inResult.invoiceNumber} - Prestacao ${p.numero}/${prestacoes.length} - ${contact.name}`,
+                pillar: "faturas",
+                source: "invoice-ninja",
+                externalId: inResult.invoiceId,
+                externalUrl: url,
+                clientId: result.client.id,
+              },
+            });
+          }
+          if (createdInvoices.length > 0) {
+            invoiceId = createdInvoices[0].id;
+            invoiceNumber = createdInvoices[0].number;
+          }
+        } else {
+          // AVISTA: 1 fatura com valor total
+          const amount = payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? 0;
+          const inResult = await createInvoiceForClient({
+            client: clientInput,
+            lines: [{
+              notes: `Servicos BoomLab - ${offer}`,
+              cost: Number(amount) || 0,
+              quantity: 1,
+              tax_name1: "IVA",
+              tax_rate1: 23,
+            }],
+            privateNotes: `BoomLab - pagamento avista. Cliente: ${result.client.id}`,
+          });
+          invoiceId = inResult.invoiceId;
+          invoiceNumber = inResult.invoiceNumber;
+          const invUrl = `${process.env.INVOICE_NINJA_URL}/invoices/${inResult.invoiceId}/edit`;
+          await prisma.document.create({
+            data: {
+              title: `Fatura ${inResult.invoiceNumber} - ${contact.name}`,
+              pillar: "faturas",
+              source: "invoice-ninja",
+              externalId: inResult.invoiceId,
+              externalUrl: invUrl,
+              clientId: result.client.id,
+            },
+          });
+        }
       }
     } catch (err) {
       console.error("[ghl-intake] Invoice Ninja integration failed (continuing):", err);
