@@ -46,12 +46,21 @@ export async function listTemplates(): Promise<string[]> {
 
 /**
  * Gera contrato DOCX a partir de template + variaveis.
- * Exemplo no template: "O cliente {nome_fiscal}, com NIF {nif}..."
- * variables = { nome_fiscal: "BoomLab Lda", nif: "515..." }
+ *
+ * Suporta:
+ *  - placeholders simples: "O cliente {nome_fiscal}, com NIF {nif}..."
+ *  - loops Docxtemplater: "{#prestacoes}{numero}.a: {valor}€{/prestacoes}"
+ *    onde 'prestacoes' e um array de objectos {numero, valor, ...}
  */
+type ContractVarPrimitive = string | number | boolean | null | undefined;
+type ContractVarValue =
+  | ContractVarPrimitive
+  | ContractVarPrimitive[]
+  | Record<string, ContractVarPrimitive>[];
+
 export async function generateContract(
   templateFilename: string,
-  variables: Record<string, string | number | null | undefined>
+  variables: Record<string, ContractVarValue>
 ): Promise<Buffer> {
   const templateBuffer = await readTemplate(templateFilename);
   const zip = new PizZip(templateBuffer);
@@ -61,10 +70,32 @@ export async function generateContract(
     nullGetter: () => "", // se variavel nao existir, usa vazio em vez de erro
   });
 
-  // Normaliza valores para strings
-  const data: Record<string, string> = {};
+  // Normaliza valores: arrays e objectos passam tal-qual (para loops);
+  // primitivos viram string para evitar render errors com numeros.
+  const data: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(variables)) {
-    data[k] = v == null ? "" : String(v);
+    if (v == null) {
+      data[k] = "";
+    } else if (Array.isArray(v)) {
+      // Array de primitivos ou de objectos -> Docxtemplater itera com {#k}...{/k}
+      data[k] = v.map((item) => {
+        if (item == null) return "";
+        if (typeof item === "object") {
+          // normaliza valores do objecto para string
+          const out: Record<string, string> = {};
+          for (const [ik, iv] of Object.entries(item as Record<string, ContractVarPrimitive>)) {
+            out[ik] = iv == null ? "" : String(iv);
+          }
+          return out;
+        }
+        return String(item);
+      });
+    } else if (typeof v === "object") {
+      // Objecto plano (raro) - passa como-is
+      data[k] = v;
+    } else {
+      data[k] = String(v);
+    }
   }
 
   doc.render(data);

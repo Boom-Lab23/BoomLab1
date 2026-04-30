@@ -466,10 +466,28 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
           payload.monetaryValue = valorContratoNum;
         }
 
+        // Helpers para apresentacao no contrato (pt-PT, formato monetario)
+        const fmtEur = (n: number) => `${n.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}€`;
+        const numeroExtenso = (n: number): string => {
+          // 1.a, 2.a, 3.a, 4.a (forma feminina porque "prestacao" e feminino)
+          return `${n}.ª`;
+        };
+
+        // Array de prestacoes para Docxtemplater iterar com {#prestacoes}...{/prestacoes}
+        // Cada item tem propriedades acessiveis no template: {numero}, {numero_extenso},
+        // {valor}, {valor_eur}, {data}
+        const prestacoesArray = prestacoes.map((p) => ({
+          numero: p.numero,
+          numero_extenso: numeroExtenso(p.numero),
+          valor: p.valor,
+          valor_eur: fmtEur(p.valor),
+          data: p.dataStr,
+        }));
+
         // Monta as variaveis standard esperadas pelos templates
         // GHL fieldKeys reais: nome_comercial_de_empresa, nif_nmero_de_identificao_fiscal,
         // sede_da_empresa, cdigo_postal_da_empresa, morada
-        const variables: Record<string, string> = {
+        const variables: Record<string, unknown> = {
           // Basicos
           nome: contact.name,
           nome_empresa: lookupCustom("nome_comercial_de_empresa", "Nome Comercial de Empresa", "nome_empresa", "nome_da_empresa") || contact.companyName || contact.name,
@@ -494,7 +512,10 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
           // Valores
           valor: String(valorTotal),
           valor_total: String(valorTotal),
-          // Prestacoes 1-4 (vazias se nao aplicaveis)
+          valor_total_eur: fmtEur(valorTotal),
+          // Array para loop Docxtemplater: {#prestacoes}{numero_extenso} {valor_eur} - {data}{/prestacoes}
+          prestacoes: prestacoesArray,
+          // Prestacoes 1-4 (vazias se nao aplicaveis) - mantidos para retrocompatibilidade
           prestacao_1_valor: prestacoes[0] ? String(prestacoes[0].valor) : "",
           prestacao_1_data: prestacoes[0]?.dataStr ?? "",
           prestacao_2_valor: prestacoes[1] ? String(prestacoes[1].valor) : "",
@@ -517,7 +538,10 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
           ...customFieldsFlat,
           ...customFieldsByKey,
         };
-        const docxBuffer = await generateContract(template.filename, variables);
+        // Cast: 'variables' contem mistura de strings, arrays de objectos
+        // (prestacoes) e spread de customFields. generateContract aceita esses
+        // tipos atraves do tipo ContractVarValue interno.
+        const docxBuffer = await generateContract(template.filename, variables as Parameters<typeof generateContract>[1]);
         // Guarda ficheiro
         await fs.mkdir(DOCUMENTS_DIR, { recursive: true });
         const safeClientName = contact.name.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 40);
@@ -575,7 +599,14 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
           private_notes: `Criado automaticamente via GHL (deal ${dealId}) - oferta ${offer}`,
         };
 
-        const createdInvoices: Array<{ id: string; number: string; url: string }> = [];
+        const createdInvoices: Array<{
+          id: string;
+          number: string;
+          url: string;
+          amount: number;
+          dueDate?: string;
+          prestacaoLabel?: string;
+        }> = [];
 
         if (isPrestacoes) {
           // Cria uma fatura por prestacao (em rascunho)
@@ -594,7 +625,14 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
               privateNotes: `BoomLab - prestacao ${p.numero} de ${prestacoes.length}. Cliente: ${result.client.id}`,
             });
             const url = `${process.env.INVOICE_NINJA_URL}/invoices/${inResult.invoiceId}/edit`;
-            createdInvoices.push({ id: inResult.invoiceId, number: inResult.invoiceNumber, url });
+            createdInvoices.push({
+              id: inResult.invoiceId,
+              number: inResult.invoiceNumber,
+              url,
+              amount: p.valor,
+              dueDate: p.dataStr,
+              prestacaoLabel: `${p.numero} de ${prestacoes.length}`,
+            });
             await prisma.document.create({
               data: {
                 title: `Fatura ${inResult.invoiceNumber} - Prestacao ${p.numero}/${prestacoes.length} - ${contact.name}`,
@@ -612,12 +650,12 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
           }
         } else {
           // AVISTA: 1 fatura com valor total
-          const amount = payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? 0;
+          const amount = Number(payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? 0) || 0;
           const inResult = await createInvoiceForClient({
             client: clientInput,
             lines: [{
               notes: `Servicos BoomLab - ${offer}`,
-              cost: Number(amount) || 0,
+              cost: amount,
               quantity: 1,
               tax_name1: "IVA",
               tax_rate1: 0,
@@ -627,6 +665,12 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
           invoiceId = inResult.invoiceId;
           invoiceNumber = inResult.invoiceNumber;
           const invUrl = `${process.env.INVOICE_NINJA_URL}/invoices/${inResult.invoiceId}/edit`;
+          createdInvoices.push({
+            id: inResult.invoiceId,
+            number: inResult.invoiceNumber,
+            url: invUrl,
+            amount,
+          });
           await prisma.document.create({
             data: {
               title: `Fatura ${inResult.invoiceNumber} - ${contact.name}`,
@@ -637,6 +681,27 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
               clientId: result.client.id,
             },
           });
+        }
+
+        // Notifica contabilidade@boomlab.agency das faturas criadas
+        if (createdInvoices.length > 0) {
+          try {
+            const { sendAccountingInvoiceNotification } = await import("./email");
+            await sendAccountingInvoiceNotification({
+              clientName: contact.companyName || contact.name,
+              clientEmail: contact.email,
+              offer,
+              invoices: createdInvoices.map((i) => ({
+                invoiceNumber: i.number,
+                amount: i.amount,
+                dueDate: i.dueDate,
+                prestacaoLabel: i.prestacaoLabel,
+                invoiceUrl: i.url,
+              })),
+            });
+          } catch (err) {
+            console.error("[ghl-intake] Failed to notify contabilidade:", err);
+          }
         }
       }
     } catch (err) {
@@ -680,6 +745,18 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
           ? `${process.env.INVOICE_NINJA_URL}/invoices/${invoiceId}/edit`
           : undefined;
 
+        // Reunioes agendadas no GHL (campos TEXT - texto livre, ex: "12/05/2026 as 14:30")
+        const reuniaoPreArranque = lookupCustom(
+          "data_e_hora_da_reunio_de_prarranque",
+          "Data e hora da reunião de pré-arranque",
+          "reuniao_pre_arranque", "reuniao_prearranque"
+        );
+        const reuniaoLevantamento = lookupCustom(
+          "data_e_hora_da_reunio_de_levantamento",
+          "Data e hora da reunião de Levantamento",
+          "reuniao_levantamento"
+        );
+
         await sendClientOnboardingEmail({
           to: contact.email,
           clientName: contact.companyName || contact.name,
@@ -688,7 +765,8 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
           contractFilename,
           invoicePdfBuffer,
           invoiceFilename,
-          invoiceUrl: invoicePdfBuffer ? undefined : invoiceUrl, // se tem PDF, nao precisa link
+          reuniaoPreArranque: reuniaoPreArranque || undefined,
+          reuniaoLevantamento: reuniaoLevantamento || undefined,
           cc: "guilherme@boomlab.agency", // CC para a equipa receber copia
         });
       } catch (err) {
