@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+// bcrypt removido — user GUEST_CLIENT ja nao e criado automaticamente
 import fs from "fs/promises";
 import path from "path";
-import { sendWelcomeEmail, generateTempPassword } from "./email";
+import { sendClientOnboardingEmail } from "./email";
 import { getContact, listCustomFields, flattenCustomFields, flattenCustomFieldsByKey } from "./ghl-api";
 import { generateContract } from "./contract-generator";
-import { createInvoiceForClient } from "./invoice-ninja";
+import { createInvoiceForClient, fetchInvoicePdf } from "./invoice-ninja";
 
 // Pasta onde guardamos documentos gerados (contratos, etc.)
 const DOCUMENTS_DIR = process.env.GENERATED_DOCS_DIR ?? "/tmp/boomlab-generated-docs";
@@ -253,32 +253,13 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
             } as Record<string, unknown>,
           });
 
-      // 2. User GUEST_CLIENT (se houver email)
-      let userId: string | null = null;
-      let tempPassword: string | undefined;
-      if (contact.email) {
-        const existingUser = await tx.user.findFirst({
-          where: { email: { equals: contact.email, mode: "insensitive" } },
-        });
-        if (existingUser) {
-          userId = existingUser.id;
-        } else {
-          tempPassword = generateTempPassword();
-          const hashed = await bcrypt.hash(tempPassword, 12);
-          const user = await tx.user.create({
-            data: {
-              name: contact.name,
-              email: contact.email,
-              password: hashed,
-              role: "GUEST_CLIENT",
-              isActive: true,
-              mustChangePassword: true,
-              assignedWorkspaceClientId: client.id,
-            },
-          });
-          userId = user.id;
-        }
-      }
+      // 2. User GUEST_CLIENT — DESACTIVADO
+      // Por decisao do produto: o cliente NAO recebe acesso a plataforma
+      // automaticamente quando fecha um deal. Recebe apenas email com
+      // contrato + fatura. Se a equipa quiser conceder acesso depois, faz
+      // manualmente em /admin/users.
+      const userId: string | null = null;
+      const tempPassword: string | undefined = undefined;
 
       // 3. Canal de mensagens (tipo CLIENT) para a equipa BoomLab + este cliente
       let channelId: string | null = null;
@@ -327,6 +308,8 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
 
     // 3.5. Gerar contrato DOCX a partir do template da oferta (best-effort)
     let contractDocId: string | null = null;
+    let contractDocxBuffer: Buffer | undefined;
+    let contractFilename: string | undefined;
 
     // ============================================================
     // Lookup helper que tolera variacoes de fieldKey (com/sem
@@ -465,6 +448,9 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
         const filePath = path.join(DOCUMENTS_DIR, result.client.id, filename);
         await fs.mkdir(path.dirname(filePath), { recursive: true });
         await fs.writeFile(filePath, docxBuffer);
+        // Mantem em memoria para anexar ao onboarding email
+        contractDocxBuffer = docxBuffer;
+        contractFilename = `Contrato BoomLab - ${contact.name}.docx`;
         // Regista Document
         const doc = await prisma.document.create({
           data: {
@@ -597,17 +583,39 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
       },
     });
 
-    // 5. Email de welcome se criamos user novo com password temp
-    if (result.tempPassword && result.userId && contact.email) {
+    // 5. Email de onboarding ao cliente (sem login da plataforma)
+    // Envia welcome + contrato em anexo + fatura em anexo (ou link).
+    // Cliente NAO recebe credenciais - so a equipa BoomLab tem acesso.
+    if (contact.email) {
       try {
-        await sendWelcomeEmail({
+        // Tenta puxar PDF da 1a fatura criada
+        let invoicePdfBuffer: Buffer | undefined;
+        let invoiceFilename: string | undefined;
+        if (invoiceId && process.env.INVOICE_NINJA_URL) {
+          try {
+            invoicePdfBuffer = await fetchInvoicePdf(invoiceId);
+            invoiceFilename = `Fatura ${invoiceNumber ?? invoiceId} - ${contact.name}.pdf`;
+          } catch (err) {
+            console.warn("[ghl-intake] Falhou fetch invoice PDF, vai mandar link:", err);
+          }
+        }
+        const invoiceUrl = invoiceId
+          ? `${process.env.INVOICE_NINJA_URL}/invoices/${invoiceId}/edit`
+          : undefined;
+
+        await sendClientOnboardingEmail({
           to: contact.email,
-          name: contact.name,
-          tempPassword: result.tempPassword,
-          loginUrl: "https://comunicacao.boomlab.cloud/login",
+          clientName: contact.companyName || contact.name,
+          contactName: contact.name,
+          contractDocxBuffer,
+          contractFilename,
+          invoicePdfBuffer,
+          invoiceFilename,
+          invoiceUrl: invoicePdfBuffer ? undefined : invoiceUrl, // se tem PDF, nao precisa link
+          cc: "guilherme@boomlab.agency", // CC para a equipa receber copia
         });
       } catch (err) {
-        console.error("[ghl-intake] Failed to send welcome email:", err);
+        console.error("[ghl-intake] Failed to send onboarding email:", err);
       }
     }
 

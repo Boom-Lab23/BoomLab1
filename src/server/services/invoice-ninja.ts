@@ -155,3 +155,24 @@ export async function createInvoiceForClient(args: {
   });
   return { clientId: client.id, invoiceId: invoice.id, invoiceNumber: invoice.number };
 }
+
+// ===== Download invoice PDF =====
+// Endpoint Invoice Ninja v5: GET /invoice/{invitation_key}/download
+// ou alternativa: GET /api/v1/invoices/{id}/download (com X-API-TOKEN)
+export async function fetchInvoicePdf(invoiceId: string): Promise<Buffer> {
+  const { url, token } = getAuth();
+  // Endpoint nativo da API que retorna PDF binario
+  const res = await fetch(`${url}/api/v1/invoices/${invoiceId}/download`, {
+    headers: {
+      "X-API-TOKEN": token,
+      "X-Requested-With": "XMLHttpRequest",
+      Accept: "application/pdf",
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`InvoiceNinja PDF download ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const arr = await res.arrayBuffer();
+  return Buffer.from(arr);
+}
