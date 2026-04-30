@@ -213,9 +213,6 @@ export default function AdminUsersPage() {
               key={user.id}
               user={user}
               onChangeRole={(role) => updateUser.mutate({ id: user.id, data: { role: role as "ADMIN" } })}
-              onChangePersonality={(p) =>
-                updateUser.mutate({ id: user.id, data: { personality: p } })
-              }
               onDeactivate={() => deactivateUser.mutate(user.id)}
               onResetPw={() => setShowResetPw(user.id)}
               onResendEmail={() => resendWelcome.mutate({ userId: user.id })}
@@ -250,6 +247,9 @@ export default function AdminUsersPage() {
               key={user.id}
               user={user}
               onChangeRole={(role) => updateUser.mutate({ id: user.id, data: { role: role as "ADMIN" } })}
+              onChangePersonality={(p) =>
+                updateUser.mutate({ id: user.id, data: { personality: p } })
+              }
               onDeactivate={() => deactivateUser.mutate(user.id)}
               onResetPw={() => setShowResetPw(user.id)}
               onResendEmail={() => resendWelcome.mutate({ userId: user.id })}
@@ -781,10 +781,10 @@ function UserRow({ user, onChangeRole, onChangePersonality, onDeactivate, onRese
             <option value="GUEST_CLIENT">Cliente</option>
             <option value="GUEST_TEAM_MEMBER">Equipa Cliente</option>
           </select>
-          {/* Personalidade do comercial (so para non-guests). Usado pelo
-              analisador de chamadas para adaptar dicas e tom do feedback.
-              Sempre visivel (mobile + desktop). */}
-          {!isGuest && onChangePersonality && (
+          {/* Personalidade do comercial — APENAS para GUEST_TEAM_MEMBER
+              (equipa comercial do cliente, cujas chamadas sao analisadas
+              pela IA). Usado para adaptar dicas e tom do feedback. */}
+          {user.role === "GUEST_TEAM_MEMBER" && onChangePersonality && (
             <select
               value={personality}
               onChange={(e) => {
