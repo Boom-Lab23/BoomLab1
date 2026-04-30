@@ -18,14 +18,20 @@ export type GhlWebhookPayload = {
   type?: string; // ex: "OpportunityStageChange", "OpportunityStatusChange"
   locationId?: string;
   opportunityId?: string;
-  id?: string; // Deal id em alguns formatos
+  id?: string; // Deal id em alguns formatos (TOP LEVEL no webhook GHL)
   contactId?: string;
+  contact_id?: string; // Formato GHL nativo (snake_case)
   pipelineId?: string;
+  pipeline_id?: string; // Formato GHL nativo
   pipelineStageId?: string;
+  pipeline_stage_id?: string;
   stageId?: string;
   stageName?: string;
+  pipeline_stage_name?: string;
+  pipeline_name?: string;
   status?: string; // "won" | "lost" | "open" | "abandoned"
   monetaryValue?: number;
+  lead_value?: number; // Formato GHL nativo
   contact?: {
     id?: string;
     name?: string;
@@ -40,6 +46,10 @@ export type GhlWebhookPayload = {
     name?: string;
     monetaryValue?: number;
   };
+  workflow?: {
+    id?: string;
+    name?: string;
+  };
   // Alguns workflows enviam os campos no topo
   name?: string;
   email?: string;
@@ -48,6 +58,10 @@ export type GhlWebhookPayload = {
   full_name?: string;
   first_name?: string;
   last_name?: string;
+  tags?: string;
+  source?: string;
+  // Custom Data passado pelo workflow (chaves manuais)
+  customData?: Record<string, unknown>;
 };
 
 type ExtractedContact = {
@@ -78,16 +92,22 @@ function extractContact(payload: GhlWebhookPayload): ExtractedContact {
 function isDealWon(payload: GhlWebhookPayload): boolean {
   const status = (payload.status ?? "").toLowerCase();
   if (status === "won") return true;
-  const stage = (payload.stageName ?? "").toLowerCase();
+  const stage = (payload.stageName ?? payload.pipeline_stage_name ?? "").toLowerCase();
   // Apanha: "fechado", "fechada", "fechado (cash collected)", "won", "closed", "concluido", etc.
-  if (
-    stage.includes("fechad") ||
-    stage.includes("won") ||
-    stage.includes("closed") ||
-    stage.includes("conclu") ||
-    stage.includes("cash collected") ||
-    stage.includes("ganho")
-  ) return true;
+  const stageMatch = (s: string) =>
+    s.includes("fechad") ||
+    s.includes("won") ||
+    s.includes("closed") ||
+    s.includes("conclu") ||
+    s.includes("cash collected") ||
+    s.includes("ganho");
+  if (stage && stageMatch(stage)) return true;
+  // Fallback: se o nome do workflow indica claramente que so dispara em
+  // stage de fim (ex: "Webhook Stage Fechada"), confiamos no trigger.
+  // Isto resolve o caso onde GHL nao envia stageName mas o workflow tem
+  // filtro que so aciona em "Fechado (cash collected)".
+  const workflowName = (payload.workflow?.name ?? "").toLowerCase();
+  if (workflowName && stageMatch(workflowName)) return true;
   return false;
 }
 
@@ -101,10 +121,31 @@ export type GhlIntakeResult =
  * Processa um webhook do GHL. Idempotente por ghlDealId+stageId.
  */
 export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<GhlIntakeResult> {
-  const dealId = payload.opportunityId ?? payload.id ?? payload.opportunity?.id;
+  // GHL Webhook nativo envia o `id` no top level (que e o opportunity id quando
+  // o trigger e Pipeline Stage Changed). Tambem aceita customData.opportunityId
+  // ou opportunity.id se vier dum custom payload.
+  const customData = (payload.customData as Record<string, unknown> | undefined) ?? {};
+  const dealId =
+    payload.opportunityId ??
+    (customData.opportunityId as string | undefined) ??
+    payload.opportunity?.id ??
+    payload.id;
   if (!dealId) {
     return { status: "failed", error: "payload sem opportunityId/id" };
   }
+
+  // Normaliza os campos GHL snake_case (do webhook nativo) para os
+  // camelCase que o resto do codigo espera. customData tem precedencia
+  // se o user explicitamente mapeou variaveis.
+  if (!payload.contactId) payload.contactId = (customData.contactId as string | undefined) ?? payload.contact_id;
+  if (!payload.pipelineId) payload.pipelineId = (customData.pipelineId as string | undefined) ?? payload.pipeline_id;
+  if (!payload.pipelineStageId) payload.pipelineStageId = (customData.pipelineStageId as string | undefined) ?? payload.pipeline_stage_id;
+  if (!payload.stageName) payload.stageName = (customData.stageName as string | undefined) ?? payload.pipeline_stage_name;
+  if (payload.monetaryValue == null) {
+    const fromCustom = customData.monetaryValue ? Number(customData.monetaryValue) : null;
+    payload.monetaryValue = fromCustom ?? payload.lead_value ?? undefined;
+  }
+  if (!payload.full_name) payload.full_name = (customData.full_name as string | undefined) ?? payload.full_name;
 
   // Idempotencia: se ja processamos este deal para stage 'won', saltamos
   const existingProcessed = await prisma.ghlEvent.findFirst({
