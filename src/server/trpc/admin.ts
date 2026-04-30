@@ -160,6 +160,7 @@ export const adminRouter = router({
         consentsAcceptedAt: true,
         mustChangePassword: true,
         welcomeEmailSentAt: true,
+        salesProfile: true,
         createdAt: true,
         _count: {
           select: { sessions: true, messages: true },
@@ -346,11 +347,32 @@ export const adminRouter = router({
           assignedChannelId: z.string().nullable().optional(),
           assignedWorkspaceClientId: z.string().nullable().optional(),
           assignedDashboardId: z.string().nullable().optional(),
+          // Perfil de vendas - usado pelo analisador de chamadas para
+          // adaptar dicas conforme a personalidade do comercial.
+          personality: z.enum(["Introvertido", "Extrovertido", "Misto"]).nullable().optional(),
         }),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const patch = { ...input.data } as Record<string, unknown>;
+      const { personality, ...rest } = input.data;
+      const patch = { ...rest } as Record<string, unknown>;
+
+      // Personality vai dentro do salesProfile JSON (preserva outros campos).
+      if (personality !== undefined) {
+        const current = await ctx.prisma.user.findUnique({
+          where: { id: input.id },
+          select: { salesProfile: true },
+        });
+        const existing = (current?.salesProfile as Record<string, unknown> | null) ?? {};
+        if (personality === null) {
+          // Remove a chave 'personality' mantendo outras
+          const next = { ...existing };
+          delete next.personality;
+          patch.salesProfile = Object.keys(next).length > 0 ? next : null;
+        } else {
+          patch.salesProfile = { ...existing, personality };
+        }
+      }
 
       // Se a role esta a ser mudada para NON-GUEST (ADMIN/CONSULTANT/MANAGER),
       // limpa os campos de acessos restritos. Non-guests nao tem workspace/canal limitado.

@@ -213,6 +213,9 @@ export default function AdminUsersPage() {
               key={user.id}
               user={user}
               onChangeRole={(role) => updateUser.mutate({ id: user.id, data: { role: role as "ADMIN" } })}
+              onChangePersonality={(p) =>
+                updateUser.mutate({ id: user.id, data: { personality: p } })
+              }
               onDeactivate={() => deactivateUser.mutate(user.id)}
               onResetPw={() => setShowResetPw(user.id)}
               onResendEmail={() => resendWelcome.mutate({ userId: user.id })}
@@ -644,7 +647,7 @@ function ConsentBadge({ accepted, label }: { accepted: boolean; label: string })
 }
 
 // User row component
-function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, onResetAndEmail, onEditPerms, onUpdateNameEmail, isBusy }: {
+function UserRow({ user, onChangeRole, onChangePersonality, onDeactivate, onResetPw, onResendEmail, onResetAndEmail, onEditPerms, onUpdateNameEmail, isBusy }: {
   user: {
     id: string; name: string; email: string; role: string;
     image: string | null; assignedChannel?: { name: string } | null;
@@ -654,9 +657,11 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
     consentPrivacyPolicy?: boolean; consentTerms?: boolean; consentDPA?: boolean;
     consentDataDeletion?: boolean; consentAIAnalysis?: boolean; consentsAcceptedAt?: string | null;
     welcomeEmailSentAt?: string | null; mustChangePassword?: boolean;
+    salesProfile?: unknown;
     _count: { sessions: number; messages: number };
   };
   onChangeRole: (role: string) => void;
+  onChangePersonality?: (p: "Introvertido" | "Extrovertido" | "Misto" | null) => void;
   onDeactivate: () => void;
   onResetPw: () => void;
   onResendEmail: () => void;
@@ -666,6 +671,13 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
   isBusy?: boolean;
 }) {
   const isGuest = user.role === "GUEST_CLIENT" || user.role === "GUEST_TEAM_MEMBER";
+  // Extrai personalidade do salesProfile JSON (se existir)
+  const personality = (() => {
+    const sp = user.salesProfile as { personality?: string } | null | undefined;
+    const p = sp?.personality;
+    if (p === "Introvertido" || p === "Extrovertido" || p === "Misto") return p;
+    return "";
+  })();
   const hasAnyConsent = user.consentPrivacyPolicy || user.consentTerms || user.consentDPA;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({ name: user.name, email: user.email });
@@ -769,6 +781,24 @@ function UserRow({ user, onChangeRole, onDeactivate, onResetPw, onResendEmail, o
             <option value="GUEST_CLIENT">Cliente</option>
             <option value="GUEST_TEAM_MEMBER">Equipa Cliente</option>
           </select>
+          {/* Personalidade do comercial (so para non-guests). Usado pelo
+              analisador de chamadas para adaptar dicas e tom do feedback. */}
+          {!isGuest && onChangePersonality && (
+            <select
+              value={personality}
+              onChange={(e) => {
+                const v = e.target.value;
+                onChangePersonality(v === "" ? null : (v as "Introvertido" | "Extrovertido" | "Misto"));
+              }}
+              className="hidden md:block rounded border bg-card px-1.5 py-1 text-xs"
+              title="Personalidade do comercial (usado pela IA para personalizar feedback de chamadas)"
+            >
+              <option value="">Sem perfil</option>
+              <option value="Introvertido">Introvertido</option>
+              <option value="Extrovertido">Extrovertido</option>
+              <option value="Misto">Misto</option>
+            </select>
+          )}
           <button
             onClick={onResendEmail}
             disabled={isBusy}
