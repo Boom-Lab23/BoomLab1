@@ -190,32 +190,52 @@ export async function analyzeSalesCall(args: {
   callType: string;
   /**
    * Personalidade do comercial (opcional). Se passado, a IA personaliza
-   * as dicas. Lookup automatico via User.salesProfile.personality se nao
-   * for explicitamente passado e commercialUserId for fornecido.
+   * as dicas. Caso contrario, faz lookup nesta ordem:
+   *   1. ClientCommercial.id (se commercialMemberId fornecido)
+   *   2. ClientCommercial(clientId, name) — match por nome dentro do cliente
+   *   3. User.salesProfile.personality por nome (legacy fallback)
    */
   commercialPersonality?: CommercialPersonality;
-  commercialUserId?: string;
+  commercialMemberId?: string;
 }): Promise<SalesCallAnalysisResult> {
   const { clientId, transcript, commercial, leadName, callType } = args;
   let { commercialPersonality } = args;
 
-  // Lookup da personalidade do comercial (se nao foi explicitamente passada)
-  if (!commercialPersonality && args.commercialUserId) {
+  // 1. Lookup directo por commercialMemberId (preferido)
+  if (!commercialPersonality && args.commercialMemberId) {
     try {
-      const user = await prisma.user.findUnique({
-        where: { id: args.commercialUserId },
-        select: { salesProfile: true },
+      const member = await prisma.clientCommercial.findUnique({
+        where: { id: args.commercialMemberId },
+        select: { personality: true },
       });
-      const profile = user?.salesProfile as { personality?: string } | null;
-      const p = profile?.personality;
+      const p = member?.personality;
       if (p === "Introvertido" || p === "Extrovertido" || p === "Misto") {
         commercialPersonality = p;
       }
     } catch (err) {
-      console.warn("[analyzeSalesCall] failed to fetch commercial personality:", err);
+      console.warn("[analyzeSalesCall] failed to fetch commercialMember:", err);
     }
   }
-  // Fallback: tentar lookup por nome se nao houver userId
+  // 2. Lookup por nome dentro do cliente (caso commercial seja string sem id)
+  if (!commercialPersonality && clientId && commercial) {
+    try {
+      const member = await prisma.clientCommercial.findFirst({
+        where: {
+          clientId,
+          name: { equals: commercial, mode: "insensitive" },
+          isActive: true,
+        },
+        select: { personality: true },
+      });
+      const p = member?.personality;
+      if (p === "Introvertido" || p === "Extrovertido" || p === "Misto") {
+        commercialPersonality = p;
+      }
+    } catch {
+      // best-effort
+    }
+  }
+  // 3. Legacy fallback: User.salesProfile.personality
   if (!commercialPersonality && commercial) {
     try {
       const user = await prisma.user.findFirst({

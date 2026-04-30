@@ -103,8 +103,27 @@ model Client {
   leads            Lead[]
   salesAnalyses    SalesAnalysis[]
   guestUsers       User[]       @relation("GuestWorkspace")
+  commercials      ClientCommercial[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
+}
+
+/// Comerciais da equipa do cliente — pessoas cujas chamadas sao analisadas
+/// pela IA. Nao sao users da plataforma (nao fazem login). Cada cliente tem
+/// a sua propria lista. A personalidade e usada pelo analisador de chamadas
+/// para adaptar dicas e tom do feedback (Introvertido/Extrovertido/Misto).
+model ClientCommercial {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name        String
+  personality String?  // "Introvertido" | "Extrovertido" | "Misto" | null
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId, isActive])
+  @@unique([clientId, name])
 }
 
 model Session {

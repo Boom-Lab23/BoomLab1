@@ -819,7 +819,7 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
     strengths: "", weaknesses: "", generalTips: "", focusNext: "", summary: "",
   });
   const [analyzeForm, setAnalyzeForm] = useState({
-    commercial: "", leadName: "", callType: "Discovery Call",
+    commercial: "", commercialMemberId: "", leadName: "", callType: "Discovery Call",
     callDate: new Date().toISOString().split("T")[0],
     visibility: "COMMERCIAL_ONLY" as "COMMERCIAL_ONLY" | "WHOLE_TEAM",
     transcript: "", audioFileName: "", audioUrl: "",
@@ -849,7 +849,7 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
       utils.salesAnalysis.list.invalidate();
       utils.salesAnalysis.statsPerCommercial.invalidate();
       setShowAnalyze(false);
-      setAnalyzeForm({ commercial: "", leadName: "", callType: "Discovery Call", callDate: new Date().toISOString().split("T")[0], visibility: "COMMERCIAL_ONLY", transcript: "", audioFileName: "", audioUrl: "", durationMinutes: "" });
+      setAnalyzeForm({ commercial: "", commercialMemberId: "", leadName: "", callType: "Discovery Call", callDate: new Date().toISOString().split("T")[0], visibility: "COMMERCIAL_ONLY", transcript: "", audioFileName: "", audioUrl: "", durationMinutes: "" });
     },
   });
 
@@ -863,7 +863,22 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
     onSuccess: () => { utils.salesAnalysis.list.invalidate(); utils.salesAnalysis.statsPerCommercial.invalidate(); },
   });
 
-  const commercials = dashboard.data?.commercials ?? [];
+  // Equipa comercial do cliente (com personalidade) - usado pela IA
+  // para personalizar a analise de chamadas.
+  const clientCommercialsQuery = trpc.clientCommercials.list.useQuery({ clientId });
+  const clientCommercialsList = clientCommercialsQuery.data ?? [];
+  const upsertCommercial = trpc.clientCommercials.upsert.useMutation({
+    onSuccess: () => utils.clientCommercials.list.invalidate({ clientId }),
+  });
+  const removeCommercial = trpc.clientCommercials.remove.useMutation({
+    onSuccess: () => utils.clientCommercials.list.invalidate({ clientId }),
+  });
+  const [showTeamModal, setShowTeamModal] = useState(false);
+
+  // Lista para dropdowns - prefere ClientCommercial; cai para legacy se vazio
+  const commercials = clientCommercialsList.length > 0
+    ? clientCommercialsList.map(c => c.name)
+    : (dashboard.data?.commercials ?? []);
 
   return (
     <div className="space-y-4">
@@ -1184,6 +1199,7 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
               analyzeCall.mutate({
                 clientId,
                 commercial: analyzeForm.commercial,
+                commercialMemberId: analyzeForm.commercialMemberId || undefined,
                 leadName: analyzeForm.leadName || undefined,
                 callType: analyzeForm.callType,
                 callDate: new Date(analyzeForm.callDate),
@@ -1196,14 +1212,48 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
             }} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-0.5 block text-xs font-medium">Comercial *</label>
-                  {commercials.length > 0 ? (
-                    <select required value={analyzeForm.commercial} onChange={(e) => setAnalyzeForm({ ...analyzeForm, commercial: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card">
+                  <div className="mb-0.5 flex items-center justify-between">
+                    <label className="block text-xs font-medium">Comercial *</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowTeamModal(true)}
+                      className="text-[10px] text-primary hover:underline"
+                      title="Gerir equipa comercial e personalidades"
+                    >
+                      Gerir equipa
+                    </button>
+                  </div>
+                  {clientCommercialsList.length > 0 ? (
+                    <select
+                      required
+                      value={analyzeForm.commercialMemberId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        const found = clientCommercialsList.find(c => c.id === id);
+                        setAnalyzeForm({
+                          ...analyzeForm,
+                          commercialMemberId: id,
+                          commercial: found?.name ?? "",
+                        });
+                      }}
+                      className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                    >
                       <option value="">Selecionar...</option>
-                      {commercials.map(c => <option key={c} value={c}>{c}</option>)}
+                      {clientCommercialsList.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}{c.personality ? ` · ${c.personality}` : ""}
+                        </option>
+                      ))}
                     </select>
                   ) : (
-                    <input type="text" required value={analyzeForm.commercial} onChange={(e) => setAnalyzeForm({ ...analyzeForm, commercial: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm bg-card" placeholder="Nome do comercial" />
+                    <input
+                      type="text"
+                      required
+                      value={analyzeForm.commercial}
+                      onChange={(e) => setAnalyzeForm({ ...analyzeForm, commercial: e.target.value, commercialMemberId: "" })}
+                      className="w-full rounded-lg border px-3 py-2 text-sm bg-card"
+                      placeholder="Nome do comercial (ou Gerir equipa para adicionar)"
+                    />
                   )}
                 </div>
                 <div>
@@ -1377,6 +1427,113 @@ function SalesAnalysisTab({ clientId }: { clientId: string }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Gerir Equipa Comercial */}
+      {showTeamModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-background border shadow-xl max-h-[85vh] overflow-y-auto">
+            <div className="sticky top-0 bg-background border-b p-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold">Equipa Comercial</h2>
+                <p className="text-xs text-muted-foreground">
+                  Gere os comerciais cuja chamadas sao analisadas. A personalidade e usada pela IA para personalizar o feedback.
+                </p>
+              </div>
+              <button onClick={() => setShowTeamModal(false)} className="rounded-lg p-1 hover:bg-muted">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-2">
+              {clientCommercialsList.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  Sem comerciais ainda. Adiciona o primeiro abaixo.
+                </p>
+              )}
+              {clientCommercialsList.map((c) => (
+                <div key={c.id} className="flex items-center gap-2 rounded border p-2">
+                  <input
+                    type="text"
+                    defaultValue={c.name}
+                    onBlur={(e) => {
+                      const newName = e.target.value.trim();
+                      if (newName && newName !== c.name) {
+                        upsertCommercial.mutate({ id: c.id, clientId, name: newName });
+                      }
+                    }}
+                    className="flex-1 rounded border px-2 py-1 text-sm bg-card"
+                  />
+                  <select
+                    value={c.personality ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      upsertCommercial.mutate({
+                        id: c.id,
+                        clientId,
+                        name: c.name,
+                        personality: v === "" ? null : (v as "Introvertido" | "Extrovertido" | "Misto"),
+                      });
+                    }}
+                    className="rounded border px-2 py-1 text-xs bg-card"
+                  >
+                    <option value="">Sem perfil</option>
+                    <option value="Introvertido">Introvertido</option>
+                    <option value="Extrovertido">Extrovertido</option>
+                    <option value="Misto">Misto</option>
+                  </select>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Remover ${c.name} da equipa?`)) {
+                        removeCommercial.mutate({ id: c.id });
+                      }
+                    }}
+                    className="rounded border p-1.5 text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600"
+                    title="Remover (soft delete)"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {/* Add new */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formEl = e.currentTarget as HTMLFormElement;
+                  const fd = new FormData(formEl);
+                  const name = (fd.get("name") as string)?.trim();
+                  const personality = fd.get("personality") as string;
+                  if (!name) return;
+                  upsertCommercial.mutate({
+                    clientId,
+                    name,
+                    personality: personality === "" ? null : (personality as "Introvertido" | "Extrovertido" | "Misto"),
+                  });
+                  formEl.reset();
+                }}
+                className="flex items-center gap-2 rounded border-2 border-dashed p-2 mt-3"
+              >
+                <input
+                  name="name"
+                  type="text"
+                  required
+                  placeholder="Nome do novo comercial..."
+                  className="flex-1 rounded border px-2 py-1 text-sm bg-card"
+                />
+                <select name="personality" className="rounded border px-2 py-1 text-xs bg-card">
+                  <option value="">Sem perfil</option>
+                  <option value="Introvertido">Introvertido</option>
+                  <option value="Extrovertido">Extrovertido</option>
+                  <option value="Misto">Misto</option>
+                </select>
+                <button type="submit" className="rounded bg-primary px-3 py-1 text-xs text-white hover:bg-primary/90">
+                  Adicionar
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}

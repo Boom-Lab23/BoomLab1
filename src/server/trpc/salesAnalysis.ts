@@ -337,6 +337,7 @@ ${metrics.speakers.map(s => `  ${s.speaker}: ${s.talkTimePct.toFixed(0)}% do tem
     .input(z.object({
       clientId: z.string(),
       commercial: z.string().min(1),
+      commercialMemberId: z.string().optional(), // ID em ClientCommercial - permite IA usar a personalidade
       leadName: z.string().optional(),
       callType: z.string().default("Discovery Call"),
       callDate: z.date().default(() => new Date()),
@@ -352,6 +353,7 @@ ${metrics.speakers.map(s => `  ${s.speaker}: ${s.talkTimePct.toFixed(0)}% do tem
         clientId: input.clientId,
         transcript: input.transcript,
         commercial: input.commercial,
+        commercialMemberId: input.commercialMemberId,
         leadName: input.leadName,
         callType: input.callType,
       });
