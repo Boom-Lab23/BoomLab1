@@ -105,6 +105,7 @@ export type GhlOpportunity = {
   pipelineStageId?: string;
   contactId?: string;
   status?: string;
+  customFields?: Array<{ id: string; fieldKey?: string; key?: string; value?: unknown }>;
 };
 
 export async function getOpportunity(opportunityId: string): Promise<GhlOpportunity> {

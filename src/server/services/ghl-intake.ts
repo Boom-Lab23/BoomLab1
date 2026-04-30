@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import fs from "fs/promises";
 import path from "path";
 import { sendClientOnboardingEmail } from "./email";
-import { getContact, listCustomFields, flattenCustomFields, flattenCustomFieldsByKey } from "./ghl-api";
+import { getContact, getOpportunity, listCustomFields, flattenCustomFields, flattenCustomFieldsByKey } from "./ghl-api";
 import { generateContract } from "./contract-generator";
 import { createInvoiceForClient, fetchInvoicePdf } from "./invoice-ninja";
 
@@ -189,29 +189,68 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
     }
   }
 
-  // Tenta enriquecer o contacto com os custom fields do GHL (Dados On-Boarding)
+  // Tenta enriquecer o contacto e a opportunity com os custom fields do GHL.
+  // IMPORTANTE: muitos campos de "Dados Onboarding" estao na OPPORTUNITY (nao no
+  // CONTACT), por isso buscamos ambos e fazemos merge dos custom fields.
   let customFieldsFlat: Record<string, string> = {};
   let customFieldsByKey: Record<string, string> = {};
   let enrichedFromApi: { address1?: string; city?: string; postalCode?: string; companyName?: string; email?: string; phone?: string; name?: string } = {};
-  if (payload.contactId && process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID) {
+  if (process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID) {
     try {
-      const [ghlContact, cfDefs] = await Promise.all([
-        getContact(payload.contactId),
+      // Custom field defs de ambos os models
+      const [contactDefs, oppDefs] = await Promise.all([
         listCustomFields("contact"),
+        listCustomFields("opportunity"),
       ]);
-      customFieldsFlat = flattenCustomFields(ghlContact, cfDefs);
-      customFieldsByKey = flattenCustomFieldsByKey(ghlContact, cfDefs);
-      enrichedFromApi = {
-        name: ghlContact.name ?? ([ghlContact.firstName, ghlContact.lastName].filter(Boolean).join(" ") || undefined),
-        email: ghlContact.email?.toLowerCase().trim(),
-        phone: ghlContact.phone ?? undefined,
-        companyName: ghlContact.companyName ?? undefined,
-        address1: ghlContact.address1,
-        city: ghlContact.city,
-        postalCode: ghlContact.postalCode,
-      };
+
+      // Contact (se houver contactId)
+      if (payload.contactId) {
+        try {
+          const ghlContact = await getContact(payload.contactId);
+          const contactByName = flattenCustomFields(ghlContact, contactDefs);
+          const contactByKey = flattenCustomFieldsByKey(ghlContact, contactDefs);
+          customFieldsFlat = { ...customFieldsFlat, ...contactByName };
+          customFieldsByKey = { ...customFieldsByKey, ...contactByKey };
+          enrichedFromApi = {
+            name: ghlContact.name ?? ([ghlContact.firstName, ghlContact.lastName].filter(Boolean).join(" ") || undefined),
+            email: ghlContact.email?.toLowerCase().trim(),
+            phone: ghlContact.phone ?? undefined,
+            companyName: ghlContact.companyName ?? undefined,
+            address1: ghlContact.address1,
+            city: ghlContact.city,
+            postalCode: ghlContact.postalCode,
+          };
+        } catch (err) {
+          console.warn("[ghl-intake] failed contact fetch:", err);
+        }
+      }
+
+      // Opportunity (Dados Onboarding ficam aqui em muitas configuracoes)
+      try {
+        const opp = await getOpportunity(dealId);
+        // Override monetaryValue com o valor real da opportunity se vazio
+        if (payload.monetaryValue == null && opp.monetaryValue != null) {
+          payload.monetaryValue = opp.monetaryValue;
+        }
+        // Merge custom fields da opportunity (cf da opp tem precedencia para
+        // campos que so existem na opp como prestao_*, valor_contrato, etc)
+        const oppCustom = opp.customFields ?? [];
+        const oppDefsById: Record<string, { id: string; name?: string; fieldKey?: string }> = {};
+        for (const def of oppDefs) oppDefsById[def.id] = def;
+        for (const cf of oppCustom) {
+          const def = oppDefsById[cf.id];
+          if (!def) continue;
+          const valStr = typeof cf.value === "string" ? cf.value : (cf.value != null ? String(cf.value) : "");
+          if (!valStr) continue;
+          if (def.name) customFieldsFlat[def.name] = valStr;
+          const key = (def.fieldKey ?? "").replace(/^opportunity\./, "");
+          if (key) customFieldsByKey[key] = valStr;
+        }
+      } catch (err) {
+        console.warn("[ghl-intake] failed opportunity fetch:", err);
+      }
     } catch (err) {
-      console.warn("[ghl-intake] could not fetch contact from GHL API:", err);
+      console.warn("[ghl-intake] could not fetch GHL data:", err);
     }
   }
 
@@ -341,7 +380,13 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
     type PrestacaoInfo = { numero: number; valor: number; data: Date; dataStr: string };
     const dealCloseDate = new Date();
     const calcPrestacaoData = (numero: number): Date => {
-      const overrideStr = lookupCustom(`prestacao_${numero}_data`, `prestacao${numero}data`, `${numero}_prestacao_data`);
+      // GHL fieldKeys: prestao_2__data, prestao_3__data, prestao_4__data
+      // (note dois underscores e "prestao" sem c-cedilha)
+      const overrideStr = lookupCustom(
+        `prestao_${numero}__data`, `prestacao_${numero}_data`,
+        `prestacao${numero}data`, `${numero}_prestacao_data`,
+        `Prestação ${numero} - Data`
+      );
       if (overrideStr) {
         const d = new Date(overrideStr);
         if (!Number.isNaN(d.getTime())) return d;
@@ -354,7 +399,12 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
     const fmtDate2 = (d: Date) => d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" });
     const prestacoes: PrestacaoInfo[] = [];
     for (let i = 1; i <= 4; i++) {
-      const valorStr = lookupCustom(`prestacao_${i}_valor`, `prestacao${i}valor`, `${i}_prestacao`, `${i}_prestacao_valor`);
+      // GHL fieldKey real: prestao_1__valor, prestao_2__valor, etc
+      const valorStr = lookupCustom(
+        `prestao_${i}__valor`, `prestacao_${i}_valor`,
+        `prestacao${i}valor`, `${i}_prestacao`, `${i}_prestacao_valor`,
+        `Prestação ${i} - Valor`
+      );
       const valor = Number(valorStr.replace(/[^\d.,-]/g, "").replace(",", "."));
       if (!valor || valor <= 0) continue;
       const data = calcPrestacaoData(i);
@@ -362,13 +412,21 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
     }
 
     // Detecta paymentMode + outorgantes dos custom fields do GHL
+    // GHL fieldKey real: 'upfrontprestaes' (RADIO com opcoes Upfront/Prestações)
     try {
-      const formaPagamento = lookupCustom("forma_pagamento", "formapagamento", "forma_de_pagamento").toLowerCase();
-      // Se ha pelo menos 1 prestacao preenchida E forma_pagamento contem 'prest', e PRESTACOES.
-      // Senao, AVISTA (mesmo se forma_pagamento estiver vazio).
-      const paymentMode = (formaPagamento.includes("prest") && prestacoes.length > 0) ? "PRESTACOES" : "AVISTA";
+      const formaPagamento = lookupCustom(
+        "upfrontprestaes", "Upfront/Prestações", "forma_pagamento",
+        "formapagamento", "forma_de_pagamento"
+      ).toLowerCase();
+      // Detecta PRESTACOES por: contem 'prest' OU ha pelo menos 1 prestacao preenchida.
+      // Senao AVISTA.
+      const paymentMode = (formaPagamento.includes("prest") || prestacoes.length > 0) ? "PRESTACOES" : "AVISTA";
 
-      const gerente2Name = lookupCustom("gerente_2_nome", "gerente2nome", "segundo_outorgante", "outorgante_2");
+      // Outorgante 2: GHL tem 'nome_segundo_gerente' (sem 'gerente_2_nome')
+      const gerente2Name = lookupCustom(
+        "nome_segundo_gerente", "Nome Segundo Gerente",
+        "gerente_2_nome", "gerente2nome", "segundo_outorgante", "outorgante_2"
+      );
       const outorgantes = gerente2Name.trim().length > 0 ? 2 : 1;
 
       const template = await prisma.contractTemplate.findUnique({
@@ -377,9 +435,9 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
       if (template && template.isActive) {
         const fmtDate = (d: Date) => d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-        // Datas projecto (custom field ou default)
-        const dataInicioStr = lookupCustom("data_inicio", "data_inicio_projecto", "datainicio", "inicio_projecto");
-        const dataFimStr = lookupCustom("data_fim", "data_fim_projecto", "datafim", "fim_projecto");
+        // Datas projecto (GHL fieldKeys reais: incio_do_contrato, fim_contrato)
+        const dataInicioStr = lookupCustom("incio_do_contrato", "Início do Contrato", "data_inicio", "data_inicio_projecto");
+        const dataFimStr = lookupCustom("fim_contrato", "final_do_contrato", "Fim do Contrato", "data_fim", "data_fim_projecto");
         const dataInicioObj = dataInicioStr ? new Date(dataInicioStr) : dealCloseDate;
         const dataFimObj = dataFimStr ? new Date(dataFimStr) : (() => {
           const d = new Date(dealCloseDate);
@@ -387,28 +445,38 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
           return d;
         })();
 
-        // Valor total (avista) ou soma das prestacoes
+        // Valor total: prioritiza valor_contrato (custom field GHL) > payload.monetaryValue > opportunity.monetaryValue
+        const valorContratoStr = lookupCustom("valor_contrato", "Valor Contrato");
+        const valorContratoNum = Number(valorContratoStr.replace(/[^\d.,-]/g, "").replace(",", "."));
         const valorTotal = paymentMode === "PRESTACOES"
           ? prestacoes.reduce((s, p) => s + p.valor, 0)
-          : Number(payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? 0);
+          : (valorContratoNum > 0 ? valorContratoNum : Number(payload.monetaryValue ?? payload.opportunity?.monetaryValue ?? 0));
+
+        // Override monetaryValue para o invoice ninja usar o valor correcto
+        if (valorContratoNum > 0 && (payload.monetaryValue == null || payload.monetaryValue === 0)) {
+          payload.monetaryValue = valorContratoNum;
+        }
 
         // Monta as variaveis standard esperadas pelos templates
+        // GHL fieldKeys reais: nome_comercial_de_empresa, nif_nmero_de_identificao_fiscal,
+        // sede_da_empresa, cdigo_postal_da_empresa, morada
         const variables: Record<string, string> = {
           // Basicos
           nome: contact.name,
-          nome_empresa: lookupCustom("nome_empresa") || contact.companyName || contact.name,
-          sede_empresa: lookupCustom("sede_empresa", "sede_da_empresa", "sede") || [enrichedFromApi.address1, enrichedFromApi.postalCode, enrichedFromApi.city].filter(Boolean).join(", "),
-          nif_empresa: lookupCustom("nif_empresa", "nif", "nif_numero_de_identificacao_fiscal", "numero_identificacao_fiscal"),
+          nome_empresa: lookupCustom("nome_comercial_de_empresa", "Nome Comercial de Empresa", "nome_empresa", "nome_da_empresa") || contact.companyName || contact.name,
+          sede_empresa: lookupCustom("sede_da_empresa", "Sede da empresa", "sede_empresa", "sede") || [enrichedFromApi.address1, enrichedFromApi.postalCode, enrichedFromApi.city].filter(Boolean).join(", "),
+          nif_empresa: lookupCustom("nif_nmero_de_identificao_fiscal", "Nif (Número de Identificação Fiscal)", "nif_empresa", "nif"),
           email: contact.email ?? "",
           telefone: contact.phone ?? "",
-          // Gerente 1
-          gerente_1_nome: lookupCustom("gerente_1_nome", "gerente1nome", "primeiro_outorgante", "outorgante_1_nome") || contact.name,
-          gerente_1_cc: lookupCustom("gerente_1_cc", "gerente1cc", "cc_gerente_1", "outorgante_1_cc"),
-          gerente_1_cc_validade: lookupCustom("gerente_1_cc_validade", "validade_cc_gerente_1", "outorgante_1_cc_validade"),
-          // Gerente 2 (so usado em templates com 2 outorg.)
-          gerente_2_nome: lookupCustom("gerente_2_nome", "gerente2nome", "segundo_outorgante", "outorgante_2_nome"),
-          gerente_2_cc: lookupCustom("gerente_2_cc", "gerente2cc", "cc_gerente_2", "outorgante_2_cc"),
-          gerente_2_cc_validade: lookupCustom("gerente_2_cc_validade", "validade_cc_gerente_2", "outorgante_2_cc_validade"),
+          // Gerente 1: GHL nao tem fields especificos para o 1o outorgante,
+          // por isso usa o nome do contacto + nada para CC (a menos que adicione no futuro)
+          gerente_1_nome: lookupCustom("gerente_1_nome", "Nome Primeiro Gerente", "primeiro_outorgante") || contact.name,
+          gerente_1_cc: lookupCustom("gerente_1_cc", "Gerente 1 cc"),
+          gerente_1_cc_validade: lookupCustom("gerente_1_cc_validade", "Gerente 1 cc validade"),
+          // Gerente 2: GHL tem 'nome_segundo_gerente', 'gerente_2_cc', 'gerente_2_cc_validade'
+          gerente_2_nome: lookupCustom("nome_segundo_gerente", "Nome Segundo Gerente", "gerente_2_nome"),
+          gerente_2_cc: lookupCustom("gerente_2_cc", "Gerente 2 cc"),
+          gerente_2_cc_validade: lookupCustom("gerente_2_cc_validade", "Gerente 2 cc validade"),
           // Datas
           data_inicio: fmtDate(dataInicioObj),
           data_fim: fmtDate(dataFimObj),
@@ -433,9 +501,9 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
           restantes_prestacoes: prestacoes.slice(1).map((p) => `${p.valor}€ a ${p.dataStr}`).join("; "),
           oferta: offer,
           empresa: contact.companyName ?? "",
-          morada: lookupCustom("morada", "morada_faturacao", "morada_da_empresa") || enrichedFromApi.address1 || "",
-          cidade: lookupCustom("cidade") || enrichedFromApi.city || "",
-          codigo_postal: lookupCustom("codigo_postal", "cdigo_postal_da_empresa", "cp") || enrichedFromApi.postalCode || "",
+          morada: lookupCustom("morada", "Morada", "morada_faturacao", "morada_da_empresa") || enrichedFromApi.address1 || "",
+          cidade: lookupCustom("cidade", "Cidade") || enrichedFromApi.city || "",
+          codigo_postal: lookupCustom("cdigo_postal_da_empresa", "Código Postal da empresa", "codigo_postal", "cp") || enrichedFromApi.postalCode || "",
           // Adiciona todos os custom fields do GHL (por name e por key) - para templates custom
           ...customFieldsFlat,
           ...customFieldsByKey,
