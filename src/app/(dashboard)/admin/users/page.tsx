@@ -782,7 +782,8 @@ function UserRow({ user, onChangeRole, onChangePersonality, onDeactivate, onRese
             <option value="GUEST_TEAM_MEMBER">Equipa Cliente</option>
           </select>
           {/* Personalidade do comercial (so para non-guests). Usado pelo
-              analisador de chamadas para adaptar dicas e tom do feedback. */}
+              analisador de chamadas para adaptar dicas e tom do feedback.
+              Sempre visivel (mobile + desktop). */}
           {!isGuest && onChangePersonality && (
             <select
               value={personality}
@@ -790,7 +791,7 @@ function UserRow({ user, onChangeRole, onChangePersonality, onDeactivate, onRese
                 const v = e.target.value;
                 onChangePersonality(v === "" ? null : (v as "Introvertido" | "Extrovertido" | "Misto"));
               }}
-              className="hidden md:block rounded border bg-card px-1.5 py-1 text-xs"
+              className="rounded border bg-card px-1.5 py-1 text-xs max-w-[110px]"
               title="Personalidade do comercial (usado pela IA para personalizar feedback de chamadas)"
             >
               <option value="">Sem perfil</option>
