@@ -51,7 +51,7 @@ export type GhlContact = {
   postalCode?: string;
   dateOfBirth?: string;
   tags?: string[];
-  customFields?: Array<{ id: string; value: string | number | null; fieldKey?: string }>;
+  customFields?: Array<{ id: string; value?: string | number | null; fieldValue?: unknown; fieldKey?: string }>;
 };
 
 export async function getContact(contactId: string): Promise<GhlContact> {
@@ -105,7 +105,7 @@ export type GhlOpportunity = {
   pipelineStageId?: string;
   contactId?: string;
   status?: string;
-  customFields?: Array<{ id: string; fieldKey?: string; key?: string; value?: unknown }>;
+  customFields?: Array<{ id: string; fieldKey?: string; key?: string; value?: unknown; fieldValue?: unknown }>;
 };
 
 export async function getOpportunity(opportunityId: string): Promise<GhlOpportunity> {
@@ -120,6 +120,16 @@ export async function getOpportunity(opportunityId: string): Promise<GhlOpportun
  * { "NIF": "123456789", "Morada": "...", "IBAN": "PT50..." } usando o nome (name)
  * do campo como chave. Se o mesmo nome aparecer em dois fields, o ultimo vence.
  */
+// IMPORTANTE: a API GHL devolve custom fields como { id, fieldValue } (nao
+// { id, value }). Lemos ambos para tolerar formatos diferentes.
+function readCfValue(cf: { value?: unknown; fieldValue?: unknown }): string | null {
+  const raw = cf.fieldValue ?? cf.value;
+  if (raw == null) return null;
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw)) return raw.join(", ");
+  return String(raw);
+}
+
 export function flattenCustomFields(
   contact: GhlContact,
   defs: GhlCustomFieldDef[]
@@ -129,9 +139,8 @@ export function flattenCustomFields(
   for (const cf of contact.customFields ?? []) {
     const def = byId.get(cf.id);
     const key = def?.name ?? cf.fieldKey ?? cf.id;
-    if (cf.value !== null && cf.value !== undefined) {
-      out[key] = String(cf.value);
-    }
+    const val = readCfValue(cf as { value?: unknown; fieldValue?: unknown });
+    if (val !== null && val !== "") out[key] = val;
   }
   return out;
 }
@@ -148,9 +157,8 @@ export function flattenCustomFieldsByKey(
   for (const cf of contact.customFields ?? []) {
     const def = byId.get(cf.id);
     const key = def?.fieldKey ?? def?.name ?? cf.fieldKey ?? cf.id;
-    if (cf.value !== null && cf.value !== undefined) {
-      out[key] = String(cf.value);
-    }
+    const val = readCfValue(cf as { value?: unknown; fieldValue?: unknown });
+    if (val !== null && val !== "") out[key] = val;
   }
   return out;
 }

@@ -233,14 +233,23 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
           payload.monetaryValue = opp.monetaryValue;
         }
         // Merge custom fields da opportunity (cf da opp tem precedencia para
-        // campos que so existem na opp como prestao_*, valor_contrato, etc)
+        // campos que so existem na opp como prestao_*, valor_contrato, etc).
+        // IMPORTANTE: GHL devolve cada custom field como { id, fieldValue }
+        // (NOT { id, value }). Por isso lemos cf.fieldValue como prioridade.
         const oppCustom = opp.customFields ?? [];
         const oppDefsById: Record<string, { id: string; name?: string; fieldKey?: string }> = {};
         for (const def of oppDefs) oppDefsById[def.id] = def;
-        for (const cf of oppCustom) {
+        const ghlCfReader = (cf: { fieldValue?: unknown; value?: unknown }): string => {
+          const raw = cf.fieldValue ?? cf.value;
+          if (raw == null) return "";
+          if (typeof raw === "string") return raw;
+          if (Array.isArray(raw)) return raw.join(", ");
+          return String(raw);
+        };
+        for (const cf of oppCustom as Array<{ id: string; fieldValue?: unknown; value?: unknown }>) {
           const def = oppDefsById[cf.id];
           if (!def) continue;
-          const valStr = typeof cf.value === "string" ? cf.value : (cf.value != null ? String(cf.value) : "");
+          const valStr = ghlCfReader(cf);
           if (!valStr) continue;
           if (def.name) customFieldsFlat[def.name] = valStr;
           const key = (def.fieldKey ?? "").replace(/^opportunity\./, "");
@@ -580,7 +589,7 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
                 cost: p.valor,
                 quantity: 1,
                 tax_name1: "IVA",
-                tax_rate1: 23,
+                tax_rate1: 0,
               }],
               privateNotes: `BoomLab - prestacao ${p.numero} de ${prestacoes.length}. Cliente: ${result.client.id}`,
             });
@@ -611,7 +620,7 @@ export async function processGhlWebhook(payload: GhlWebhookPayload): Promise<Ghl
               cost: Number(amount) || 0,
               quantity: 1,
               tax_name1: "IVA",
-              tax_rate1: 23,
+              tax_rate1: 0,
             }],
             privateNotes: `BoomLab - pagamento avista. Cliente: ${result.client.id}`,
           });
